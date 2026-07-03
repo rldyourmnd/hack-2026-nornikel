@@ -157,7 +157,7 @@ class DuckDBLedgerRepository:
                 connection.execute("ROLLBACK")
                 raise
 
-        return self.load_demo_packet()
+        return self.load_evidence_packet()
 
     def ingest_source_bytes(
         self,
@@ -954,7 +954,7 @@ class DuckDBLedgerRepository:
             for row in rows
         ]
 
-    def load_demo_packet(self) -> EvidenceLedgerPacket:
+    def load_evidence_packet(self) -> EvidenceLedgerPacket:
         self.migrate()
         with self._connect() as connection:
             source_rows = connection.execute(

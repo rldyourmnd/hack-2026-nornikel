@@ -8,19 +8,16 @@ from typing import Any, Literal, Protocol
 
 from nornikel_kg.domain.answer_claims import ClaimVerifier
 from nornikel_kg.domain.dates import parse_time_scope
-from nornikel_kg.domain.evidence import EvidenceSpanFactory
-from nornikel_kg.domain.ids import claim_id, fact_id, source_id_from_bytes, stable_hash
+from nornikel_kg.domain.ids import stable_hash
 from nornikel_kg.domain.ledger import EvidenceLedgerPacket
 from nornikel_kg.domain.models import (
     AnswerSentence,
     AskFilters,
     AskRequest,
     AskResponse,
-    EffectClaim,
     EvidenceSpan,
     ExperimentRow,
     GraphPath,
-    PropertyMeasurement,
 )
 from nornikel_kg.domain.quantities import (
     facts_satisfy_constraints,
@@ -98,13 +95,12 @@ class RunRecorderProtocol(Protocol):
         """source_id -> {year, geography} for scope filters."""
 
 
-class DemoQAService:
+class EvidenceQAService:
     """Deterministic evidence-led QA over the current DuckDB ledger packet."""
 
     def __init__(
         self,
         *,
-        evidence_factory: EvidenceSpanFactory | None = None,
         claim_verifier: ClaimVerifier | None = None,
         source_label_policy: SourceLabelPolicy | None = None,
         ledger_repository: EvidenceLedgerPort | None = None,
@@ -112,7 +108,6 @@ class DemoQAService:
         answer_composer: AnswerComposerProtocol | None = None,
         run_recorder: RunRecorderProtocol | None = None,
     ) -> None:
-        self.evidence_factory = evidence_factory or EvidenceSpanFactory()
         self.claim_verifier = claim_verifier or ClaimVerifier()
         self.source_label_policy = source_label_policy or SourceLabelPolicy()
         self.ledger_repository = ledger_repository
@@ -410,7 +405,17 @@ class DemoQAService:
 
     def _load_packet(self) -> EvidenceLedgerPacket:
         if self.ledger_repository is None:
-            return self._fallback_packet()
+            # No repository configured: return an empty packet, not synthetic
+            # demo data. ask() degrades to an honest low-confidence empty answer.
+            return EvidenceLedgerPacket(
+                evidence=[],
+                measurements=[],
+                effects=[],
+                experiments=[],
+                source_titles={},
+                conflicts=[],
+                gaps=[],
+            )
         # Loading 12k+ spans from DuckDB per question dominated ask latency;
         # the packet is cached and invalidated by the ledger's data version.
         version = getattr(self.ledger_repository, "data_version", None)
@@ -420,141 +425,10 @@ class DemoQAService:
             and self._packet_cache[0] == version
         ):
             return self._packet_cache[1]
-        packet = self.ledger_repository.load_demo_packet()
+        packet = self.ledger_repository.load_evidence_packet()
         if version is not None:
             self._packet_cache = (version, packet)
         return packet
-
-    def _fallback_packet(self) -> EvidenceLedgerPacket:
-        evidence = self._demo_evidence()
-        primary_span = evidence[0]
-        measurement_id = fact_id(
-            "measurement",
-            {
-                "experiment_id": "exp_nicu_aging_700c_8h",
-                "property": "vickers_hardness",
-                "value": 245,
-                "unit": "HV",
-            },
-        )
-        measurement = PropertyMeasurement(
-            measurement_id=measurement_id,
-            experiment_id="exp_nicu_aging_700c_8h",
-            property_id="prop_vickers_hardness",
-            property_name="Твердость по Виккерсу",
-            value=245,
-            unit="HV",
-            original_value="245 HV",
-            method="Vickers HV10",
-            supporting_span_ids=[primary_span.span_id],
-        )
-        effect = EffectClaim(
-            effect_id=claim_id(
-                {
-                    "experiment_id": measurement.experiment_id,
-                    "direction": "increase",
-                    "supporting_span_ids": measurement.supporting_span_ids,
-                }
-            ),
-            experiment_id=measurement.experiment_id,
-            material_id="mat_nicu_30",
-            regime_id="reg_aging_700c_8h_air",
-            property_id=measurement.property_id,
-            direction="increase",
-            baseline_measurement_id="meas_nicu_baseline_hv",
-            treated_measurement_id=measurement.measurement_id,
-            delta_value=35,
-            delta_unit="HV",
-            qualitative_summary="Старение при 700 C в течение 8 ч повысило твердость Ni-30Cu.",
-            supporting_span_ids=[primary_span.span_id],
-        )
-        experiment = ExperimentRow(
-            source_id=primary_span.source_id,
-            experiment_id=measurement.experiment_id,
-            material_id=effect.material_id,
-            material_name="Ni-30Cu",
-            regime_id=effect.regime_id,
-            regime_summary="Старение, 700 C, 8 ч, воздух",
-            property_id=measurement.property_id,
-            property_name=measurement.property_name,
-            measurement={
-                "value": measurement.value,
-                "unit": measurement.unit,
-                "delta_value": effect.delta_value,
-                "delta_unit": effect.delta_unit,
-                "effect_direction": effect.direction,
-            },
-            evidence_ids=[primary_span.span_id],
-            validation_status=measurement.validation_status,
-        )
-        return EvidenceLedgerPacket(
-            evidence=evidence,
-            measurements=[measurement],
-            effects=[effect],
-            experiments=[experiment],
-            source_titles={primary_span.source_id: "Synthetic Ni-Cu aging report"},
-            conflicts=[
-                {
-                    "conflict_group_id": "conf_nicu_hardness_method",
-                    "type": "method_mismatch",
-                    "summary": (
-                        "Похожий режим в соседнем источнике измерен другим методом, "
-                        "поэтому не сравнивается напрямую с HV."
-                    ),
-                    "supporting_span_ids": [evidence[1].span_id],
-                }
-            ],
-            gaps=[
-                {
-                    "gap_id": "gap_nicu_conductivity_aging_700c",
-                    "type": "missing_measurement",
-                    "description": (
-                        "Для Ni-Cu после старения 700 C / 8 ч нет валидированного "
-                        "измерения электропроводности в доступном ledger."
-                    ),
-                    "near_miss_evidence_span_ids": [primary_span.span_id],
-                }
-            ],
-        )
-
-    def _demo_evidence(self) -> list[EvidenceSpan]:
-        source_id = source_id_from_bytes(b"synthetic_nicu_aging_report_v1")
-        table_text = (
-            "Sample Ni-30Cu-A | Aging 700 C | 8 h | air | Vickers hardness HV10 | "
-            "baseline 210 HV | aged 245 HV"
-        )
-        conflict_text = (
-            "A neighboring Cu-Ni trial used Rockwell hardness after 700 C aging; "
-            "method mismatch prevents direct numeric comparison."
-        )
-        return [
-            self.evidence_factory.create(
-                source_id=source_id,
-                artifact_type="table",
-                parser_profile="synthetic_fixture_v1",
-                artifact_locator="tables/mechanical_properties.csv",
-                span_type="table_row",
-                visible_text=table_text,
-                page=2,
-                stable_locator="table_001:row_003",
-                validation_status="validated_rule",
-                evidence_confidence=1.0,
-                security_label="internal",
-            ),
-            self.evidence_factory.create(
-                source_id=source_id,
-                artifact_type="text",
-                parser_profile="synthetic_fixture_v1",
-                artifact_locator="reports/nicu_aging_report.md",
-                span_type="text",
-                visible_text=conflict_text,
-                page=3,
-                stable_locator="section:discussion:block_002",
-                validation_status="validated_rule",
-                evidence_confidence=0.98,
-                security_label="internal",
-            ),
-        ]
 
     def _select_experiments(
         self,

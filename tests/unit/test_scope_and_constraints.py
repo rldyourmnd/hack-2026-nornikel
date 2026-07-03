@@ -9,7 +9,7 @@ from nornikel_kg.domain.models import AskFilters, AskRequest
 from nornikel_kg.domain.quantities import NumericConstraint, parse_numeric_constraints
 from nornikel_kg.ports.parser import ParsedBlock, ParsedDocument
 from nornikel_kg.services.extraction_service import ExtractionService, _extract_authors
-from nornikel_kg.services.qa_service import DemoQAService
+from nornikel_kg.services.qa_service import EvidenceQAService
 
 
 def test_numeric_constraint_parser_handles_ru_operators() -> None:
@@ -93,7 +93,7 @@ def test_geography_and_year_scope_filters(repository: DuckDBLedgerRepository) ->
     source_id = response.source.source_id
     repository.set_source_metadata(source_id, year=2015, geography="foreign")
 
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     base_question = "Что делали по Ni-30Cu при старении 700 C 8 ч?"
 
     ru_only = service.ask(
@@ -123,7 +123,7 @@ def test_numeric_constraint_filters_experiments(repository: DuckDBLedgerReposito
         b"exp_high,Ni-30Cu,aging,700,8,air,Vickers hardness,HV10,210,320,HV,increase\n"
     )
     repository.ingest_source_bytes(filename="constraints.csv", content=csv_content)
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     response = service.ask(
         AskRequest(question="Твердость Ni-30Cu после старения не более 250 HV")
     )

@@ -19,7 +19,7 @@ def test_duckdb_ledger_seeds_synthetic_packet(tmp_path: Path) -> None:
     assert packet.conflicts
     assert packet.gaps
 
-    loaded = repository.load_demo_packet()
+    loaded = repository.load_evidence_packet()
     assert loaded.measurement.measurement_id == packet.measurement.measurement_id
     assert loaded.evidence[0].span_id == packet.evidence[0].span_id
 
@@ -53,7 +53,7 @@ def test_uploaded_csv_does_not_steal_seeded_source_facts(tmp_path: Path) -> None
     sources = {source.title: source for source in repository.list_sources()}
     assert sources["Synthetic Ni-Cu aging report"].measurement_count == 2
     assert sources[result.source.title].measurement_count == 2
-    assert len(repository.load_demo_packet().experiments) == 4
+    assert len(repository.load_evidence_packet().experiments) == 4
 
 
 def test_upload_invalid_csv_does_not_invent_source(tmp_path: Path) -> None:

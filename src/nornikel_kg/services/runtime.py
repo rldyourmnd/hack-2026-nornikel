@@ -11,7 +11,7 @@ from nornikel_kg.services.answer_composer import LLMAnswerComposer
 from nornikel_kg.services.extraction_service import ExtractionService
 from nornikel_kg.services.graph_service import GraphService
 from nornikel_kg.services.ingestion_service import IngestionService
-from nornikel_kg.services.qa_service import DemoQAService
+from nornikel_kg.services.qa_service import EvidenceQAService
 from nornikel_kg.services.retrieval_service import RetrievalService
 
 _repository_build_lock = Lock()
@@ -52,11 +52,11 @@ def get_ledger_repository() -> DuckDBLedgerRepository:
 
 
 @lru_cache
-def get_qa_service() -> DemoQAService:
+def get_qa_service() -> EvidenceQAService:
     settings = LLMSettings()
     composer = LLMAnswerComposer(build_llm(settings)) if settings.llm_enabled else None
     repository = get_ledger_repository()
-    return DemoQAService(
+    return EvidenceQAService(
         ledger_repository=repository,
         retrieval_service=get_retrieval_service(),
         answer_composer=composer,
