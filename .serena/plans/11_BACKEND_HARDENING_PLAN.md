@@ -1,7 +1,25 @@
 # Wave 11 — Backend Hardening (owner-agent code review)
 
-Status: in progress (2026-07-04). Branch `feat/backend-hardening` off `main@d2baec9`.
+Status: COMPLETE (2026-07-04). Branch `feat/backend-hardening` off `main@d2baec9`,
+commits `404a5c3`..`dd23e7e` (7). All 11 review items implemented across waves A–G;
+gates green (`make ci` exit 0, `make eval` status=ok 17/17, pytest 189 passed).
 Amends `.serena/newproj/nornikel-kg-search/18_IMPLEMENTATION_SPEC.md`.
+
+Delivered:
+- A `404a5c3` demo-debt removal + rename (DemoQAService→EvidenceQAService,
+  load_demo_packet→load_evidence_packet, corpus-derived /eval/summary probe).
+- B `52230ca` de-hardcoded Ni-Cu scoring (element/corpus-generic).
+- C+D `c458d9e` migration 003 numeric_facts + generic CSV fall-through.
+- E+F `ab7d2b4` sheet-provenance locator + unified decode_text_bytes.
+- G `ca1e937` /sources/upload-archive + dynamic MIME error.
+- H `623176a` SQL graph neighborhood + migration 004 relation indexes.
+- I+J `dd23e7e` narrow-only allowed_labels + semantic-support verifier check.
+- K (eval smoke) satisfied by per-wave structural tests (generic CSV, facts,
+  sheet, archive, labels, semantic) + the existing gold eval.
+Deviation (Phase-3 refinement): `EvidenceLedgerPacket.measurement/.effect`
+Ni-Cu preference in `domain/ledger.py` kept — it is a test-only convenience
+accessor, not production-reachable demo debt; changing it destabilizes a
+legitimate synthetic-fixture test for no production gain.
 
 Source: owner-agent backend code review (code-not-run). Every claim re-verified
 against actual code by 4 parallel read-only agents + 1 external-research agent
