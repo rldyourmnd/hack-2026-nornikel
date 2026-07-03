@@ -1,11 +1,12 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
-  tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
-  .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; .serena/plans/10_AUDIT_RESPONSE_PLAN.md; src/nornikel_kg/domain/encoding.py;
+  src/nornikel_kg/domain/table_facts.py; src/nornikel_kg/domain/geography.py;
+  scripts/run_realcase_eval.py
 Area: CORE
 -->
+
 
 # CORE-01-INDEX
 
@@ -209,9 +210,97 @@ independently live-run verified in this sync pass.
 See `mem:ARCH-01-EVIDENCE-MVP`, `mem:DATA-01-EVIDENCE-LEDGER`, `mem:TECHDEBT-01-NOW` for the
 per-module detail of each change.
 
-`uv run pytest` passes **154 tests, 5 skipped** at `4ede8c5` (verified by a live run in this sync
-pass, up from 148 passed / 5 skipped); `uv run ruff check .` and `uv run mypy` both pass clean
-(also verified live in this sync pass, mypy: "no issues found in 76 source files").
+`uv run pytest` passes **182 tests, 5 skipped** at `ee84a6b` (live-run verified in this sync
+pass, up from 154 passed / 5 skipped at `4ede8c5`); `uv run ruff check .` passes clean
+("All checks passed!") and `uv run mypy` passes clean ("Success: no issues found in 79 source
+files") — both live-run verified in this sync pass.
+
+## Wave 10 — Real-Corpus Audit Response (2026-07-04, HEAD `ee84a6b`)
+
+Thirteen commits (`a2a8908`..`ee84a6b`, see `git log --oneline 42ca7ba..HEAD`) closed the
+real-corpus MVP gaps recorded in `.serena/plans/10_AUDIT_RESPONSE_PLAN.md` (Wave 10 plan,
+`68bf940`) and its "Implementation status" section (`ee84a6b`). Verified against the working
+tree at `HEAD`:
+
+- `services/runtime.py:49` — `SEED_SYNTHETIC_FIXTURE` now defaults to `"false"` (was `"true"`),
+  so the demo Ni-Cu fixture is no longer seeded on top of a real corpus by default;
+  `scripts/run_eval.py`, `tests/integration/test_api.py`, `test_analytics_api.py`, and
+  `tests/unit/test_runtime_paths.py` opt in explicitly; `.env.example:16` is `false`.
+- `src/nornikel_kg/services/archive_expansion.py` preserves each archive member's inner
+  directory path with a collision-free target instead of flattening to basenames (the
+  zip-slip guard is unchanged).
+- `src/nornikel_kg/domain/encoding.py` (new) — `decode_text_bytes` tries
+  `utf-8-sig`/`utf-8`/`cp1251` then `charset_normalizer`, then a lossy UTF-8 replace; used by CSV
+  parsing so CP1251-encoded corpus files no longer fail ingest. `adapters/spreadsheet/parser.py`
+  caps (`MAX_SHEETS`/`MAX_ROWS_PER_SHEET`/`MAX_COLUMNS`) are raised to 50/5000/60 and
+  env-overridable (`INGEST_XLSX_MAX_SHEETS`/`_MAX_ROWS`/`_MAX_COLUMNS` in `.env.example`).
+- `src/nornikel_kg/ports/parser.py` — `ParsedTable`/`ParsedTableRow`/`ParsedTableCell` gained a
+  `header` field; spreadsheet and Docling parsers populate it so a row's `text` is
+  header-labeled (e.g. "Сульфаты, мг/л: 300"). New `src/nornikel_kg/domain/table_facts.py`
+  (`extract_facts_from_row`/`NumericFact`) turns headered rows (wide or tall layout, unit
+  parsed from the header) into subject-tagged numeric facts.
+- `src/nornikel_kg/domain/quantities.py` — `NumericConstraint` gained a `subject: str = ""`
+  field; `parse_parameter_constraints` binds each numeric bound to the analyte/parameter
+  subjects named in the question text (сульфаты/хлориды/Ca/Mg/Na/сухой остаток/etc.);
+  `facts_satisfy_constraints` matches by subject when the constraint carries one, else by unit
+  only. `src/nornikel_kg/services/qa_service.py:_drop_constraint_violating_evidence` removes
+  evidence spans whose own facts violate a bound constraint before answer assembly.
+- `src/nornikel_kg/domain/extraction.py` — `ENTITY_TYPES`/`RELATION_TYPES` extended with case
+  vocabulary: entity types `process`, `condition`, `facility`, `experiment`, `method`, `expert`,
+  `organization`, `location`, plus (per the plan doc) `technology_solution`/
+  `economic_indicator`/`recommendation`/`limitation`/`patent`/`standard`; relation types
+  `USES_MATERIAL`, `OPERATES_AT_CONDITION`, `HAS_ECONOMIC_INDICATOR`, `PRODUCES_OUTPUT`,
+  `SHOWS_EFFECT`, `EXPERT_IN`, `MEMBER_OF`, plus (per the plan doc)
+  `VALIDATED_BY`/`HAS_LIMITATION`/`RECOMMENDED_FOR`/`SIMILAR_TO`. The extraction prompt was
+  updated accordingly; the stand's graph was re-enriched on `deepseek-v4-flash` with the new
+  vocabulary live (per `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`'s "Implementation status"
+  section, an operational report, not a tracked graph-export artifact): `process` 317,
+  `facility` 54, `organization` 83, `location` 67, `economic_indicator` 47, `expert` 79;
+  `USES_MATERIAL` 269, `OPERATES_AT_CONDITION` 225, `HAS_ECONOMIC_INDICATOR` 43 — see
+  `mem:DATA-01-EVIDENCE-LEDGER` for the fuller entity/relation count.
+- UI: `apps/web/src/shared/api/types.ts`'s `EvidenceSpan` gained a `locator: Record<string,
+  unknown>` field; `AnalysisWorkbench.tsx` assigns a stable per-answer citation number to each
+  cited span (`citationIndex`) and renders numbered `citation-chip` elements plus a
+  `citation-verified` badge per sentence (click scrolls to and highlights the evidence card);
+  `services/api/routes/health.py`'s `GET /health` now returns `llm_enabled`/`answer_model`/
+  `extraction_model`/`embedding_backend`; `WorkbenchPage.tsx` renders the live `health.
+  answer_model` instead of a hardcoded model name. `apps/web/src/pages/data/ui/DataPage.tsx`
+  renders `stats.quarantine_reasons` (machine-readable quarantine reason codes, see below).
+- `src/nornikel_kg/services/ingestion_service.py:_quarantine` now takes a `reason_code`
+  (`no_text_layer_ocr_disabled`/`parser_error`/`unexpected_error`), stored as `"[code] msg"` in
+  `ingestion_runs.error`; `DuckDBLedgerRepository.corpus_stats()` aggregates
+  `quarantine_reasons`/`quarantined` counters from it.
+- `src/nornikel_kg/adapters/trafilatura/fetcher.py:assert_public_url` (new) rejects
+  non-http(s) schemes and private/loopback/link-local/reserved/metadata-range hosts before
+  `UrlFetcherPort.fetch`/`import-url` resolves a URL (SSRF guard).
+- `src/nornikel_kg/domain/geography.py` (new) — `detect_geography(head_text)` returns
+  `ru`/`foreign`/`mixed`/`None` from explicit RU/foreign country-organization-location signal
+  lists, falling back to the Cyrillic-vs-Latin script ratio only when neither side is named;
+  `IngestionService` uses it instead of the previous pure-script heuristic.
+- The orphaned `GET /graph/demo-path` route was removed from `services/api/routes/graph.py`
+  (verified absent at `HEAD`).
+- `scripts/run_realcase_eval.py` (new, `make eval-realcase`) hits a live API with the four
+  hackathon track questions and asserts citation coverage 1.0 / zero fabrication / zero
+  synthetic-Ni-Cu leakage; reported live run: status ok, citation 1.0, 0 fabrication, 0
+  synthetic leak (per `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`, not re-run in this sync pass
+  since it requires a live stand).
+- Stand cleanup (reported in `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`'s T1.1 status, not
+  independently re-verified from this repository): the seeded synthetic source plus 16
+  `synthetic_v2` fixtures were deleted from the stand ledger, leaving 49 real sources and zero
+  synthetic measurements.
+- `.serena/plans/10_AUDIT_RESPONSE_PLAN.md` (new, `68bf940`/`ee84a6b`) records the audit
+  verdicts and, in its "Implementation status" section, which items were shipped versus
+  deliberately deferred: T2.5 (strict question-time scope, locked by the
+  `q_year_phrase_is_not_a_filter` eval case), T2.6 (semantic/NLI answer-support check, latency
+  cost), T2.8 (LLM-settings rename, cosmetic), T2.2 (archive upload via the API route, batch
+  path already covers it), and T3's remaining dead-code items (only the orphaned
+  `/graph/demo-path` route was removed).
+- Deferred/known at `HEAD`: table headers (`ParsedTable.header`) and geography detection apply
+  only to newly ingested sources — existing stand spans keep their prior header/geography
+  values until re-ingested (re-enrichment does not re-parse). A real-corpus gold eval set is
+  still absent (`scripts/run_eval.py`'s 17 questions still run only against the synthetic
+  fixture; `scripts/run_realcase_eval.py` checks 4 live track questions but asserts honesty
+  properties, not a gold-answer set).
 
 ## Contracts And Data
 
@@ -257,6 +346,7 @@ Update this index whenever a new durable memory is added, renamed, split, or del
 - `make eval`: runs `scripts/run_eval.py` (17 hardcoded `EVAL_QUESTIONS`, incl. numeric-constraint,
   conflict-surfacing, and adversarial prompt-injection cases).
 - `docker compose config`: verifies Compose syntax without requiring local secrets.
-- `uv run pytest`: 154 tests pass, 5 skipped at `4ede8c5` (live-run verified, up from 151 passed).
-- `uv run ruff check .` / `uv run mypy`: both clean at `652317e` (live-run verified, mypy: "no
-  issues found in 76 source files").
+- `uv run pytest`: 182 tests pass, 5 skipped at `ee84a6b` (live-run verified in this sync pass,
+  up from 154 passed / 5 skipped).
+- `uv run ruff check .` / `uv run mypy`: both clean at `ee84a6b` (live-run verified, ruff "All
+  checks passed!", mypy "Success: no issues found in 79 source files").

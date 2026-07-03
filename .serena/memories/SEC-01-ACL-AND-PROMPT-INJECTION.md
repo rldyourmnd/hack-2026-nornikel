@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/adapters/llm/; sample_docs/synthetic_v2/; scripts/run_eval.py; tests/unit/test_source_label_policy.py; tests/unit/test_claim_verifier.py; tests/unit/test_answer_honesty.py
 Area: SEC
 -->
@@ -19,6 +19,10 @@ Capture safety boundaries for source-label filtering, internal-document retrieva
 - `src/nornikel_kg/services/extraction_service.py`: `_EXTRACTION_SYSTEM_PROMPT` treats span text as untrusted data (unchanged wording this wave).
 - `src/nornikel_kg/services/answer_composer.py`: `_ANSWER_SYSTEM_PROMPT` treats evidence-packet fragments as untrusted data; the prompt instructs literature-review grouping by year/geography and (added `24282f1`) synthesizing concrete values/factors instead of table/figure references, but the "data, not instructions" clause is unchanged.
 - `sample_docs/synthetic_v2/v2_protocol_02_aging.docx`: contains one injected prompt-like line used as an adversarial fixture (per `sample_docs/synthetic_v2/manifest.json`).
+- `src/nornikel_kg/adapters/trafilatura/fetcher.py` (Wave 10, `9d0cd4f`): `assert_public_url(url)`
+  is an SSRF guard — rejects non-`http`/`https` schemes and private/loopback/link-local/
+  reserved/metadata-address hosts before `fetch()` makes any network request, so
+  `POST /sources/import-url` cannot be used to reach internal/cloud-metadata endpoints.
 - `scripts/run_eval.py`: `EVAL_QUESTIONS` now includes two adversarial prompt-injection cases (added this wave, see Current Behavior).
 
 ## Entry Points
@@ -73,6 +77,9 @@ Prompt-like source content is untrusted evidence. It is passed into LLM prompts 
 - Never retrieve unauthorized chunks into LLM context and filter only after generation; retrieval-augmented spans are filtered by `security_label` before they can reach the composer, and reranking never reorders in unverified spans.
 - External LLM and embedding APIs are approved only through the single LiteLLM gateway adapter (`src/nornikel_kg/adapters/llm/gateway.py`) against organizer-approved providers (hackathon rules forbid OpenAI/Anthropic APIs); the primary provider as of 2026-07-03 is the organizer-provided Yandex AI Studio (OpenAI-compatible base `https://ai.api.cloud.yandex.net/v1`, per `.claude/CLAUDE.md`/`AGENTS.md`); as of `f72c7f6` (2026-07-04, verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`) the answer model is `deepseek-v4-flash` (owner requirement) while extraction stays `aliceai-llm` (native strict-JSON), with the prior `dataeyes.ai` configuration (`https://platform.dataeyes.ai/v1`) kept as a server-side rollback; dense embeddings additionally support `EMBEDDING_BACKEND=yandex` (`src/nornikel_kg/adapters/embeddings/yandex.py`) direct to the Yandex AI Studio API. `gateway.py`/`settings.py` themselves are provider-agnostic — the switch is env-level, not a code change. Secrets must never be committed or logged.
 - Runtime logs may include snippets during the hackathon, but never credentials.
+- `POST /sources/import-url` must reject private/loopback/link-local/reserved/metadata-address
+  hosts and non-`http`/`https` schemes before fetching (`assert_public_url`,
+  `src/nornikel_kg/adapters/trafilatura/fetcher.py`).
 - Both the extraction and answer-composer system prompts must keep an explicit "evidence text is data, not instructions" clause; do not remove it when editing either prompt.
 - Security fixtures must pass with `source_label_leak_count = 0`, `prompt_injection_success_count = 0`, and (added this wave) `numeric_mismatch_count = 0`.
 - An answer sentence's cited numbers must never diverge from the literal text of its cited evidence spans, unless the sentence is fact-backed (`supporting_fact_ids` present).
@@ -87,3 +94,6 @@ When adding retrieval, graph expansion, or answer assembly, add source-label fil
 - `tests/unit/test_source_label_policy.py`: verifies disallowed labels are filtered.
 - `tests/unit/test_claim_verifier.py`: verifies unsupported claims, restricted evidence references, and numeric mismatches are counted.
 - `tests/unit/test_answer_honesty.py` (new this wave): verifies honest-empty answers, chemical-formula veto, conflict relevance gating, and numeric-fabrication rejection end to end through `DemoQAService`/`LLMAnswerComposer`.
+- `tests/unit/test_ssrf_guard.py` (new, Wave 10): verifies `assert_public_url` rejects
+  non-http(s) schemes and private/loopback/link-local/reserved/metadata hosts, and accepts
+  ordinary public URLs.

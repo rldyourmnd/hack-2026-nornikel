@@ -1,11 +1,10 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
-  pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
-  services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; scripts/run_realcase_eval.py
 Area: RELEASE
 -->
+
 
 # RELEASE-01-VALIDATION
 
@@ -33,6 +32,12 @@ A-D) and the archive/legacy-format ingestion wave (E).
   adversarial injection cases).
 - `make reindex`: `uv run python scripts/reindex.py` — rebuilds Qdrant collections from DuckDB.
 - `make warmup`: `uv run python scripts/warmup.py` — pre-loads embedding/parser models.
+- `make eval-realcase` (new, Wave 10, `Makefile:30`): `uv run python
+  scripts/run_realcase_eval.py` — hits a running API (`API_BASE` env, default
+  `http://127.0.0.1:8080/api`) with the four hackathon track questions and asserts citation
+  coverage 1.0 / zero fabrication / zero source-label leak / zero synthetic-Ni-Cu leakage;
+  reported live run (per `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`, not re-run against the
+  stand in this sync pass): status ok, citation 1.0, 0 fabrication, 0 synthetic leak.
 - `scripts/ingest_corpus.py --dir <path> [--limit N] [--max-mb N]`: batch-ingests a real corpus
   directory into the ledger inside the `api` container. It now expands `.zip`/multipart-
   `.zip.NNN`/`.rar` archives first, supports `.pdf/.docx/.docm/.doc/.xlsx/.xls/.csv/.md/.txt`,
@@ -168,9 +173,12 @@ the Nginx body-size limit, keep both the FastAPI code default and `apps/web/ngin
 
 ## Verification
 
-- `make ci`: proves Python lint/type/tests and TypeScript/build; `uv run pytest` verified at 151
-  passed / 5 skipped at `652317e` in this sync pass; `ruff`/`mypy` both clean (live-run verified,
-  mypy: "no issues found in 76 source files").
+- `make ci`: proves Python lint/type/tests and TypeScript/build; `uv run pytest` verified at 182
+  passed / 5 skipped at `ee84a6b` in this sync pass (up from 154 passed / 5 skipped); `ruff`
+  ("All checks passed!") and `mypy` ("Success: no issues found in 79 source files") both clean
+  (live-run verified).
+- `make eval-realcase`: `scripts/run_realcase_eval.py` — live-API honesty check on the four
+  track questions; requires a running stand, not exercised by CI.
 - `make eval`: proves the 17-question synthetic-fixture answer/safety metrics (incl. adversarial
   injection cases); does not exercise the real-corpus ontology/scope-filter/reranker behavior
   against real data (see `mem:TECHDEBT-01-NOW`).

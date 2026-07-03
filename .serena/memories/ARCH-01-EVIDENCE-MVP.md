@@ -1,10 +1,13 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
-  .github/workflows/deploy.yml; pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; src/nornikel_kg/domain/encoding.py; src/nornikel_kg/domain/table_facts.py;
+  src/nornikel_kg/domain/geography.py; src/nornikel_kg/services/archive_expansion.py;
+  src/nornikel_kg/adapters/trafilatura/fetcher.py; services/api/routes/health.py;
+  services/api/routes/graph.py
 Area: ARCH
 -->
+
 
 # ARCH-01-EVIDENCE-MVP
 
@@ -402,9 +405,77 @@ wave plan) first, then update ADRs if a stack boundary changes.
 
 ## Verification
 
-- `make ci`: backend/frontend gate; `uv run pytest` verified 154 passed / 5 skipped at `4ede8c5`
-  (live-run verified in this sync pass, up from 151 passed / 5 skipped); `ruff`/`mypy` both clean (live-run verified, mypy: "no
-  issues found in 76 source files").
+- `make ci`: backend/frontend gate; `uv run pytest` verified 182 passed / 5 skipped at `ee84a6b`
+  (live-run verified in this sync pass, up from 154 passed / 5 skipped at `4ede8c5`); `ruff`
+  ("All checks passed!") and `mypy` ("Success: no issues found in 79 source files") both clean
+  (live-run verified in this sync pass).
+
+## Wave 10 — Real-Corpus Audit Response Modules (2026-07-04, HEAD `ee84a6b`)
+
+See `mem:CORE-01-INDEX`'s "Wave 10" section for the full commit-by-commit narrative
+(`a2a8908`..`ee84a6b`, plan `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`). Module-level additions
+verified against the working tree at `HEAD`:
+
+- `src/nornikel_kg/domain/encoding.py` (new): `decode_text_bytes(content) -> tuple[str, str]`
+  cascades `utf-8-sig` -> `utf-8` -> `cp1251`, then `charset_normalizer.from_bytes`, then a lossy
+  UTF-8 replace; wired into CSV parsing so CP1251-encoded real-corpus CSVs no longer fail ingest.
+- `src/nornikel_kg/domain/table_facts.py` (new): `extract_facts_from_row(headers, values) ->
+  list[NumericFact]` (`NumericFact` carries `subject`/`subject_label`/`prop`/`value`/`unit`)
+  reads header role hints (`_SUBJECT_HEADER_HINTS`/`_VALUE_HEADER_HINTS`/`_UNIT_HEADER_HINTS`)
+  to turn a headered row into subject-tagged numeric facts, handling both wide
+  (unit-in-header) and tall (subject-column + value-column) table layouts; unit parsing
+  delegates to `domain/quantities.py:normalize_unit` so `мг/дм³` and `мг/л` compare equal.
+- `src/nornikel_kg/ports/parser.py`: `ParsedTable`/`ParsedTableRow`/`ParsedTableCell` gained a
+  `header` field; `adapters/spreadsheet/parser.py` and `adapters/docling/parser.py` populate it,
+  and a row's `.text` becomes header-labeled (e.g. "Сульфаты, мг/л: 300") instead of a bare
+  value list.
+- `src/nornikel_kg/domain/quantities.py`: `NumericConstraint` gained `subject: str = ""`
+  (canonical subject token, `""` = applies to any subject); `parse_parameter_constraints`
+  segments a question at each numeric-bound clause and binds it to the analyte/parameter
+  subject(s) named since the previous bound (`_subjects_before`), falling back to a subjectless
+  constraint when no subject is resolvable; `facts_satisfy_constraints(constraints, facts)`
+  matches a subject-bound constraint only against same-subject same-unit facts, a subjectless
+  one against unit-only.
+- `src/nornikel_kg/services/qa_service.py`: `DemoQAService._drop_constraint_violating_evidence`
+  (new, called from `ask`) removes evidence spans whose own extracted facts violate a bound
+  numeric constraint, so a multi-analyte question (e.g. sulfates/chlorides/Ca/Mg/Na ranges)
+  gets an honest, constraint-consistent evidence set instead of citing out-of-range spans.
+- `src/nornikel_kg/domain/extraction.py`: `ENTITY_TYPES`/`RELATION_TYPES` extended with case
+  vocabulary (`process`, `condition`, `facility`, `experiment`, `method`, `expert`,
+  `organization`, `location`, `technology_solution`, `economic_indicator`, `recommendation`,
+  `limitation`, `patent`, `standard` entity types; `USES_MATERIAL`, `OPERATES_AT_CONDITION`,
+  `HAS_ECONOMIC_INDICATOR`, `PRODUCES_OUTPUT`, `SHOWS_EFFECT`, `EXPERT_IN`, `MEMBER_OF`,
+  `VALIDATED_BY`, `HAS_LIMITATION`, `RECOMMENDED_FOR`, `SIMILAR_TO` relation types); the
+  extraction prompt was updated to describe the expanded vocabulary.
+- `src/nornikel_kg/services/archive_expansion.py`: `expand_archives` now preserves each member's
+  inner directory path and writes to a collision-free target (previously flattened to
+  basenames and could silently overwrite same-named files across year-partitioned corpus
+  directories); the zip-slip guard (`Path(...).is_relative_to`) is unchanged.
+- `src/nornikel_kg/adapters/trafilatura/fetcher.py`: `assert_public_url(url)` (new) rejects
+  non-`http`/`https` schemes and private/loopback/link-local/reserved/metadata-address hosts;
+  called from `fetch()` before any network request, guarding `POST /sources/import-url` against
+  SSRF.
+- `src/nornikel_kg/domain/geography.py` (new): `detect_geography(head_text) -> str | None`
+  returns `"ru"`/`"foreign"`/`"mixed"`/`None` from explicit RU/foreign country-organization-
+  location signal word lists (`_RU_SIGNALS`/`_FOREIGN_SIGNALS`), falling back to the
+  Cyrillic-vs-Latin script ratio only when neither side names a location and there is enough
+  text (`> 40` combined letters); `IngestionService` now calls this instead of the prior
+  pure-script heuristic.
+- `services/api/routes/health.py`: `GET /health` now returns `llm_enabled`, `answer_model`/
+  `extraction_model` (derived from `LLM_ANSWER_MODEL`/`LLM_EXTRACTION_MODEL` env URIs via
+  `_model_label`, or `"off"` when `LLM_ENABLED` is false), and `embedding_backend`
+  (`EMBEDDING_BACKEND` env, default `"off"`).
+- `services/api/routes/graph.py`: the orphaned `GET /graph/demo-path` route was removed
+  (verified absent at `HEAD`).
+- `apps/web/src/shared/api/types.ts`: `EvidenceSpan` gained `locator: Record<string, unknown>`.
+  `apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx` assigns each cited span a
+  stable per-answer citation number (`citationIndex`, first-appearance order) and renders a
+  numbered `citation-chip` plus a `citation-verified` badge per answer sentence; clicking a chip
+  scrolls to and highlights the corresponding evidence card. `apps/web/src/widgets/
+  artifact-bank/ui/EvidenceList.tsx` and `apps/web/src/shared/config/theme/theme.css` carry the
+  supporting markup/styles. `WorkbenchPage.tsx` renders the live `health.answer_model` (was
+  previously a hardcoded model name). `apps/web/src/pages/data/ui/DataPage.tsx` renders
+  `stats.quarantine_reasons` (see `mem:DATA-01-EVIDENCE-LEDGER`).
 - `make eval`: deterministic + retrieval-augmented evidence packet verification (17 questions,
   synthetic corpus only, incl. adversarial prompt-injection cases).
 - `docker compose config`: validates server-first Compose wiring (`api`, `web`, `qdrant`).

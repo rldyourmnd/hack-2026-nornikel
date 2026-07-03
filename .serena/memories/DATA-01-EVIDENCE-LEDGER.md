@@ -1,11 +1,11 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/;
-  src/nornikel_kg/resources/dictionaries/; src/nornikel_kg/services/; sample_docs/; eval/;
-  scripts/ingest_corpus.py
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; src/nornikel_kg/domain/table_facts.py; src/nornikel_kg/domain/encoding.py;
+  src/nornikel_kg/domain/geography.py
 Area: DATA
 -->
+
 
 # DATA-01-EVIDENCE-LEDGER
 
@@ -33,6 +33,15 @@ accuracy/SOTA overhaul (waves A-D) and archive/legacy-format ingestion (wave E).
 - `src/nornikel_kg/domain/extraction.py`: entity/relation type vocabularies (`ENTITY_TYPES`,
   `RELATION_TYPES`) now include `publication`/`DESCRIBED_IN`, and the LLM extraction JSON schema
   is strict-valid (`mem:ARCH-01-EVIDENCE-MVP`).
+- `src/nornikel_kg/domain/table_facts.py` (new, Wave 10): `extract_facts_from_row` — subject-tagged
+  `NumericFact` extraction from header-labeled table rows (wide and tall layouts, unit parsed
+  from the header via `domain/quantities.py:normalize_unit`); see `mem:ARCH-01-EVIDENCE-MVP`.
+- `src/nornikel_kg/domain/quantities.py`: `NumericConstraint` gained a `subject: str = ""` field
+  (Wave 10); `parse_parameter_constraints` binds each numeric bound to the analyte/parameter
+  subject named in the question, and `facts_satisfy_constraints` matches subject-bound
+  constraints against same-subject facts (see `mem:ARCH-01-EVIDENCE-MVP`).
+- `src/nornikel_kg/domain/encoding.py` (new, Wave 10): `decode_text_bytes` CP1251/UTF-8/
+  charset-normalizer decode cascade for CSV ingestion (`mem:ARCH-01-EVIDENCE-MVP`).
 - `src/nornikel_kg/domain/analysis.py`: `ConflictDetector`/`GapAnalyzer` — regime bucketing
   strips the `reg_`/`regime_` prefix; numeric-disagreement conflicts require matching canonical
   unit and non-empty equal methods.
@@ -48,6 +57,10 @@ accuracy/SOTA overhaul (waves A-D) and archive/legacy-format ingestion (wave E).
   `set_source_metadata`, i.e. every ledger-mutating write) plus a public `data_version` property,
   and `corpus_stats()`/`list_answer_runs(limit)` (source/entity/security-label counters and
   the answer-run audit trail, consumed by `GET /stats/overview`/`GET /stats/answer-runs`).
+  `corpus_stats()` now (Wave 10) also aggregates `quarantine_reasons`/`quarantined` from
+  `ingestion_runs.error`, parsing the `"[reason_code] message"` prefix written by
+  `IngestionService._quarantine` (`no_text_layer_ocr_disabled`/`parser_error`/
+  `unexpected_error`); consumed by `apps/web/src/pages/data/ui/DataPage.tsx`.
 - `src/nornikel_kg/resources/dictionaries/{materials,regimes,properties,equipment}.yml`:
   dictionary-seeded ontology, unchanged this wave (last extended in the real-corpus hardening
   wave, `58760b3`; geomechanics terms are still not covered, `mem:TECHDEBT-01-NOW`).
@@ -148,6 +161,21 @@ evidence empties, since migrations reseed them. `extraction_claims` and `ingesti
 the source are also deleted. `DELETE /sources/{id}` additionally best-effort deletes the
 source's Qdrant units.
 
+## Corpus Graph Re-Enriched With Extended Ontology (2026-07-04, Wave 10, `ee84a6b`)
+
+`domain/extraction.py`'s ontology was extended with case-vocabulary entity/relation types (see
+`mem:ARCH-01-EVIDENCE-MVP`'s Wave 10 section) and the stand's graph was re-enriched with them
+live on `deepseek-v4-flash`. Per `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`'s "Implementation
+status" section (T1.4, a tracked planning artifact, not independently reproduced against a live
+corpus in this repository): the new entity types populated as `process` 317, `facility` 54,
+`organization` 83, `location` 67, `economic_indicator` 47, `expert` 79; new relation types
+populated as `USES_MATERIAL` 269, `OPERATES_AT_CONDITION` 225, `HAS_ECONOMIC_INDICATOR` 43.
+A separately reported aggregate figure (per the launching agent's Wave 10 report, not present
+in any tracked file in this sync pass) put the re-enriched graph at approximately 3097 entities
+/ 6069 relations total. Treat both the per-type breakdown (plan-doc-sourced) and the aggregate
+total (report-sourced only) as dated operational observations, not regression-tested fixture
+assertions — no tracked graph-export artifact exists to independently re-verify either.
+
 ## Corpus Graph Rebuilt On DeepSeek (2026-07-04, commit `42ca7ba`, verified in `.claude/CLAUDE.md` at `HEAD`)
 
 The full real corpus was re-extracted after both extraction and answers moved to
@@ -228,10 +256,11 @@ parser/indexing code that writes new fact types.
 
 ## Verification
 
-- `uv run pytest`: 154 tests pass, 5 skipped, at `4ede8c5` (live-run verified in this sync pass;
-  the 3-test increase over the prior `327f47c` baseline is `tests/unit/test_ratelimit.py` and
-  `tests/unit/test_llm_gateway.py::test_gateway_retries_rate_limit`, unrelated to the ledger
-  itself — see `mem:TECHDEBT-01-NOW`).
+- `uv run pytest`: 182 tests pass, 5 skipped, at `ee84a6b` (live-run verified in this sync pass,
+  up from 154 passed / 5 skipped at `4ede8c5`); new Wave 10 modules include
+  `tests/unit/test_encoding.py`, `test_geography.py`, `test_parameter_constraints.py`,
+  `test_table_facts.py`, `test_ssrf_guard.py`, plus additions to `test_corpus_formats.py` — see
+  `mem:TEST-01-EVALUATION-GATES`.
 - `tests/unit/test_yandex_embeddings.py` (new, 5 test functions): credential requirement,
   doc/query model-URI split, embed-order preservation, sparse-stays-local flat query weights,
   query-embedding cache hits.

@@ -1,10 +1,10 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
-  .env.example; docs/deployment/
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; .serena/plans/10_AUDIT_RESPONSE_PLAN.md
 Area: DOCS
 -->
+
 
 # DOCS-01-PLANNING-SOURCE
 
@@ -22,6 +22,11 @@ Capture how to use and maintain the planning package given the current implement
   `docs/deployment/nornikel-nddev.md`.
 - `.serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md`: full-track requirement brief («Научный
   клубок») and gap analysis G1-G10 against the real `DATA_HACK/` corpus.
+- `.serena/plans/10_AUDIT_RESPONSE_PLAN.md` (new, `68bf940`, status updated `ee84a6b`): the Wave
+  10 real-corpus-MVP audit-response plan — five parallel-read audit verdicts, TIER 1/2/3
+  prioritization, an explicit list of stale/false auditor claims, and an "Implementation status"
+  section recording which items were shipped versus deliberately deferred (see
+  `mem:CORE-01-INDEX`'s Wave 10 section and `mem:TECHDEBT-01-NOW`).
 - `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md` (new, `2368791`): the accuracy/SOTA overhaul plan
   — 4 evidence-based audits (GLiNER2 research, SOTA stack research, backend accuracy audit,
   eval/CI/frontend audit), locked research verdicts, and waves A-D (landed as PR #15) plus wave
@@ -93,8 +98,21 @@ requirement") changed `.claude/CLAUDE.md`/`.env.example` to switch the stand's a
 verified bench detail.
 
 Local `main` and `origin/main` were in sync (`git rev-list --left-right --count
-origin/main...main` -> `0\t0`, verified 2026-07-04 at `f72c7f6`, before this sync pass's own
+origin/main...main` -> `0\t0`, verified 2026-07-04 at `f72c7f6`, before that sync pass's own
 commit).
+
+This sync covers the Wave 10 "real-corpus MVP: audit response" batch of thirteen commits
+(`a2a8908`..`ee84a6b`, verified via `git log --oneline 42ca7ba..HEAD`): synthetic-seeding
+default flipped off, archive path preservation, CP1251/CSV + Excel-cap hardening, table-header
+preservation + generic numeric-fact extraction, subject-bound numeric constraints, ontology/
+relation vocabulary extension, per-sentence clickable citations + `locator`, a live real-corpus
+eval script, quarantine reason codes, an SSRF guard on URL import, signal-based geography
+detection, `/health` reporting live models, and removal of the orphaned `/graph/demo-path`
+route — see `mem:CORE-01-INDEX`'s "Wave 10" section for the per-file detail and
+`mem:TECHDEBT-01-NOW` for the resolved-gaps bookkeeping. `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`
+records the plan, verdicts, and shipped-vs-deferred status. `uv run pytest` now passes **182
+tests, 5 skipped** (up from 154 passed / 5 skipped), `ruff`/`mypy` both clean — all live-run
+verified in this sync pass.
 
 `.env.example` now documents `SEED_SYNTHETIC_FIXTURE`, `SYNTHETIC_SAMPLE_DIR`,
 `LLM_TOKEN_BUDGET`, `LLM_EXTRACTION_ENABLED`, `GLINER_ENABLED`, `SYNC_ENRICHMENT`,

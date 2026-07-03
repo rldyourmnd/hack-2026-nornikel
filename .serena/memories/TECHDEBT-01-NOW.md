@@ -1,12 +1,10 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
-  docker-compose.yml; .env.example; .github/workflows/ci.yml; .github/workflows/deploy.yml;
-  tests/; .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md;
-  .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; .serena/plans/10_AUDIT_RESPONSE_PLAN.md
 Area: TECHDEBT
 -->
+
 
 # TECHDEBT-01-NOW
 
@@ -184,6 +182,82 @@ verified against the working tree at `3e74473`:
   pass, `experiment_count: 1`). `uv run pytest` now passes 154 tests (up from 151), 5 skipped
   unchanged; `ruff`/`mypy` both clean (all live-run verified in this sync pass).
 
+## Resolved Since The Prior Sync (`4ede8c5` -> `ee84a6b`, Wave 10 audit response, verified,
+do not re-list as gaps)
+
+Thirteen commits (`a2a8908`..`ee84a6b`) closed the real-corpus MVP gaps identified in
+`.serena/plans/10_AUDIT_RESPONSE_PLAN.md`'s TIER 1 (all items) plus three TIER 2 items:
+
+- **The synthetic Ni-Cu demo fixture was seeded on top of a real corpus by default (resolved,
+  `a2a8908`)**: `services/runtime.py`'s `SEED_SYNTHETIC_FIXTURE` now defaults to `"false"`;
+  `.env.example` matches; `scripts/run_eval.py`/`tests/integration/test_api.py`/
+  `test_analytics_api.py`/`tests/unit/test_runtime_paths.py` opt in explicitly where needed.
+  Stand cleanup (reported, not independently re-verified here): seeded source + 16
+  `synthetic_v2` fixtures deleted, leaving 49 real sources and zero synthetic measurements.
+- **Archive extraction flattened member paths and could silently overwrite same-named files
+  across a year-partitioned corpus (resolved, `1b32337`)**: `services/archive_expansion.py`
+  now preserves inner directory structure with a collision-free target; the zip-slip guard is
+  unchanged.
+- **CP1251-encoded CSVs failed ingest outright; Excel caps were fixed and not configurable
+  (resolved, `7e4ab49`)**: new `domain/encoding.py:decode_text_bytes` cascade
+  (utf-8-sig -> utf-8 -> cp1251 -> charset-normalizer); `adapters/spreadsheet/parser.py` caps
+  raised to 50 sheets / 5000 rows / 60 columns and made env-overridable
+  (`INGEST_XLSX_MAX_SHEETS`/`_MAX_ROWS`/`_MAX_COLUMNS`).
+- **Structured facts were only ever produced from one fixed synthetic CSV schema (resolved,
+  `7b0f927`)**: `ports/parser.py`'s `ParsedTable`/`ParsedTableRow`/`ParsedTableCell` gained a
+  `header` field (spreadsheet + Docling parsers populate it); new `domain/table_facts.py`
+  extracts subject-tagged `NumericFact`s from any headered row (wide or tall layout, unit
+  parsed from the header).
+- **Numeric constraints applied to any matching unit regardless of which analyte/parameter was
+  named, so a multi-analyte question (e.g. sulfates/chlorides/Ca/Mg/Na ranges) could cite
+  out-of-range evidence for the wrong analyte (resolved, `11d4a2c`)**: `domain/quantities.py`'s
+  `NumericConstraint` gained a `subject` field; `parse_parameter_constraints` binds each bound
+  to the analyte/parameter named in the question; `qa_service.py:_drop_constraint_violating_
+  evidence` removes evidence whose own facts violate a bound constraint.
+- **Extraction ontology did not cover process/facility/organization/economic/expert case
+  vocabulary (resolved, `5a510a8`)**: `domain/extraction.py`'s `ENTITY_TYPES`/`RELATION_TYPES`
+  extended (see `mem:ARCH-01-EVIDENCE-MVP`'s Wave 10 section for the full list); the stand
+  graph was re-enriched live with the new types (see `mem:DATA-01-EVIDENCE-LEDGER`'s "Corpus
+  Graph Re-Enriched With Extended Ontology" section).
+- **Answer citations were not individually clickable and evidence lacked a `locator` on the
+  wire (resolved, `420def5`)**: `EvidenceSpan.locator` (frontend type), per-sentence numbered
+  `citation-chip` + `citation-verified` badge in `AnalysisWorkbench.tsx` (click scrolls to and
+  highlights the evidence card).
+- **No eval harness ran against the live real-corpus stand (resolved, `066823b`)**: new
+  `scripts/run_realcase_eval.py` (`make eval-realcase`) hits a running API with the four
+  hackathon track questions; reported live run: status ok, citation 1.0, 0 fabrication, 0
+  synthetic leak.
+- **Quarantine reasons were not machine-readable, and URL import had no SSRF guard (resolved,
+  `9d0cd4f`)**: `IngestionService._quarantine` now takes a `reason_code`
+  (`no_text_layer_ocr_disabled`/`parser_error`/`unexpected_error`); `corpus_stats()` aggregates
+  `quarantine_reasons`/`quarantined`, rendered on the Data page. New
+  `adapters/trafilatura/fetcher.py:assert_public_url` blocks non-http(s) schemes and
+  private/loopback/link-local/reserved/metadata hosts before URL import fetches.
+  `services/api/routes/health.py`'s `GET /health` now reports `llm_enabled`/`answer_model`/
+  `extraction_model`/`embedding_backend`; `WorkbenchPage.tsx` renders the live model instead of
+  a hardcoded one.
+- **Geography detection used only a Cyrillic-vs-Latin script heuristic, mislabeling a
+  Russian-language review of foreign practice (resolved, `60374a6`)**: new
+  `domain/geography.py:detect_geography` reads explicit RU/foreign country-organization-
+  location signals first, falling back to the script ratio only when neither side is named.
+- **The orphaned `GET /graph/demo-path` route still existed (resolved, `ee84a6b`/wave, T3)**:
+  removed from `services/api/routes/graph.py` (verified absent at `HEAD`).
+
+`uv run pytest` now passes **182 tests, 5 skipped** at `ee84a6b` (live-run verified in this sync
+pass, up from 154 passed / 5 skipped at `4ede8c5`); `ruff` ("All checks passed!") and `mypy`
+("Success: no issues found in 79 source files") both clean.
+
+`.serena/plans/10_AUDIT_RESPONSE_PLAN.md`'s "Implementation status" section (`ee84a6b`) records
+five items as deliberately deferred, not gaps: **T2.5** (strict question-time scope — the
+current permissive rule is locked by the `q_year_phrase_is_not_a_filter` eval case and is the
+correct honest-recall choice), **T2.6** (a semantic/NLI answer-support check — would add
+per-answer LLM latency; the existing literal-number + citation gates already block
+fabrication), **T2.8** (an `LLMSettings` rename — cosmetic, the stand `.env` is already
+correct), **T2.2** (archive upload via the API route — the batch `ingest_corpus.py` path
+already covers it), and the remainder of **T3** (`_fallback_packet`/confidence constants/label
+param/reindex job status dead-code items — harmless and test-coupled; only the orphaned
+`/graph/demo-path` route was actually removed).
+
 ## Operational Observations (not test-verified in this repository; dated)
 
 - **Live model bench on a real evidence packet, 2026-07-04, round 1** (cited in the `24282f1`
@@ -246,10 +320,12 @@ rerank), LLM-gated answer synthesis with a numeric-fabrication gate, graph analy
 (type-aware neighborhood ranking, cascade-safe deletion, dated publication timeline), scoped QA
 filters (unit-canonicalized numeric constraints, geography, year), and honest confidence/gap/
 conflict signaling with no arbitrary fallback rows, incremental hash-skip Qdrant indexing, and a
-data-version-cached evidence packet, quota-paced/retrying LLM and embedding gateways, and
-auto-deploy on push to `main`. `uv run pytest` passes 154 tests, 5 skipped, at `4ede8c5`
-(live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified, mypy: "no
-issues found in 76 source files").
+data-version-cached evidence packet, quota-paced/retrying LLM and embedding gateways,
+auto-deploy on push to `main`, subject-bound numeric constraints, header-labeled table facts,
+an SSRF-guarded URL importer, signal-based geography detection, and machine-readable quarantine
+reasons surfaced in the UI. `uv run pytest` passes 182 tests, 5 skipped, at `ee84a6b` (live-run
+verified in this sync pass, up from 154 passed / 5 skipped); `ruff` ("All checks passed!") and
+`mypy` ("Success: no issues found in 79 source files") both clean (live-run verified).
 
 ## Contracts And Data
 
@@ -289,6 +365,16 @@ change.
   unchanged this sync) added pyrometallurgy/electrowinning/flotation/desalination terms but no
   geomechanics-specific materials/regimes (verified: no matching alias hits in any dictionary
   file), so questions specific to that domain in the real corpus still slot-parse to no entities.
+- **Table headers and geography detection apply only to newly ingested sources (Wave 10)**:
+  `ports/parser.py`'s `ParsedTable.header` and `domain/geography.py:detect_geography` are read
+  at parse time; sources already ingested on the stand before Wave 10 keep their prior
+  (header-less / script-heuristic) values until re-ingested, since re-enrichment does not
+  re-parse the source document. Not a regression — constraint matching degrades to the prior
+  honest-recall behavior for those sources.
+- **`scripts/run_realcase_eval.py` checks honesty properties on 4 live track questions, not a
+  gold-answer set**: it asserts citation coverage/fabrication/leak/synthetic-leak properties
+  against a running stand, but does not compare answers to expected gold text, so it does not
+  replace a real-corpus gold evaluation set.
 - **Eval questions target only the synthetic fixture**: `scripts/run_eval.py`'s hardcoded
   `EVAL_QUESTIONS` (17 questions, up from 12 — 5 new cases add conflict-surfacing, numeric
   constraint, year-phrase-is-not-a-filter, and two prompt-injection adversarial cases) still run

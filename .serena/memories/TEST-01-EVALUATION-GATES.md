@@ -1,9 +1,10 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
-Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml
+Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Scope: \1; scripts/run_realcase_eval.py
 Area: TEST
 -->
+
 
 # TEST-01-EVALUATION-GATES
 
@@ -30,17 +31,27 @@ and the archive/legacy-format ingestion wave (E).
 
 ## Current Behavior
 
-**Provenance note (verified 2026-07-04)**: commit SHA `652317e` cited below predates the
-2026-07-03 squash-migration to `hack-2026-nornikel` and is not an ancestor of the current
-`HEAD` — see `mem:CORE-01-INDEX`'s Repository Identity And History section. The
-test-count/gate description was re-verified against this memory's own content in this
-sync pass (not re-run live in this pass; see `mem:TECHDEBT-01-NOW` for the last confirmed
-live-run result).
+`uv run pytest` passes **182 tests, 5 skipped** at `ee84a6b` — verified by a live run in this
+sync pass, an increase of 28 passed over the previously recorded 154-passed/5-skipped baseline
+at `4ede8c5` (skip count unchanged). `uv run ruff check .` ("All checks passed!") and
+`uv run mypy` ("Success: no issues found in 79 source files") both pass clean, live-run
+verified in this sync pass.
 
-`uv run pytest` passes **154 tests, 5 skipped** at `4ede8c5` — verified by a live run in this
-sync pass, an increase of 3 passed over the previously recorded 148-passed/5-skipped baseline at
-`327f47c` (skip count unchanged). `uv run ruff check .` and `uv run mypy` both pass clean
-(live-run verified in this sync pass; mypy: "no issues found in 76 source files").
+New test modules this sync (Wave 10, all passing, verified via `grep -rn "def test_"`):
+- `tests/unit/test_encoding.py` (new): `decode_text_bytes` cascade (utf-8-sig/utf-8/cp1251/
+  charset-normalizer fallback).
+- `tests/unit/test_geography.py` (new): `detect_geography` RU/foreign signal precedence over
+  the script-ratio fallback, and the `None` low-signal case.
+- `tests/unit/test_parameter_constraints.py` (new): `NumericConstraint.subject` binding via
+  `parse_parameter_constraints`/`facts_satisfy_constraints` for multi-analyte questions.
+- `tests/unit/test_table_facts.py` (new): `extract_facts_from_row` wide/tall header-labeled
+  row layouts, unit-in-header parsing.
+- `tests/unit/test_ssrf_guard.py` (new): `assert_public_url` rejects non-http(s) schemes and
+  private/loopback/link-local/reserved/metadata hosts.
+- `tests/unit/test_corpus_formats.py`, `tests/unit/test_runtime_paths.py`,
+  `tests/integration/test_api.py`, `tests/integration/test_analytics_api.py`: gained
+  assertions/cases for archive path preservation and the `SEED_SYNTHETIC_FIXTURE=false` default
+  (a clean ledger has zero synthetic sources and answers empty).
 
 The 5 skips remain `pytest.importorskip` guards for optional heavy dependencies (`docling`,
 `trafilatura`, `fastembed`, and similar), unchanged this sync.
@@ -111,6 +122,10 @@ CI runs the same backend (`uv sync --group dev`, `ruff`, `mypy`, `pytest`,
 `uv run python scripts/run_eval.py`) and frontend (`npm ci`, `typecheck`, `build`) checks; the
 backend job still does not pass `--extra ingest` (`mem:TECHDEBT-01-NOW`).
 
+`scripts/run_realcase_eval.py` (new, Wave 10, `make eval-realcase`) checks the four hackathon
+track questions against a live API: citation coverage 1.0, zero fabrication, zero source-label
+leak, zero synthetic-Ni-Cu leakage. It requires a running stand and is not part of `make ci`/CI.
+
 ## Contracts And Data
 
 Non-negotiable demo gates are now `unsupported_claim_count = 0`, `source_label_leak_count = 0`,
@@ -144,8 +159,10 @@ change.
 
 ## Verification
 
-- `make ci`: ruff, mypy, pytest (154 passed, 5 skipped at `4ede8c5`, live-run verified), frontend
+- `make ci`: ruff, mypy, pytest (182 passed, 5 skipped at `ee84a6b`, live-run verified), frontend
   typecheck, build.
 - `make eval`: `scripts/run_eval.py` — 17-question live QA metrics against the synthetic DuckDB
   ledger only, incl. adversarial injection assertions.
+- `make eval-realcase`: `scripts/run_realcase_eval.py` — 4 track-question honesty check against
+  a live API; not part of CI (needs a running stand).
 - `docker compose config`: Compose validation.
