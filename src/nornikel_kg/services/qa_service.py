@@ -116,17 +116,27 @@ class EvidenceQAService:
         self.run_recorder = run_recorder
         self._packet_cache: tuple[int, EvidenceLedgerPacket] | None = None
 
+    def _effective_label_policy(self, request: AskRequest) -> SourceLabelPolicy:
+        """Per-request label policy: a narrow-only intersection with the
+        deployment policy (a request can never widen visibility)."""
+        if request.allowed_labels is None:
+            return self.source_label_policy
+        requested = frozenset(request.allowed_labels)
+        narrowed = frozenset(self.source_label_policy.allowed_labels & requested)
+        return SourceLabelPolicy(allowed_labels=narrowed)
+
     def ask(self, request: AskRequest) -> AskResponse:
         started = time.perf_counter()
         packet = self._load_packet()
         filters = self._effective_filters(request)
+        label_policy = self._effective_label_policy(request)
         # Explicit UI year filters are strict; a scope derived from question
         # text keeps unknown-year sources (not knowing the year is not the
         # same as being out of range).
         strict_years = request.filters is not None and (
             request.filters.year_from is not None or request.filters.year_to is not None
         )
-        allowed_evidence = self.source_label_policy.filter_spans(packet.evidence)
+        allowed_evidence = label_policy.filter_spans(packet.evidence)
         allowed_span_ids = {span.span_id for span in allowed_evidence}
         unmatched_material_tokens = self._unmatched_material_tokens(
             question=request.question,
@@ -153,6 +163,7 @@ class EvidenceQAService:
             request=request,
             allowed_evidence=allowed_evidence,
             selected_evidence=selected_evidence,
+            label_policy=label_policy,
         )
         selected_evidence = self._apply_scope_to_evidence(
             selected_evidence, filters, keep_unknown_year=not strict_years
@@ -179,10 +190,20 @@ class EvidenceQAService:
                 run_id=run_id,
                 source_context=self._source_context(packet, selected_evidence),
             )
+        fact_number_text = " ".join(
+            part
+            for experiment in selected_experiments
+            for part in (
+                str(experiment.measurement.get("value", "")),
+                str(experiment.measurement.get("delta_value", "")),
+                experiment.regime_summary,
+            )
+        )
         verification = self.claim_verifier.verify(
             answer_summary=summary,
             evidence_spans=selected_evidence,
-            source_label_policy=self.source_label_policy,
+            source_label_policy=label_policy,
+            fact_number_text=fact_number_text,
         )
         conflicts = self._conflicts_for_question(
             request.question, packet.conflicts, selected_experiments
@@ -398,6 +419,7 @@ class EvidenceQAService:
         request: AskRequest,
         allowed_evidence: list[EvidenceSpan],
         selected_evidence: list[EvidenceSpan],
+        label_policy: SourceLabelPolicy,
     ) -> list[EvidenceSpan]:
         if self.retrieval_service is None:
             return selected_evidence
@@ -412,7 +434,7 @@ class EvidenceQAService:
         try:
             retrieved_ids = self.retrieval_service.retrieve_span_ids(
                 question=request.question,
-                allowed_labels=sorted(self.source_label_policy.allowed_labels),
+                allowed_labels=sorted(label_policy.allowed_labels),
                 source_ids=source_ids,
             )
         except Exception:  # retrieval degradation is silent by contract
