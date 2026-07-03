@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
   pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
   services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -44,12 +44,35 @@ A-D) and the archive/legacy-format ingestion wave (E).
   `docker compose ... up -d`.
 - `docker compose config` / `docker compose up --build`: Compose validation and containerized
   run path.
+- `.github/workflows/deploy.yml` (new, `9338017`): auto-deploy on push to `main` — SSH-ships the
+  tracked tree, rebuilds and restarts `api`/`web`, smoke-checks `/api/health` +
+  `/api/stats/overview`; also runnable via `workflow_dispatch`.
 
 ## Current Behavior
 
-`uv run pytest` passes **148 tests, 5 skipped** at `327f47c` (verified by a live run in this
-sync pass, up from 141 passed / 4 skipped at `3e74473`). `uv run ruff check .` and `uv run mypy`
-both pass clean (verified live in this sync pass; mypy: "no issues found in 75 source files").
+`uv run pytest` passes **151 tests, 5 skipped** at `652317e` (verified by a live run in this
+sync pass, up from 148 passed / 5 skipped at `327f47c`). `uv run ruff check .` and `uv run mypy`
+both pass clean (verified live in this sync pass; mypy: "no issues found in 76 source files").
+
+`adapters/llm/gateway.py` and `adapters/embeddings/yandex.py` now share a client-side pacing
+module, `adapters/ratelimit.py` (`RateLimiter`/`get_limiter`, `6feff7a`): the LLM path joins a
+`"llm-completions"` limiter (`LLMSettings.llm_rps`, code default `5.0`, `.env.example` stand
+value `10`) and retries `litellm.RateLimitError` up to 6 times with jittered backoff;
+`LLM_MAX_CONCURRENCY`'s stand value is raised to `8` (code default `3`).
+
+`.github/workflows/deploy.yml` (new, `9338017`/PR #19): on every push to `main`, ships the
+tracked tree over SSH (`git archive HEAD | ssh ... tar -x`), rebuilds `api`/`web` via
+`docker compose -f docker-compose.server.yml`, runs `up -d`, then smoke-checks
+`http://127.0.0.1:8080/api/health` and `/api/stats/overview`; secrets `DEPLOY_SSH_KEY`/
+`DEPLOY_HOST`/`DEPLOY_USER`; `concurrency: {group: deploy-production, cancel-in-progress: false}`
+serializes overlapping deploys. The primary stand domain changed to `https://изи-никель.рф`
+(punycode `xn----jtbedbbojo8m.xn--p1ai`, `.env.example`'s `APP_BASE_URL` default), with
+`https://nornikel.nddev.asia` kept as a secondary mirror; both `.claude/CLAUDE.md` and
+`docs/deployment/nornikel-nddev.md` document the DNS prerequisite (an A record for
+`изи-никель.рф`/`www` -> `165.22.203.232`, after which the host's acme-companion issues the TLS
+certificate automatically). Whether that A record has actually been created is not stated in
+either tracked file and cannot be verified from this repository; treat it as an open
+operational item (`mem:TECHDEBT-01-NOW`).
 
 `EMBEDDING_BACKEND` now also accepts `yandex` (`adapters/embeddings/yandex.py`): dense vectors
 via the organizer-provided Yandex AI Studio API, offloading the CPU-bound `local` backend's
@@ -129,11 +152,13 @@ the Nginx body-size limit, keep both the FastAPI code default and `apps/web/ngin
 
 ## Verification
 
-- `make ci`: proves Python lint/type/tests and TypeScript/build; `uv run pytest` verified at 148
-  passed / 5 skipped at `327f47c` in this sync pass; `ruff`/`mypy` both clean (live-run verified).
+- `make ci`: proves Python lint/type/tests and TypeScript/build; `uv run pytest` verified at 151
+  passed / 5 skipped at `652317e` in this sync pass; `ruff`/`mypy` both clean (live-run verified,
+  mypy: "no issues found in 76 source files").
 - `make eval`: proves the 17-question synthetic-fixture answer/safety metrics (incl. adversarial
   injection cases); does not exercise the real-corpus ontology/scope-filter/reranker behavior
   against real data (see `mem:TECHDEBT-01-NOW`).
 - `docker compose config`: proves Compose syntax.
-- `git rev-list --left-right --count origin/main...main` -> `0\t0` (verified 2026-07-04): local
-  `main` and `origin/main` are in sync; no pending push backlog.
+- `git rev-list --left-right --count origin/main...main` -> `0\t0` (verified 2026-07-04 at
+  `652317e`, before this sync's own commit): local `main` and `origin/main` were in sync; no
+  pending push backlog.

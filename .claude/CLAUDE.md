@@ -34,13 +34,16 @@ Owner workflow: rldyour plugins/skills.
 ## Branch / Git
 - Pushes go through feature branches and PR merge to `main`.
 - `main...origin/main` should remain clean and synced.
+- Auto-deploy: every push to `main` triggers `.github/workflows/deploy.yml`
+  (SSH deploy to the stand + smoke); secrets `DEPLOY_SSH_KEY/HOST/USER`.
 
 ## Runtime Paths
 - DuckDB path defaults to `data/catalog.duckdb`.
 - Synthetic fixture path defaults to `sample_docs/synthetic`.
 
 ## Validation and deployment notes
-- Primary stand: `https://nornikel.nddev.asia` on `ssh curestry` (compose project
+- Primary stand: `https://изи-никель.рф` (punycode `xn----jtbedbbojo8m.xn--p1ai`);
+  mirror: `https://nornikel.nddev.asia` (secondary). Host `ssh curestry` (compose project
   `/srv/nornikel-kg-search`; TLS via host nginx-proxy + acme-companion; Langfuse v3 in
   `/srv/langfuse` reachable over the external `lf-net` network). Deploy contract:
   `docs/deployment/nornikel-nddev.md`. Interim mirror: `fa.nddev.asia`

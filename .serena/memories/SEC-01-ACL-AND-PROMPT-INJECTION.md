@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/adapters/llm/; sample_docs/synthetic_v2/; scripts/run_eval.py; tests/unit/test_source_label_policy.py; tests/unit/test_claim_verifier.py; tests/unit/test_answer_honesty.py
 Area: SEC
 -->
@@ -17,7 +17,7 @@ Capture safety boundaries for source-label filtering, internal-document retrieva
 - `src/nornikel_kg/domain/answer_claims.py`: `ClaimVerifier` — citation coverage, source-label leak counting, and (added in the accuracy/SOTA overhaul, wave C) `numeric_mismatch_count` via `sentence_numbers_supported`: every number literal in an answer sentence must appear in the cited evidence text, unless the sentence carries `supporting_fact_ids` (fact-backed, deterministic-assembler sentences whose numbers derive from structured ledger measurements, not literal span text).
 - `src/nornikel_kg/services/qa_service.py`: filters evidence before answer assembly, verifies final claims, and re-filters any retrieval-augmented spans by `security_label` before they can enter the packet.
 - `src/nornikel_kg/services/extraction_service.py`: `_EXTRACTION_SYSTEM_PROMPT` treats span text as untrusted data (unchanged wording this wave).
-- `src/nornikel_kg/services/answer_composer.py`: `_ANSWER_SYSTEM_PROMPT` treats evidence-packet fragments as untrusted data; the prompt now also instructs literature-review grouping by year/geography, but the "data, not instructions" clause is unchanged.
+- `src/nornikel_kg/services/answer_composer.py`: `_ANSWER_SYSTEM_PROMPT` treats evidence-packet fragments as untrusted data; the prompt instructs literature-review grouping by year/geography and (added `24282f1`) synthesizing concrete values/factors instead of table/figure references, but the "data, not instructions" clause is unchanged.
 - `sample_docs/synthetic_v2/v2_protocol_02_aging.docx`: contains one injected prompt-like line used as an adversarial fixture (per `sample_docs/synthetic_v2/manifest.json`).
 - `scripts/run_eval.py`: `EVAL_QUESTIONS` now includes two adversarial prompt-injection cases (added this wave, see Current Behavior).
 

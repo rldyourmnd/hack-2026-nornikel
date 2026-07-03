@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/;
   src/nornikel_kg/resources/dictionaries/; src/nornikel_kg/services/; sample_docs/; eval/;
   scripts/ingest_corpus.py
@@ -205,7 +205,10 @@ parser/indexing code that writes new fact types.
 
 ## Verification
 
-- `uv run pytest`: 148 tests pass, 5 skipped, at `327f47c` (live-run verified in this sync pass).
+- `uv run pytest`: 151 tests pass, 5 skipped, at `652317e` (live-run verified in this sync pass;
+  the 3-test increase over the prior `327f47c` baseline is `tests/unit/test_ratelimit.py` and
+  `tests/unit/test_llm_gateway.py::test_gateway_retries_rate_limit`, unrelated to the ledger
+  itself — see `mem:TECHDEBT-01-NOW`).
 - `tests/unit/test_yandex_embeddings.py` (new, 5 test functions): credential requirement,
   doc/query model-URI split, embed-order preservation, sparse-stays-local flat query weights,
   query-embedding cache hits.

@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
 Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
   .env.example; docs/deployment/
 Area: DOCS
@@ -60,8 +60,20 @@ LLM/embedding provider (`https://ai.api.cloud.yandex.net/v1`, stand model `alice
 as a server-side rollback (`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not a tracked repo
 artifact).
 
-Local `main` and `origin/main` are in sync (`git rev-list --left-right --count
-origin/main...main` -> `0\t0`, verified 2026-07-04); there is no pending push backlog.
+This sync additionally covers five more commits on `main` since `327f47c`: `6feff7a` (shared
+client-side rate-limit queue for the LLM gateway and Yandex embeddings, new
+`adapters/ratelimit.py`), `ef812af` (verified evidence-grounded answers without a structured
+match now report `"medium"` confidence instead of `"low"`), `24282f1` (answer-composer system
+prompt demands synthesis of concrete values/factors instead of table/figure references),
+`9338017` (GitHub Actions auto-deploy via new `.github/workflows/deploy.yml`, plus
+`https://изи-никель.рф` made the primary stand domain with `https://nornikel.nddev.asia` as a
+mirror), merged as PR #19 in `652317e`, and `ec79a96` (corrected "alias" wording to "mirror" in
+`.claude/CLAUDE.md`/`docs/deployment/nornikel-nddev.md`, and refreshed the Serena memory files
+committed in this same pass). All six commits are verified present in
+`git log --oneline 327f47c..HEAD`.
+
+Local `main` and `origin/main` were in sync at `652317e` (`git rev-list --left-right --count
+origin/main...main` -> `0\t0`, verified 2026-07-04, before this sync pass's own commit).
 
 `.env.example` now documents `SEED_SYNTHETIC_FIXTURE`, `SYNTHETIC_SAMPLE_DIR`,
 `LLM_TOKEN_BUDGET`, `LLM_EXTRACTION_ENABLED`, `GLINER_ENABLED`, `SYNC_ENRICHMENT`,

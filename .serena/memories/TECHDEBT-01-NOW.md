@@ -1,9 +1,10 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: 652317e Merge pull request #19 from rldyourmnd/feat/autodeploy
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
-  docker-compose.yml; .env.example; .github/workflows/ci.yml; tests/;
-  .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
+  docker-compose.yml; .env.example; .github/workflows/ci.yml; .github/workflows/deploy.yml;
+  tests/; .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md;
+  .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
 Area: TECHDEBT
 -->
 
@@ -136,6 +137,45 @@ verified against the working tree at `3e74473`:
   `EMBEDDING_BACKEND=yandex` (`adapters/embeddings/yandex.py`) calls the organizer-provided
   Yandex AI Studio API for dense vectors; sparse BM25 stays local.
 
+## Resolved Since The Prior Sync (`327f47c` -> `652317e`, verified, do not re-list as gaps)
+
+- **The LLM gateway had no client-side pacing or 429 retry (resolved, `6feff7a`)**: new
+  `src/nornikel_kg/adapters/ratelimit.py` (`RateLimiter`/`get_limiter`) is a process-wide, named
+  min-interval limiter shared by every caller of one provider quota;
+  `adapters/embeddings/yandex.py`'s embedding limiter now comes from this shared module
+  (`get_limiter("yandex-embeddings", ...)`, code default `YANDEX_EMBED_RPS=8`);
+  `adapters/llm/gateway.py:LiteLLMGateway.generate_json` joins a `"llm-completions"` limiter
+  (`LLMSettings.llm_rps`, code default `5.0`) and retries `litellm.RateLimitError` up to
+  `_RATE_LIMIT_RETRIES = 6` times with jittered exponential backoff inside the existing
+  concurrency semaphore (`tests/unit/test_llm_gateway.py::test_gateway_retries_rate_limit`,
+  `tests/unit/test_ratelimit.py`). `.env.example`'s stand values raise `LLM_RPS` to `10` and
+  `LLM_MAX_CONCURRENCY` to `8` (documented Yandex quota: 10 concurrent generations); code
+  defaults (`LLMSettings.llm_rps=5.0`, `llm_max_concurrency=3`) are unchanged.
+- **A citation-verified answer without a structured match looked untrustworthy (resolved,
+  `ef812af`)**: `services/qa_service.py:DemoQAService._confidence_level` gained
+  `summary`/`selected_evidence` parameters; when no experiment matched but the answer is
+  citation-verified evidence-grounded (`summary and selected_evidence`), confidence is now
+  `"medium"` instead of `"low"`.
+- **Answer synthesis pointed readers to table/figure numbers instead of stating values
+  (resolved, `24282f1`)**: `services/answer_composer.py`'s `_ANSWER_SYSTEM_PROMPT` now
+  explicitly instructs the model to synthesize concrete values/factors and never refer the
+  reader to table/figure numbers.
+- **No CI/CD auto-deploy path (resolved, `9338017`, merged `652317e` as PR #19)**: new
+  `.github/workflows/deploy.yml` ships the tracked tree over SSH on every push to `main`,
+  rebuilds `api`/`web`, restarts the stack, and smoke-checks `/api/health` +
+  `/api/stats/overview`.
+
+## Operational Observations (not test-verified in this repository; dated)
+
+- **Live model bench on a real evidence packet, 2026-07-04** (cited in the `24282f1` commit
+  message, not reproducible from a tracked test/fixture in this sync): answers stay on
+  `aliceai-llm` — 6-11s latency, perfect citation discipline; `qwen3-235b` ran 31s;
+  `gpt-oss-120b` ran 26-91s live (unstable) but synthesized factors best; `deepseek-v4-flash`
+  produced broken JSON at 40s; `qwen3.6` returned empty content. Dense embedder
+  `text-embeddings/latest` (1536-dim) was confirmed by a margin test: +0.30 vs +0.20 (v2) vs
+  +0.16 (v1). Treat as a dated operational note, not a regression-tested guarantee — no
+  tracked benchmark artifact backs these numbers.
+
 ## Entry Points
 
 - `EntityResolutionService.resolve_or_create`: exact key -> alias -> semantic -> create.
@@ -155,8 +195,10 @@ rerank), LLM-gated answer synthesis with a numeric-fabrication gate, graph analy
 (type-aware neighborhood ranking, cascade-safe deletion, dated publication timeline), scoped QA
 filters (unit-canonicalized numeric constraints, geography, year), and honest confidence/gap/
 conflict signaling with no arbitrary fallback rows, incremental hash-skip Qdrant indexing, and a
-data-version-cached evidence packet. `uv run pytest` passes 148 tests, 5 skipped, at `327f47c`
-(live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified).
+data-version-cached evidence packet, quota-paced/retrying LLM and embedding gateways, and
+auto-deploy on push to `main`. `uv run pytest` passes 151 tests, 5 skipped, at `652317e`
+(live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified, mypy: "no
+issues found in 76 source files").
 
 ## Contracts And Data
 
@@ -184,6 +226,14 @@ change.
 
 ## Known Gaps
 
+- **`изи-никель.рф` primary domain may not resolve yet (unverified operational note, dated
+  2026-07-04)**: `.claude/CLAUDE.md`/`docs/deployment/nornikel-nddev.md` document the DNS
+  prerequisite (an A record for `изи-никель.рф`/`www` -> `165.22.203.232`; the host's
+  acme-companion issues the TLS certificate automatically once the name resolves), but neither
+  tracked file states whether that A record has already been created. Per the launching
+  coordinator's report (not verifiable from any tracked artifact — no DNS-status file exists in
+  this repository), the record had not yet been created by the domain owner as of this sync.
+  `https://nornikel.nddev.asia` remains the working mirror in the meantime.
 - **Geomechanics domain not covered by the ontology**: the dictionary extension (`58760b3`,
   unchanged this sync) added pyrometallurgy/electrowinning/flotation/desalination terms but no
   geomechanics-specific materials/regimes (verified: no matching alias hits in any dictionary
@@ -218,10 +268,16 @@ change.
   (30 pairs, 8 shared vCPU) versus 8.4s without reranking, and keeps it off pending int8
   quantization or a smaller reranker model. `ENTITY_SEMANTIC_FALLBACK` defaults to `true`; its
   live-stand latency is not separately recorded in tracked artifacts.
-- **Yandex embedding quota is shared and fixed at 10 RPS**: `adapters/embeddings/yandex.py`'s
-  `_RateLimiter` paces requests via `YANDEX_EMBED_RPS` (default 8) to stay under the folder's
-  10 RPS quota (a hard-coded, organizer-side limit per the module's own docstring/comments,
-  raisable only through a support ticket — not configurable in this repository).
+- **Yandex embedding quota is shared and fixed at 10 RPS**: `adapters/ratelimit.py`'s
+  `RateLimiter` (obtained via `get_limiter("yandex-embeddings", ...)` in
+  `adapters/embeddings/yandex.py`) paces requests via `YANDEX_EMBED_RPS` (code default `8`,
+  `.env.example` stand value `9.5`) to stay under the folder's 10 RPS quota. `.env.example`'s
+  comment records that Yandex Cloud's self-service Quota Manager does not cover AI Studio —
+  raising the quota requires a support ticket from the cloud owner (organizers), not
+  configurable in this repository. The LLM completions path shares the same limiter module
+  (`"llm-completions"` named limiter, `LLM_RPS` code default `5.0`, stand value `10`) and now
+  retries `litellm.RateLimitError` with backoff instead of failing outright (`6feff7a`,
+  see "Resolved Since" above).
 - **No real-corpus gold evaluation set**: `scripts/run_eval.py`'s `EVAL_QUESTIONS` (17 questions,
   unchanged this sync) still targets only the synthetic corpora; see the eval-questions gap
   above for detail.

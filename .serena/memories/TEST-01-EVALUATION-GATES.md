@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
 Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml
 Area: TEST
 -->
@@ -30,16 +30,22 @@ and the archive/legacy-format ingestion wave (E).
 
 ## Current Behavior
 
-`uv run pytest` passes **148 tests, 5 skipped** at `327f47c` — verified by a live run in this
-sync pass, an increase of 7 passed / 1 skipped over the previously recorded 141-passed/4-skipped
-baseline at `3e74473`. `uv run ruff check .` and `uv run mypy` both pass clean (live-run verified
-in this sync pass; mypy: "no issues found in 75 source files").
+`uv run pytest` passes **151 tests, 5 skipped** at `652317e` — verified by a live run in this
+sync pass, an increase of 3 passed over the previously recorded 148-passed/5-skipped baseline at
+`327f47c` (skip count unchanged). `uv run ruff check .` and `uv run mypy` both pass clean
+(live-run verified in this sync pass; mypy: "no issues found in 76 source files").
 
 The 5 skips remain `pytest.importorskip` guards for optional heavy dependencies (`docling`,
-`trafilatura`, `fastembed`, and similar), one more than the prior sync's 4 (added alongside
-`tests/unit/test_yandex_embeddings.py`'s `fastembed`-gated sparse test).
+`trafilatura`, `fastembed`, and similar), unchanged this sync.
 
-New test modules this sync (all passing):
+New test modules/functions this sync (all passing):
+- `tests/unit/test_ratelimit.py` (new, 2 test functions): `RateLimiter` spaces requests to the
+  configured interval; `get_limiter` returns the same shared instance for a repeated name.
+- `tests/unit/test_llm_gateway.py` gained `test_gateway_retries_rate_limit`: a `litellm.
+  RateLimitError` on the first two attempts is retried and the third attempt's response is
+  returned, proving the gateway does not fail a call on a transient 429.
+
+Test modules added the prior sync (unchanged this sync):
 - `tests/unit/test_yandex_embeddings.py` (5 test functions): `YandexEmbeddingBackend` credential
   requirement, doc/query model-URI split, `embed_dense` order preservation, sparse-stays-local
   flat query weights (`pytest.importorskip("fastembed")`-gated), query-embedding cache hits.
@@ -120,7 +126,7 @@ change.
 
 ## Verification
 
-- `make ci`: ruff, mypy, pytest (148 passed, 5 skipped at `327f47c`, live-run verified), frontend
+- `make ci`: ruff, mypy, pytest (151 passed, 5 skipped at `652317e`, live-run verified), frontend
   typecheck, build.
 - `make eval`: `scripts/run_eval.py` — 17-question live QA metrics against the synthetic DuckDB
   ledger only, incl. adversarial injection assertions.

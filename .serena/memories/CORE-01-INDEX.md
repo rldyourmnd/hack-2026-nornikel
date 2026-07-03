@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: 652317e Merge pull request #19 from rldyourmnd/feat/autodeploy
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
   tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
   .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
@@ -27,7 +27,7 @@ Index the durable project knowledge for the Nornikel Materials KG Search hackath
   exclusive with a running `api` container — see `mem:RELEASE-01-VALIDATION`).
 - `eval/`: legacy YAML gold/adversarial fixtures; not read by any code path (`mem:TEST-01-EVALUATION-GATES`).
 - `sample_docs/synthetic/`: original P0 fixture. `sample_docs/synthetic_v2/`: W5 17-source synthetic corpus with `manifest.json`.
-- `tests/`: unit and integration tests (148 passed, 5 skipped at `327f47c`, live-run verified).
+- `tests/`: unit and integration tests (151 passed, 5 skipped at `652317e`, live-run verified).
 - `docs/deployment/nornikel-nddev.md`: primary live-stand deployment contract.
 - `.serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md`: full-track requirement brief («Научный
   клубок») and gap analysis G1-G10 against the real `DATA_HACK/` corpus.
@@ -99,12 +99,51 @@ resilience/perf/UI follow-on, all verified against the working tree at `327f47c`
   `DemoQAService._load_packet` caches the loaded `EvidenceLedgerPacket` keyed by that version
   (a full ~12k-span scan per `ask` previously dominated latency).
 
+- **Quota-aware LLM gateway + shared rate limiter** (`6feff7a`): new `src/nornikel_kg/adapters/ratelimit.py`
+  (`RateLimiter`/`get_limiter`) is a process-wide, named min-interval limiter shared by every
+  caller of one provider quota. `adapters/embeddings/yandex.py` now gets its limiter from this
+  module (`get_limiter("yandex-embeddings", ...)`, code default `YANDEX_EMBED_RPS=8`,
+  `.env.example` stand value `9.5`) instead of a private module-level limiter.
+  `adapters/llm/gateway.py`'s `LiteLLMGateway.generate_json` joins a `"llm-completions"` limiter
+  (`LLMSettings.llm_rps`, code default `5.0`, `.env.example` stand value `10`) and retries
+  `litellm.RateLimitError` up to `_RATE_LIMIT_RETRIES = 6` times with jittered exponential
+  backoff inside the existing concurrency semaphore; `LLMSettings.llm_max_concurrency` code
+  default stays `3`, `.env.example`'s stand value is raised to `8` (documented Yandex quota: 10
+  concurrent generations). `.env.example` also records that Yandex Cloud's self-service Quota
+  Manager does not cover AI Studio — raising the 10 RPS embeddings quota needs a support ticket
+  from the cloud owner (organizers).
+- **Honest "medium" confidence for verified answers without a structured match** (`ef812af`):
+  `services/qa_service.py:DemoQAService._confidence_level` gained `summary`/`selected_evidence`
+  parameters; a citation-verified answer with no structured-experiment match now returns
+  `"medium"` (previously `"low"`, indistinguishable from "nothing found").
+- **Answer prompt demands synthesis over table references** (`24282f1`):
+  `services/answer_composer.py`'s `_ANSWER_SYSTEM_PROMPT` now explicitly instructs the model to
+  synthesize concrete values/factors instead of pointing the reader to table/figure numbers
+  (live model bench on a real packet, 2026-07-04: `aliceai-llm` stays the answer model — 6-11s,
+  perfect citation discipline; `gpt-oss-120b` synthesized factors best but ran 26-91s live, too
+  slow for interactive use; see `mem:TECHDEBT-01-NOW` for the full bench).
+- **GitHub Actions auto-deploy + `изи-никель.рф` primary domain** (`9338017`, merged `652317e`
+  as PR #19): new `.github/workflows/deploy.yml` ships the tracked tree over SSH on every push
+  to `main`, rebuilds `api`/`web`, restarts the stack and smoke-checks `/api/health` +
+  `/api/stats/overview` (secrets `DEPLOY_SSH_KEY`/`DEPLOY_HOST`/`DEPLOY_USER`,
+  concurrency-guarded, group `deploy-production`). Primary stand domain is now
+  `https://изи-никель.рф` (punycode `xn----jtbedbbojo8m.xn--p1ai`), with
+  `https://nornikel.nddev.asia` kept as a secondary mirror (`.claude/CLAUDE.md`/
+  `docs/deployment/nornikel-nddev.md`, `ec79a96` corrected "alias" wording to "mirror").
+  `.env.example`'s `APP_BASE_URL` now defaults to `https://изи-никель.рф`. Both docs record a DNS
+  prerequisite: an A record for `изи-никель.рф`/`www` pointing at `165.22.203.232`, after which
+  the host's acme-companion issues the certificate automatically. Per the launching
+  coordinator's report (not independently verifiable from any tracked artifact in this
+  repository — no DNS-status file exists in the tree): the A records had not yet been created by
+  the domain owner as of this sync, so the new primary domain does not yet resolve/serve; treat
+  this as an unverified operational note, not a proven fact (see `mem:TECHDEBT-01-NOW`).
+
 See `mem:ARCH-01-EVIDENCE-MVP`, `mem:DATA-01-EVIDENCE-LEDGER`, `mem:TECHDEBT-01-NOW` for the
 per-module detail of each change.
 
-`uv run pytest` passes **148 tests, 5 skipped** at `327f47c` (verified by a live run in this sync
-pass, up from 141 passed / 4 skipped); `uv run ruff check .` and `uv run mypy` both pass clean
-(also verified live in this sync pass, mypy: "no issues found in 75 source files").
+`uv run pytest` passes **151 tests, 5 skipped** at `652317e` (verified by a live run in this sync
+pass, up from 148 passed / 5 skipped); `uv run ruff check .` and `uv run mypy` both pass clean
+(also verified live in this sync pass, mypy: "no issues found in 76 source files").
 
 ## Contracts And Data
 
@@ -150,5 +189,6 @@ Update this index whenever a new durable memory is added, renamed, split, or del
 - `make eval`: runs `scripts/run_eval.py` (17 hardcoded `EVAL_QUESTIONS`, incl. numeric-constraint,
   conflict-surfacing, and adversarial prompt-injection cases).
 - `docker compose config`: verifies Compose syntax without requiring local secrets.
-- `uv run pytest`: 148 tests pass, 5 skipped at `327f47c` (live-run verified).
-- `uv run ruff check .` / `uv run mypy`: both clean at `327f47c` (live-run verified).
+- `uv run pytest`: 151 tests pass, 5 skipped at `652317e` (live-run verified).
+- `uv run ruff check .` / `uv run mypy`: both clean at `652317e` (live-run verified, mypy: "no
+  issues found in 76 source files").

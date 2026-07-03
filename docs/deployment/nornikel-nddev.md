@@ -1,11 +1,24 @@
-# nornikel.nddev.asia Deployment Notes (primary stand)
+# Primary Stand Deployment Notes
 
 Target host:
 
 ```text
 ssh curestry            # 165.22.203.232, 8 vCPU / 31 GiB
-public URL: https://nornikel.nddev.asia
+primary:  https://изи-никель.рф  (punycode: xn----jtbedbbojo8m.xn--p1ai)
+mirror:   https://nornikel.nddev.asia  (secondary, kept alive)
 ```
+
+DNS prerequisite for the primary domain: an A record for
+`изи-никель.рф` and `www` pointing at `165.22.203.232`; the acme
+companion issues the certificate automatically once the name resolves.
+
+## Auto-deploy (GitHub Actions)
+
+Every push to `main` runs `.github/workflows/deploy.yml`: ships the
+tracked tree over SSH, rebuilds `api`/`web`, restarts the stack and
+smoke-checks `/api/health` + `/api/stats/overview`. Repo secrets:
+`DEPLOY_SSH_KEY` (dedicated ed25519 deploy key), `DEPLOY_HOST`,
+`DEPLOY_USER`. Manual run: the workflow_dispatch button.
 
 Three isolated Docker Compose projects run on the host:
 

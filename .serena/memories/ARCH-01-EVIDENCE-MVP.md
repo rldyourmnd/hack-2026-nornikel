@@ -1,8 +1,8 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
+Last commit: 652317e Merge pull request #19 from rldyourmnd/feat/autodeploy
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
-  pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
+  .github/workflows/deploy.yml; pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
 Area: ARCH
 -->
 
@@ -120,6 +120,23 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   documents the evidence-based rejection of GLiNER2 for this project (English-only training,
   `fastino/gliner2-multi-v1` has no `ru` tag, broken relation extraction) — full rationale is in
   `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md`.
+- `src/nornikel_kg/adapters/ratelimit.py` (new): `RateLimiter`/`get_limiter(name,
+  requests_per_second)` — a process-wide, named min-interval limiter registry (one queue per
+  named quota); every caller of one provider quota shares one `RateLimiter` instance via
+  `get_limiter`. Used by `adapters/embeddings/yandex.py` (`get_limiter("yandex-embeddings",
+  YANDEX_EMBED_RPS)`, code default `8`) and `adapters/llm/gateway.py`
+  (`get_limiter("llm-completions", LLMSettings.llm_rps)`, code default `5.0`).
+- `src/nornikel_kg/adapters/llm/gateway.py`: `LiteLLMGateway.generate_json` now joins the
+  `"llm-completions"` rate limiter before every `litellm.completion` call (inside the existing
+  `_semaphore` concurrency guard) and retries `litellm.RateLimitError` up to
+  `_RATE_LIMIT_RETRIES = 6` times with jittered exponential backoff (`delay` doubles each retry,
+  capped at 20s) instead of failing the call on a transient 429 — the folder's LLM quota is
+  shared with other consumers. `adapters/llm/settings.py`'s `LLMSettings` gained `llm_rps: float
+  = 5.0`; `llm_max_concurrency` default stays `3` in code (the stand raises both via
+  `.env.example`: `LLM_RPS=10`, `LLM_MAX_CONCURRENCY=8`, documented Yandex quota of 10 concurrent
+  generations). This makes the gateway no longer provider-agnostic-and-unchanged: the retry/pacing
+  logic is generic (any provider raising `litellm.RateLimitError` benefits), but it is new code,
+  not just an env-level provider switch.
 - `src/nornikel_kg/services/qa_service.py`: `DemoQAService` — numeric constraints now go through
   `domain.quantities` (unit-bearing only, canonicalized comparison) via `_apply_numeric_constraints`;
   `_apply_source_scope` for geography/year filters (unchanged contract, still via
@@ -129,9 +146,14 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   prior "the scope itself is the query" contract); `_alias_material_tokens` resolves RU material
   codes (e.g. «МН30») through `repository.find_entity`, not string similarity;
   `_CHEMICAL_FORMULA_VETO` (`co2`, `al2o3`-derived tokens, etc.) prevents chemical formulas from
-  being misread as unmatched material requests; `_confidence_level` returns `"high"` only when
-  the question's material/property signal actually matched selected data (never a blanket "high
-  if non-empty"); `_conflicts_for_question` only attaches conflicts sharing a material/
+  being misread as unmatched material requests; `_confidence_level(question, selected_experiments,
+  summary, selected_evidence)` returns `"high"` only when the question's material/property
+  signal actually matched selected experiments; `"medium"` when experiments matched without a
+  material/property signal, **or** (added `ef812af`) when no experiments matched but the answer
+  is citation-verified and evidence-grounded (`summary and selected_evidence`, the normal case
+  on the real corpus — previously indistinguishable from "nothing found" at `"low"`); `"low"`
+  only when nothing was found at all; `_conflicts_for_question` only attaches conflicts sharing a
+  material/
   experiment/span with the selected evidence (unless the question itself asks about conflicts/
   methods); `_source_context` builds `source_id -> "Title, year, geography"` labels for the
   answer-composer packet (literature-review grouping).
@@ -145,6 +167,11 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   in addition to the existing citation-existence check; `_packet_prompt` now includes
   `source_context` (year/geography label) per evidence line and an explicit instruction to group
   literature-review answers by year/geography and flag consensus vs disagreement.
+  `_ANSWER_SYSTEM_PROMPT` (`24282f1`) additionally instructs the model to synthesize concrete
+  values/factors and never refer the reader to table/figure numbers (live bench, 2026-07-04:
+  `gpt-oss-120b` synthesized factors best but ran 26-91s, too slow interactively; `aliceai-llm`
+  stays the answer model at 6-11s with perfect citation discipline — see
+  `mem:TECHDEBT-01-NOW`).
 - `src/nornikel_kg/domain/analysis.py`: `_regime_bucket` strips the `reg_`/`regime_` id prefix
   before bucketing by regime type + temperature (previously the raw id put every experiment into
   one bucket, producing fake contradictions between aging and annealing at the same
@@ -200,10 +227,11 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   1536-dim embeddings via the canonical `https://ai.api.cloud.yandex.net/foundationModels/v1/
   textEmbedding` host (the old `llm.api` host still answers but is the legacy alias, per the
   module docstring), `x-folder-id` header, 4000-char input truncation (documented 2048-token
-  cap), 7 retries with exponential backoff + jitter (`_MAX_RETRIES = 7`). A process-wide
-  `_RateLimiter` (module-level `_rate_limiter`, `YANDEX_EMBED_RPS` env, default `8`) paces
-  requests below the shared 10 RPS folder quota — retry-with-backoff alone loses against a
-  saturated quota when many enrichment threads fire concurrently (observed live as a 429 storm).
+  cap), 7 retries with exponential backoff + jitter (`_MAX_RETRIES = 7`). A shared
+  `adapters.ratelimit.RateLimiter` (obtained via `get_limiter("yandex-embeddings",
+  YANDEX_EMBED_RPS)`, code default `8`, `.env.example` stand value `9.5`) paces requests below
+  the shared 10 RPS folder quota — retry-with-backoff alone loses against a saturated quota when
+  many enrichment threads fire concurrently (observed live as a 429 storm).
   `embed_dense`/`embed_dense_query` use separate doc/query model URIs
   (`YANDEX_EMBED_DOC_MODEL`/`YANDEX_EMBED_QUERY_MODEL`, both default `text-embeddings/latest`);
   a module-level query cache (`_query_cache`, `_QUERY_CACHE_MAX = 256`) spares repeat demo
@@ -323,9 +351,9 @@ wave plan) first, then update ADRs if a stack boundary changes.
 
 ## Verification
 
-- `make ci`: backend/frontend gate; `uv run pytest` verified 148 passed / 5 skipped at `327f47c`
+- `make ci`: backend/frontend gate; `uv run pytest` verified 151 passed / 5 skipped at `652317e`
   (live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified, mypy: "no
-  issues found in 75 source files").
+  issues found in 76 source files").
 - `make eval`: deterministic + retrieval-augmented evidence packet verification (17 questions,
   synthetic corpus only, incl. adversarial prompt-injection cases).
 - `docker compose config`: validates server-first Compose wiring (`api`, `web`, `qdrant`).
