@@ -161,6 +161,8 @@ export type StatsOverview = {
   entities_by_type: Record<string, number>;
   relations_by_type: Record<string, number>;
   security_labels: Record<string, number>;
+  quarantined: number;
+  quarantine_reasons: Record<string, number>;
 };
 
 export type AnswerRunSummary = {

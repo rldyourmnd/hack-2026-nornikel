@@ -751,6 +751,22 @@ class DuckDBLedgerRepository:
                     "GROUP BY security_label ORDER BY COUNT(*) DESC"
                 ).fetchall()
             }
+            # Machine-readable quarantine reasons: the ingest run stores a
+            # "[reason_code] message" prefix (no_text_layer_ocr_disabled etc.)
+            # so the Data page shows why files were skipped without OCR.
+            reasons: dict[str, int] = {}
+            for row in connection.execute(
+                "SELECT error FROM ingestion_runs WHERE status = 'quarantined'"
+            ).fetchall():
+                message = str(row[0] or "")
+                code = (
+                    message[1 : message.index("]")]
+                    if message.startswith("[") and "]" in message
+                    else "unknown"
+                )
+                reasons[code] = reasons.get(code, 0) + 1
+            stats["quarantine_reasons"] = reasons
+            stats["quarantined"] = sum(reasons.values())
         return stats
 
     def list_answer_runs(self, limit: int = 20) -> list[dict[str, Any]]:

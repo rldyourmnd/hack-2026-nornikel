@@ -87,7 +87,31 @@ export function DataPage() {
                 <div className="stat-value">{stats.relations}</div>
                 <div className="stat-label">связей графа</div>
               </div>
+              <div className="stat-card">
+                <div className="stat-value">{stats.quarantined ?? 0}</div>
+                <div className="stat-label">в карантине</div>
+              </div>
             </div>
+            {stats.quarantine_reasons && Object.keys(stats.quarantine_reasons).length > 0 ? (
+              <div className="kv-list">
+                <div className="kv-row">
+                  <span>Причины карантина (OCR отключён)</span>
+                  <span className="kv-value" />
+                </div>
+                {Object.entries(stats.quarantine_reasons).map(([code, count]) => (
+                  <div className="kv-row" key={code}>
+                    <span>
+                      {code === "no_text_layer_ocr_disabled"
+                        ? "нет текстового слоя (скан/изображение)"
+                        : code === "parser_error"
+                          ? "ошибка парсинга"
+                          : code}
+                    </span>
+                    <span className="kv-value">{count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             <div className="button-row">
               <button
                 className="secondary-button"

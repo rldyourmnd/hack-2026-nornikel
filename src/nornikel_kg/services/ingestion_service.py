@@ -197,14 +197,23 @@ class IngestionService:
         try:
             parsed = active_parser.parse(content=content, filename=filename)
         except NoTextLayerError as error:
-            self._quarantine(source_id, filename, raw_sha256, document_type, str(error))
+            self._quarantine(
+                source_id, filename, raw_sha256, document_type, str(error),
+                reason_code="no_text_layer_ocr_disabled",
+            )
             return self._response_for(source_id, warnings=[str(error)])
         except ParserError as error:
-            self._quarantine(source_id, filename, raw_sha256, document_type, str(error))
+            self._quarantine(
+                source_id, filename, raw_sha256, document_type, str(error),
+                reason_code="parser_error",
+            )
             return self._response_for(source_id, warnings=[str(error)])
         except Exception as error:  # never 500 on parser crashes
             logger.exception("Unexpected parser failure for %s", filename)
-            self._quarantine(source_id, filename, raw_sha256, document_type, repr(error))
+            self._quarantine(
+                source_id, filename, raw_sha256, document_type, repr(error),
+                reason_code="unexpected_error",
+            )
             return self._response_for(source_id, warnings=[repr(error)])
 
         self._archive_artifact(source_id, filename, content)
@@ -316,9 +325,13 @@ class IngestionService:
         raw_sha256: str,
         document_type: str,
         error: str,
+        *,
+        reason_code: str,
     ) -> None:
         # Register the source row so the quarantined state is visible in the UI,
-        # but write no evidence spans.
+        # but write no evidence spans. The reason_code is a machine-readable
+        # prefix so the UI can distinguish "no text layer (OCR off)" from a
+        # genuine parser failure without string-matching the message.
         empty = ParsedDocument(blocks=[], tables=[], parser_profile="quarantined")
         self.repository.ingest_parsed_document(
             source_id=source_id,
@@ -332,7 +345,7 @@ class IngestionService:
             source_id=source_id,
             status="quarantined",
             stage="parse",
-            error=error,
+            error=f"[{reason_code}] {error}",
         )
 
     def _run_extraction(self, source_id: str) -> dict[str, int]:
