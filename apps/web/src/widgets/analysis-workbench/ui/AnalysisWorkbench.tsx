@@ -36,6 +36,24 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
   const [geographyFilter, setGeographyFilter] = useState("");
   const [yearFromFilter, setYearFromFilter] = useState("");
   const [yearToFilter, setYearToFilter] = useState("");
+  const [highlightedSpanId, setHighlightedSpanId] = useState<string | null>(null);
+
+  // Stable citation numbers: each cited span gets an index by first appearance
+  // in the evidence list, so a sentence's chips point at the same card number.
+  const citationIndex = new Map<string, number>();
+  if (answer) {
+    answer.evidence.forEach((span, index) => {
+      citationIndex.set(span.span_id, index + 1);
+    });
+  }
+
+  const focusEvidence = (spanId: string) => {
+    setHighlightedSpanId(spanId);
+    const node = document.getElementById(`evidence-${spanId}`);
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
 
   useEffect(() => {
     void refreshSources();
@@ -327,11 +345,32 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
                     : "низкая"}
               </div>
               {answer.answer_summary.length > 0 ? (
-                answer.answer_summary.map((sentence) => (
-                  <div className="answer-sentence" key={sentence.sentence}>
-                    {sentence.sentence}
-                  </div>
-                ))
+                answer.answer_summary.map((sentence) => {
+                  const citedSpanIds = sentence.supporting_span_ids.filter((spanId) =>
+                    citationIndex.has(spanId),
+                  );
+                  return (
+                    <div className="answer-sentence" key={sentence.sentence}>
+                      <span>{sentence.sentence}</span>
+                      <span className="citation-row">
+                        {citedSpanIds.map((spanId) => (
+                          <button
+                            className="citation-chip"
+                            key={spanId}
+                            onClick={() => focusEvidence(spanId)}
+                            title={`Показать доказательство ${spanId}`}
+                            type="button"
+                          >
+                            {citationIndex.get(spanId)}
+                          </button>
+                        ))}
+                        <span className="citation-verified" title="Подтверждено доказательствами">
+                          <CheckCircle2 size={12} /> проверено
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="answer-sentence answer-sentence-muted">
                   {answer.gaps.length > 0
@@ -422,7 +461,13 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
         {artifactError ? <div className="inline-error">{artifactError}</div> : null}
         {answer ? (
           <>
-            {answer.evidence.length > 0 ? <EvidenceList evidence={answer.evidence} /> : null}
+            {answer.evidence.length > 0 ? (
+              <EvidenceList
+                citationIndex={citationIndex}
+                evidence={answer.evidence}
+                highlightedSpanId={highlightedSpanId}
+              />
+            ) : null}
             {answer.graph_paths.length > 0 ? <GraphView graphPaths={answer.graph_paths} /> : null}
             <EvaluationDashboard answer={answer} />
           </>

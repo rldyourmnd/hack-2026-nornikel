@@ -5,6 +5,7 @@ export type EvidenceSpan = {
   span_type: "text" | "table_row" | "table_cell" | "figure" | "page_image";
   visible_text: string;
   page: number | null;
+  locator: Record<string, unknown>;
   validation_status: string;
   evidence_confidence: number;
   security_label: string;
