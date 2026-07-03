@@ -1,11 +1,14 @@
 import type {
+  AnswerRunSummary,
   AskFilters,
   AskResponse,
   EntitySearchResult,
+  EvalSummary,
   GapsAnalysis,
   GraphNeighborhood,
   SourceIngestResponse,
   SourceSummary,
+  StatsOverview,
   TimelineEvent,
 } from "./types";
 
@@ -200,4 +203,47 @@ export async function fetchTimeline(): Promise<TimelineEvent[]> {
   }
   const payload = (await response.json()) as { events: TimelineEvent[] };
   return payload.events;
+}
+
+export async function fetchStats(): Promise<StatsOverview> {
+  const response = await fetch(`${API_BASE_URL}/stats/overview`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Stats request failed"));
+  }
+  return (await response.json()) as StatsOverview;
+}
+
+export async function listAnswerRuns(limit = 20): Promise<AnswerRunSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/stats/answer-runs?limit=${limit}`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Answer runs request failed"));
+  }
+  const payload = (await response.json()) as { runs: AnswerRunSummary[] };
+  return payload.runs;
+}
+
+export async function fetchEvalSummary(): Promise<EvalSummary> {
+  const response = await fetch(`${API_BASE_URL}/eval/summary`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Eval summary request failed"));
+  }
+  return (await response.json()) as EvalSummary;
+}
+
+export async function enrichSource(sourceId: string): Promise<{ scheduled: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/sources/${sourceId}/enrich`, {
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Enrich request failed"));
+  }
+  return (await response.json()) as { scheduled: boolean };
+}
+
+export async function reindexAll(): Promise<{ scheduled: boolean }> {
+  const response = await fetch(`${API_BASE_URL}/sources/reindex-all`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Reindex request failed"));
+  }
+  return (await response.json()) as { scheduled: boolean };
 }

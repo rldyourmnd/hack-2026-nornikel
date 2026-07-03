@@ -11,6 +11,7 @@ type ArtifactBankPanelProps = {
   onUpload: (file: File) => Promise<void>;
   onImportUrl: (url: string) => Promise<void>;
   onDelete: (sourceId: string) => Promise<void>;
+  onEnrich?: (sourceId: string) => Promise<void>;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -44,6 +45,7 @@ export function ArtifactBankPanel({
   onUpload,
   onImportUrl,
   onDelete,
+  onEnrich,
 }: ArtifactBankPanelProps) {
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
@@ -128,17 +130,32 @@ export function ArtifactBankPanel({
               <span>{source.evidence_count} evidence</span>
               <span>{source.measurement_count} facts</span>
             </div>
-            <button
-              aria-label={`Delete source ${source.title}`}
-              className="secondary-button"
-              disabled={loading}
-              onClick={async () => {
-                await onDelete(source.source_id);
-              }}
-              type="button"
-            >
-              Delete
-            </button>
+            <div className="source-actions">
+              {onEnrich && source.status !== "quarantined" ? (
+                <button
+                  aria-label={`Re-enrich source ${source.title}`}
+                  className="secondary-button"
+                  disabled={loading || source.status === "running"}
+                  onClick={async () => {
+                    await onEnrich(source.source_id);
+                  }}
+                  type="button"
+                >
+                  Обогатить
+                </button>
+              ) : null}
+              <button
+                aria-label={`Delete source ${source.title}`}
+                className="secondary-button"
+                disabled={loading}
+                onClick={async () => {
+                  await onDelete(source.source_id);
+                }}
+                type="button"
+              >
+                Удалить
+              </button>
+            </div>
           </article>
         ))}
       </div>

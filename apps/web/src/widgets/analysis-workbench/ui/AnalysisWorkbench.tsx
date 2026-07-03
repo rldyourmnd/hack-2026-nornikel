@@ -5,22 +5,22 @@ import { QuestionForm } from "@/features/ask-question";
 import {
   askQuestion,
   listSources,
-  deleteSource,
-  importUrl,
-  uploadSource,
   type AskFilters,
   type AskResponse,
   type SourceSummary,
 } from "@/shared/api";
 import { defaultQuestion } from "@/shared/i18n/ru";
 import { Panel } from "@/shared/ui";
-import { ArtifactBankPanel, EvidenceList } from "@/widgets/artifact-bank";
+import { EvidenceList } from "@/widgets/artifact-bank";
 import { EvaluationDashboard } from "@/widgets/evaluation-dashboard";
-import { GapsBoard } from "@/widgets/gaps-board";
-import { GraphNeighborhoodPanel, GraphView } from "@/widgets/graph-view";
-import { DecisionsTimeline } from "@/widgets/timeline";
+import { GraphView } from "@/widgets/graph-view";
 
-export function AnalysisWorkbench() {
+type AnalysisWorkbenchProps = {
+  // A question injected from another page (e.g. a gap cell in Analytics).
+  injectedQuestion?: string | null;
+};
+
+export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) {
   const [answer, setAnswer] = useState<AskResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState(defaultQuestion);
@@ -36,7 +36,6 @@ export function AnalysisWorkbench() {
   const [geographyFilter, setGeographyFilter] = useState("");
   const [yearFromFilter, setYearFromFilter] = useState("");
   const [yearToFilter, setYearToFilter] = useState("");
-  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     void refreshSources();
@@ -143,6 +142,15 @@ export function AnalysisWorkbench() {
     }
   }
 
+  // A gap cell clicked on the Analytics page lands here as a ready question.
+  useEffect(() => {
+    if (injectedQuestion) {
+      setQuestion(injectedQuestion);
+      void handleSubmit(injectedQuestion);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injectedQuestion]);
+
   function clearFilters() {
     setSelectedSourceIds(new Set());
     setMaterialFilter("");
@@ -165,51 +173,6 @@ export function AnalysisWorkbench() {
     geographyFilter.length > 0 ||
     yearFromFilter.trim().length > 0 ||
     yearToFilter.trim().length > 0;
-
-  async function handleUpload(file: File) {
-    setUploading(true);
-    setArtifactError(null);
-    try {
-      const result = await uploadSource(file);
-      await refreshSources();
-      if (result.warnings.length > 0) {
-        setArtifactError(result.warnings.join(" "));
-      }
-    } catch (err) {
-      setArtifactError(err instanceof Error ? err.message : "Не удалось загрузить источник");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function handleImportUrl(url: string) {
-    setUploading(true);
-    setArtifactError(null);
-    try {
-      const result = await importUrl(url);
-      await refreshSources();
-      if (result.warnings.length > 0) {
-        setArtifactError(result.warnings.join(" "));
-      }
-    } catch (err) {
-      setArtifactError(err instanceof Error ? err.message : "Не удалось импортировать URL");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function handleDeleteSource(sourceId: string) {
-    setUploading(true);
-    setArtifactError(null);
-    try {
-      await deleteSource(sourceId);
-      await refreshSources();
-    } catch (err) {
-      setArtifactError(err instanceof Error ? err.message : "Не удалось удалить источник");
-    } finally {
-      setUploading(false);
-    }
-  }
 
   return (
     <div className="workbench-grid">
@@ -456,22 +419,7 @@ export function AnalysisWorkbench() {
       </div>
 
       <div className="stack">
-        <ArtifactBankPanel
-          error={artifactError}
-          loading={uploading}
-          onUpload={handleUpload}
-          onImportUrl={handleImportUrl}
-          onDelete={handleDeleteSource}
-          sources={sources}
-        />
-        <GraphNeighborhoodPanel />
-        <GapsBoard
-          onGapQuery={(gapQuestion) => {
-            setQuestion(gapQuestion);
-            void handleSubmit(gapQuestion);
-          }}
-        />
-        <DecisionsTimeline />
+        {artifactError ? <div className="inline-error">{artifactError}</div> : null}
         {answer ? (
           <>
             {answer.evidence.length > 0 ? <EvidenceList evidence={answer.evidence} /> : null}
@@ -482,7 +430,8 @@ export function AnalysisWorkbench() {
           <Panel title="Рабочая область">
             <p className="page-caption">
               Первый запрос покажет таблицу экспериментов, evidence cards, графовый путь,
-              противоречия, пробелы и проверку неподдержанных claims.
+              противоречия и проверку каждого предложения. Загрузка документов — в разделе
+              «Данные», интерактивный граф — в разделе «Граф знаний».
             </p>
           </Panel>
         )}

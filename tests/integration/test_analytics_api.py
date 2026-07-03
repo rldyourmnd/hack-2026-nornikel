@@ -122,3 +122,25 @@ def test_source_summary_carries_year_and_geography(
     assert uploaded
     assert uploaded[0]["year"] == 2019
     assert uploaded[0]["geography"] == "ru"
+
+def test_stats_overview_counters(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    response = client.get("/stats/overview")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["sources"] >= 1  # synthetic fixture is seeded
+    assert "entities_by_type" in payload
+    assert "security_labels" in payload
+
+
+def test_answer_runs_audit_trail(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+    ask = client.post(
+        "/qa/ask",
+        json={"question": "Что делали по Ni-30Cu при старении 700 C 8 ч?", "language": "ru"},
+    )
+    assert ask.status_code == 200
+    response = client.get("/stats/answer-runs?limit=5")
+    assert response.status_code == 200
+    runs = response.json()["runs"]
+    assert runs and "verification" in runs[0]

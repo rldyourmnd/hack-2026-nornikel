@@ -150,3 +150,31 @@ export type TimelineEvent = {
   year: number | null;
   evidence_span_ids: string[];
 };
+
+export type StatsOverview = {
+  sources: number;
+  evidence_spans: number;
+  measurements: number;
+  relations: number;
+  answer_runs: number;
+  entities_by_type: Record<string, number>;
+  relations_by_type: Record<string, number>;
+  security_labels: Record<string, number>;
+};
+
+export type AnswerRunSummary = {
+  run_id: string;
+  question: string;
+  answer_mode: string | null;
+  latency_ms: number | null;
+  verification: Record<string, number>;
+  created_at: string;
+};
+
+export type EvalSummary = {
+  status: string;
+  run_id?: string;
+  run_at?: string;
+  question_count?: number;
+  metrics: Record<string, number>;
+};
