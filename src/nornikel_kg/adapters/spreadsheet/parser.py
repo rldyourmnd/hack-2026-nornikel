@@ -64,24 +64,30 @@ class SpreadsheetDocumentParser:
             if table_index > max_sheets:
                 break
             frame = frame.fillna("")
+            all_rows = list(frame.itertuples(index=False))
+            # The first non-empty row is the header; its labels stay attached to
+            # every data cell so numbers keep their column meaning downstream.
+            header = [str(value).strip() for value in all_rows[0][:max_columns]] if all_rows else []
             rows: list[ParsedTableRow] = []
-            for row_index, row in enumerate(frame.itertuples(index=False), start=1):
-                if row_index > max_rows:
-                    truncated_rows += len(frame) - max_rows
+            for row_index, row in enumerate(all_rows[1:], start=2):
+                if row_index - 1 > max_rows:
+                    truncated_rows += len(all_rows) - 1 - max_rows
                     break
                 cells = [
                     ParsedTableCell(
                         text=str(value).strip(),
                         row_index=row_index,
                         col_index=col_index,
+                        header=header[col_index - 1] if col_index - 1 < len(header) else "",
                     )
                     for col_index, value in enumerate(row[:max_columns], start=1)
                 ]
                 if any(cell.text for cell in cells):
-                    rows.append(ParsedTableRow(cells=cells, row_index=row_index))
+                    rows.append(ParsedTableRow(cells=cells, row_index=row_index, headers=header))
             if rows:
-                # Sheet name as a header row keeps the sheet topic citable.
-                tables.append(ParsedTable(rows=rows, table_index=table_index, page=None))
+                tables.append(
+                    ParsedTable(rows=rows, table_index=table_index, page=None, header=header)
+                )
                 logger.debug("Sheet %s: %d rows", sheet_name, len(rows))
         metadata: dict[str, Any] = {"sheet_count": len(sheets)}
         if truncated_rows > 0:

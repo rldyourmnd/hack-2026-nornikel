@@ -99,28 +99,32 @@ class DoclingDocumentParser:
         tables: list[ParsedTable] = []
         for table_index, table_item in enumerate(getattr(document, "tables", []) or [], start=1):
             page, _bbox = self._provenance(table_item)
-            rows = self._table_rows(table_item)
+            header, rows = self._table_rows(table_item)
             if rows:
-                tables.append(ParsedTable(rows=rows, table_index=table_index, page=page))
+                tables.append(
+                    ParsedTable(rows=rows, table_index=table_index, page=page, header=header)
+                )
         return tables
 
-    def _table_rows(self, table_item: Any) -> list[ParsedTableRow]:
+    def _table_rows(self, table_item: Any) -> tuple[list[str], list[ParsedTableRow]]:
         grid = getattr(getattr(table_item, "data", None), "grid", None)
         if not grid:
-            return []
+            return [], []
+        header = [str(getattr(cell, "text", "") or "").strip() for cell in grid[0]] if grid else []
         rows: list[ParsedTableRow] = []
-        for row_index, grid_row in enumerate(grid, start=1):
+        for row_index, grid_row in enumerate(grid[1:], start=2):
             cells = [
                 ParsedTableCell(
                     text=str(getattr(cell, "text", "") or "").strip(),
                     row_index=row_index,
                     col_index=col_index,
+                    header=header[col_index - 1] if col_index - 1 < len(header) else "",
                 )
                 for col_index, cell in enumerate(grid_row, start=1)
             ]
             if any(cell.text for cell in cells):
-                rows.append(ParsedTableRow(cells=cells, row_index=row_index))
-        return rows
+                rows.append(ParsedTableRow(cells=cells, row_index=row_index, headers=header))
+        return header, rows
 
     def _provenance(self, item: Any) -> tuple[int | None, str | None]:
         provenance = getattr(item, "prov", None) or []

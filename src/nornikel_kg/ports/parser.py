@@ -24,16 +24,28 @@ class ParsedTableCell:
     text: str
     row_index: int
     col_index: int
+    header: str = ""
 
 
 @dataclass(frozen=True)
 class ParsedTableRow:
     cells: list[ParsedTableCell]
     row_index: int
+    headers: list[str] = field(default_factory=list)
 
     @property
     def text(self) -> str:
-        return " | ".join(cell.text for cell in self.cells if cell.text.strip())
+        # Header-labeled serialization keeps a number's meaning attached to it
+        # ("Извлечение=95.2 %") so downstream extraction/answers don't see a
+        # bare "95.2 | %". Falls back to a plain pipe join when unheadered.
+        labeled: list[str] = []
+        for cell in self.cells:
+            value = cell.text.strip()
+            if not value:
+                continue
+            header = cell.header.strip()
+            labeled.append(f"{header}: {value}" if header else value)
+        return " | ".join(labeled)
 
 
 @dataclass(frozen=True)
@@ -41,6 +53,7 @@ class ParsedTable:
     rows: list[ParsedTableRow]
     table_index: int
     page: int | None = None
+    header: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
