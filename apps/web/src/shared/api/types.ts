@@ -123,6 +123,13 @@ export type EntitySearchResult = {
   canonical_name: string;
 };
 
+export type TypedEntity = {
+  entity_id: string;
+  entity_type: string;
+  canonical_name: string;
+  evidence_count: number;
+};
+
 export type GapCell = {
   material_id: string;
   material_name: string;

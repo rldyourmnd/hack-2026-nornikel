@@ -16,6 +16,17 @@ def search_entities(
     return {"entities": [dict(item) for item in results]}
 
 
+@router.get("/by-type")
+def entities_by_type(
+    entity_type: str = Query(min_length=1, max_length=200),
+    limit: int = Query(default=24, ge=1, le=100),
+) -> dict[str, list[dict[str, object]]]:
+    """List entities of one or more comma-separated types, most-referenced first."""
+    types = [item.strip() for item in entity_type.split(",") if item.strip()]
+    results = get_ledger_repository().list_entities_by_type(types, limit=limit)
+    return {"entities": results}
+
+
 @router.get("/{entity_id}")
 def get_entity(entity_id: str) -> dict[str, object]:
     entity = get_ledger_repository().get_entity(entity_id)

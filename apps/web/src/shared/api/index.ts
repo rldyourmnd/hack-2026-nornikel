@@ -3,6 +3,7 @@ export {
   askQuestion,
   deleteSource,
   enrichSource,
+  fetchEntitiesByType,
   fetchEvalSummary,
   fetchHealth,
   fetchNeighborhood,
@@ -34,4 +35,5 @@ export type {
   SourceSummary,
   StatsOverview,
   TimelineEvent,
+  TypedEntity,
 } from "./types";

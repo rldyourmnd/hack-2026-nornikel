@@ -11,6 +11,7 @@ import type {
   SourceSummary,
   StatsOverview,
   TimelineEvent,
+  TypedEntity,
 } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -177,6 +178,20 @@ export async function fetchNeighborhood(
     throw new Error(await readErrorMessage(response, "Neighborhood request failed"));
   }
   return (await response.json()) as GraphNeighborhood;
+}
+
+export async function fetchEntitiesByType(
+  entityType: string,
+  limit = 24,
+): Promise<TypedEntity[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/entities/by-type?entity_type=${encodeURIComponent(entityType)}&limit=${limit}`,
+  );
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Entities request failed"));
+  }
+  const payload = (await response.json()) as { entities: TypedEntity[] };
+  return payload.entities;
 }
 
 export async function searchEntities(query: string): Promise<EntitySearchResult[]> {

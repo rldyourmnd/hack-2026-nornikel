@@ -894,6 +894,44 @@ class DuckDBLedgerRepository:
             for row in rows
         ]
 
+    def list_entities_by_type(
+        self, entity_types: list[str], limit: int = 24
+    ) -> list[dict[str, Any]]:
+        """Entities of the given type(s), most-referenced first.
+
+        Powers the experts/labs directory: evidence_count is a proxy for how
+        prominent an entity is in the corpus (≈ how many spans mention it).
+        """
+        self.migrate()
+        if not entity_types:
+            return []
+        placeholders = ", ".join("?" for _ in entity_types)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT entity_id, entity_type, canonical_name, evidence_span_ids_json
+                FROM entities
+                WHERE entity_type IN ({placeholders})
+                """,
+                list(entity_types),
+            ).fetchall()
+        items: list[tuple[int, dict[str, Any]]] = []
+        for row in rows:
+            count = len(json.loads(str(row[3] or "[]")))
+            items.append(
+                (
+                    count,
+                    {
+                        "entity_id": str(row[0]),
+                        "entity_type": str(row[1]),
+                        "canonical_name": str(row[2]),
+                        "evidence_count": count,
+                    },
+                )
+            )
+        items.sort(key=lambda pair: pair[0], reverse=True)
+        return [entity for _count, entity in items[:limit]]
+
     def list_graph_relations(self) -> list[dict[str, Any]]:
         self.migrate()
         with self._connect() as connection:
