@@ -40,6 +40,32 @@ def test_duckdb_ledger_ingests_uploaded_csv(tmp_path: Path) -> None:
     assert repository.list_evidence_spans(result.source.source_id)[0].span_type == "table_row"
 
 
+def test_arbitrary_csv_ingests_as_generic_table_with_facts(tmp_path: Path) -> None:
+    # A CSV without the fixed experiment schema is no longer rejected: it is
+    # ingested as generic header-labeled table rows, and numeric facts are
+    # persisted and queryable per span.
+    repository = DuckDBLedgerRepository(tmp_path / "catalog.duckdb")
+    csv_content = (
+        "Показатель,Значение,Ед.изм\nСульфаты,250,мг/л\nСухой остаток,1200,мг/л\n"
+    ).encode("utf-8")
+
+    result = repository.ingest_source_bytes(filename="water_chemistry.csv", content=csv_content)
+
+    assert result.warnings == []
+    assert result.evidence_count == 2
+    spans = repository.list_evidence_spans(result.source.source_id)
+    assert {span.span_type for span in spans} == {"table_row"}
+
+    facts_by_span = repository.list_numeric_facts_for_spans([span.span_id for span in spans])
+    values = {
+        round(value, 3)
+        for entries in facts_by_span.values()
+        for _subject, value, _unit in entries
+    }
+    assert 250.0 in values
+    assert 1200.0 in values
+
+
 def test_uploaded_csv_does_not_steal_seeded_source_facts(tmp_path: Path) -> None:
     repository = DuckDBLedgerRepository(tmp_path / "catalog.duckdb")
     sample_dir = Path("sample_docs/synthetic")

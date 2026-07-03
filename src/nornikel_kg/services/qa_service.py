@@ -332,19 +332,41 @@ class EvidenceQAService:
         constraints = parse_parameter_constraints(question)
         if not constraints:
             return evidence
+        # Prefer persisted numeric facts (SQL) over re-parsing span text on every
+        # query; spans predating the fact layer fall back to span parsing.
+        facts_by_span = self._numeric_facts_by_span([span.span_id for span in evidence])
         kept: list[EvidenceSpan] = []
         for span in evidence:
-            facts: list[tuple[str, float, str]] = []
-            for fact in parse_labeled_span_facts(span.visible_text):
-                # The constrained subject may be the row subject (tall tables)
-                # or the column property (wide tables) — match either.
-                facts.append((fact.subject, fact.value, fact.unit))
-                if fact.prop and fact.prop != fact.subject:
-                    facts.append((fact.prop, fact.value, fact.unit))
+            facts = facts_by_span.get(span.span_id)
+            if facts is None:
+                facts = []
+                for fact in parse_labeled_span_facts(span.visible_text):
+                    # The constrained subject may be the row subject (tall tables)
+                    # or the column property (wide tables) — match either.
+                    facts.append((fact.subject, fact.value, fact.unit))
+                    if fact.prop and fact.prop != fact.subject:
+                        facts.append((fact.prop, fact.value, fact.unit))
             if not facts or facts_satisfy_constraints(facts, constraints):
                 kept.append(span)
         # Never blank the packet on constraint filtering alone.
         return kept or evidence
+
+    def _numeric_facts_by_span(
+        self, span_ids: list[str]
+    ) -> dict[str, list[tuple[str, float, str]]]:
+        """Persisted numeric facts keyed by span, via the ledger repository.
+
+        Optional capability: a repository without the fact layer (or with no
+        facts for these spans) yields nothing and the caller re-parses span text.
+        """
+        getter = getattr(self.ledger_repository, "list_numeric_facts_for_spans", None)
+        if getter is None or not span_ids:
+            return {}
+        try:
+            result = getter(span_ids)
+        except Exception:  # fact lookup is an optimization, never breaks answers
+            return {}
+        return result if isinstance(result, dict) else {}
 
     def _apply_numeric_constraints(
         self,
