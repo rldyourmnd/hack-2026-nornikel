@@ -1,0 +1,114 @@
+[project]
+name = "nornikel-kg-search"
+version = "0.1.0"
+description = "Evidence-first materials knowledge graph and hybrid search MVP."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "blake3>=1.0.8",
+  "duckdb>=1.4.3",
+  "fastapi[standard]>=0.128.0",
+  "json-repair>=0.30.0",
+  "langfuse>=2.59.7,<2.60",
+  "litellm>=1.83.3",
+  "networkx>=3.6.1",
+  "pydantic>=2.12.5",
+  "pydantic-settings>=2.12.0",
+  "pyyaml>=6.0.3",
+  # litellm's num_retries path imports tenacity lazily and raises a bare
+  # Exception when it's absent — a hard runtime dependency for us.
+  "tenacity>=8.2.0",
+  "qdrant-client>=1.16.2",
+]
+
+[project.optional-dependencies]
+ingest = [
+  "docling>=2.66.0",
+  "fastembed>=0.7.1",
+  "gliner>=0.2.13",
+  "openpyxl>=3.1.5",
+  "optimum[onnxruntime]>=1.23.0",
+  "pandas>=2.3.3",
+  "sentence-transformers>=3.3.0",
+  "trafilatura>=2.0.0",
+  "xlrd>=2.0.1",
+]
+fixtures = [
+  "openpyxl>=3.1.5",
+  "pillow>=12.0.0",
+  "python-docx>=1.2.0",
+  "python-pptx>=1.0.2",
+  "reportlab>=4.4.5",
+]
+
+[dependency-groups]
+dev = [
+  "httpx>=0.28.1",
+  "mypy>=1.19.1",
+  "pytest>=9.0.2",
+  "pytest-cov>=7.0.0",
+  "ruff>=0.14.9",
+  "types-pyyaml>=6.0.12.20260518",
+]
+
+[tool.uv]
+package = true
+
+# Linux images must use CPU-only torch wheels (no CUDA payload in the API image).
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nornikel_kg", "services"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["nornikel_kg", "services.api"]
+
+[[tool.mypy.overrides]]
+module = [
+  "json_repair",
+  "json_repair.*",
+  "litellm",
+  "litellm.*",
+  "langfuse",
+  "langfuse.*",
+  "docling",
+  "docling.*",
+  "trafilatura",
+  "trafilatura.*",
+  "gliner",
+  "gliner.*",
+  "networkx",
+  "networkx.*",
+  "pandas",
+  "pandas.*",
+  "sentence_transformers",
+  "sentence_transformers.*",
+  "fastembed",
+  "fastembed.*",
+]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
