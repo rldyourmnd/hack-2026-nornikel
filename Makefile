@@ -27,6 +27,9 @@ generate-fixtures:
 eval:
 	uv run python scripts/run_eval.py
 
+eval-realcase:
+	uv run python scripts/run_realcase_eval.py
+
 reindex:
 	uv run python scripts/reindex.py
 
