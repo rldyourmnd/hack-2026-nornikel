@@ -13,6 +13,10 @@ import { SecurityPage } from "@/pages/security";
 import { PageHero } from "@/shared/ui";
 import { AppLayout } from "@/widgets/app-layout";
 
+function HeroImage({ src }: { src: string }) {
+  return <img alt="" className="page-hero-illus" src={src} />;
+}
+
 function GraphRoute() {
   return (
     <div className="page-wrap">
@@ -20,6 +24,7 @@ function GraphRoute() {
         eyebrow="Интерактивный исследовательский граф"
         title="Граф знаний"
         caption="Материалы, процессы, оборудование, публикации и эксперты — каждая связь несёт ссылки на доказательства."
+        aside={<HeroImage src="/brand/feat-path.png" />}
       />
       <GraphPage />
     </div>
@@ -33,6 +38,7 @@ function DataRoute() {
         eyebrow="Контроль корпуса"
         title="Данные и источники"
         caption="Загрузка PDF/DOCX/DOC/XLSX/CSV/MD и веб-страниц, статусы обработки, год и география, карантин без OCR."
+        aside={<HeroImage src="/brand/feat-ingest.png" />}
       />
       <DataPage />
     </div>
@@ -47,6 +53,7 @@ function AnalyticsRoute() {
         eyebrow="Управленческая аналитика"
         title="Пробелы и противоречия"
         caption="Матрица покрытия «материал × режим × свойство», история датированных решений и публикаций."
+        aside={<HeroImage src="/brand/an-heatmap.png" />}
       />
       <AnalyticsPage
         onGapQuery={(question) => navigate(`/search?q=${encodeURIComponent(question)}`)}
@@ -62,6 +69,7 @@ function EvalRoute() {
         eyebrow="Качество ответов"
         title="Метрики верификации"
         caption="Покрытие цитатами, отсутствие сфабрикованных чисел, устойчивость к prompt-инъекциям, утечки меток."
+        aside={<HeroImage src="/brand/an-quality.png" />}
       />
       <EvalPage />
     </div>
@@ -75,6 +83,7 @@ function SecurityRoute() {
         eyebrow="Доверие и прозрачность"
         title="Безопасность и аудит"
         caption="Метки доступа источников, контур защиты от инъекций, журнал ответов с результатами верификации."
+        aside={<HeroImage src="/brand/feat-security.png" />}
       />
       <SecurityPage />
     </div>

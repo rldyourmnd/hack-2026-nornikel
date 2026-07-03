@@ -16,6 +16,7 @@ export function SearchPage() {
           "Естественный вопрос + структурные фильтры. Ответ собирается как evidence packet: " +
           "релевантные источники, точные EvidenceSpan и проверка каждого предложения."
         }
+        aside={<img alt="" className="page-hero-illus" src="/brand/feat-search.png" />}
       />
       <AnalysisWorkbench injectedQuestion={injectedQuestion} />
     </div>
