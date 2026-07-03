@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/;
   src/nornikel_kg/resources/dictionaries/; src/nornikel_kg/services/; sample_docs/; eval/;
   scripts/ingest_corpus.py
@@ -88,6 +87,12 @@ accuracy/SOTA overhaul (waves A-D) and archive/legacy-format ingestion (wave E).
   `latest_eval_summary`.
 
 ## Current Behavior
+
+**Provenance note (verified 2026-07-04)**: commit SHAs cited in this memory (e.g.
+`58760b3`, `652317e`) predate the 2026-07-03 squash-migration to `hack-2026-nornikel` and
+are not ancestors of the current `HEAD` — see `mem:CORE-01-INDEX`'s Repository Identity
+And History section. The ledger/schema behavior described was re-verified directly
+against the working tree in this sync pass.
 
 CSV uploads still require the P0 measurement columns and become `table_row` spans plus
 source-scoped measurements/effects. PDF/DOCX/DOCM uploads route through `DoclingDocumentParser`

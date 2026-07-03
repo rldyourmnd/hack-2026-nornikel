@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: 652317e Merge pull request #19 from rldyourmnd/feat/autodeploy
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
   .github/workflows/deploy.yml; pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
 Area: ARCH
@@ -289,6 +288,14 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   returns `{"runs": get_ledger_repository().list_answer_runs(limit)}`.
 
 ## Current Behavior
+
+**Provenance note (verified 2026-07-04)**: this repo's `main` is a freshly squashed
+history after the 2026-07-03 migration to `hack-2026-nornikel` (see
+`mem:CORE-01-INDEX`'s Repository Identity And History section). Commit SHAs cited below
+(e.g. `7c5d30b`, `210bddd`, `98fc57e`, `67d3bca`, `327f47c`, `6feff7a`, `9338017`) predate
+that squash and are not ancestors of the current `HEAD`; they identify commits on the
+archived `nornikel-kg-search` line only. The architecture/behavior they describe was
+re-verified directly against the working tree in this sync pass.
 
 P0 scaffold uses React 19/Vite 8/TypeScript, FastAPI, Python 3.12, and DuckDB as the evidence
 ledger and graph store of record. Runtime wiring (`src/nornikel_kg/services/runtime.py`) lazily

@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: 652317e Merge pull request #19 from rldyourmnd/feat/autodeploy
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
   docker-compose.yml; .env.example; .github/workflows/ci.yml; .github/workflows/deploy.yml;
   tests/; .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md;

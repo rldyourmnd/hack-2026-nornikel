@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
   pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
   services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -107,6 +106,14 @@ the lock) instead of a direct `docker compose exec ... scripts/reindex.py`.
 `pyproject.toml` gained `json-repair` as a main dependency (LLM gateway JSON repair fallback);
 the `ingest` extra gained `optimum[onnxruntime]` (reranker ONNX backend) and `xlrd` (legacy
 `.xls` support); mypy overrides added for `json_repair`/`json_repair.*` and `pandas`/`pandas.*`.
+
+**Dual-repo auto-deploy state (verified 2026-07-04, see `mem:CORE-01-INDEX` for full repo
+identity note)**: `.github/workflows/deploy.yml` exists in both `origin`
+(`rldyourmnd/hack-2026-nornikel`, workflow state `"active"`) and `legacy-origin`
+(`rldyourmnd/nornikel-kg-search`, workflow state `"disabled_manually"` — confirmed via `gh
+api repos/rldyourmnd/nornikel-kg-search/actions/workflows`). Deploy secrets
+(`DEPLOY_SSH_KEY`/`DEPLOY_HOST`/`DEPLOY_USER`) are configured in both repos, but only a push
+to `hack-2026-nornikel`'s `main` actually triggers a deploy.
 
 ## Contracts And Data
 

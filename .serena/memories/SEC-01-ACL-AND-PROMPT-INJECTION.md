@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/adapters/llm/; sample_docs/synthetic_v2/; scripts/run_eval.py; tests/unit/test_source_label_policy.py; tests/unit/test_claim_verifier.py; tests/unit/test_answer_honesty.py
 Area: SEC
 -->
@@ -28,6 +27,12 @@ Capture safety boundaries for source-label filtering, internal-document retrieva
 - `src/nornikel_kg/services/qa_service.py`: `DemoQAService.ask` filters evidence before answer assembly, augments with retrieval hits that are rejoined/rechecked against DuckDB's `security_label`, and runs `ClaimVerifier` before returning.
 
 ## Current Behavior
+
+**Provenance note (verified 2026-07-04)**: this memory carries no commit-SHA citations of
+its own, but see `mem:CORE-01-INDEX`'s Repository Identity And History section for the
+general caveat about pre-migration SHAs cited in sibling memories. The security/
+prompt-injection behavior described was re-verified directly against the working tree in
+this sync pass.
 
 P0/P1 has no user auth/RBAC. Source-label filtering runs before answer assembly, and each answer sentence is verified to reference only allowed evidence spans. Retrieval-augmented spans (`RetrievalService.retrieve_span_ids`) are rejoined against DuckDB and filtered to `security_label in allowed_labels` before being added to the packet, so Qdrant can never smuggle a restricted span into an answer; a reranker (when `RERANKER_ENABLED`) only reorders already-verified spans, it never bypasses the rejoin/filter step.
 

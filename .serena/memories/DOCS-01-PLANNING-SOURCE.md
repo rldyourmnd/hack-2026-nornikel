@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
   .env.example; docs/deployment/
 Area: DOCS
@@ -71,6 +70,19 @@ mirror), merged as PR #19 in `652317e`, and `ec79a96` (corrected "alias" wording
 `.claude/CLAUDE.md`/`docs/deployment/nornikel-nddev.md`, and refreshed the Serena memory files
 committed in this same pass). All six commits are verified present in
 `git log --oneline 327f47c..HEAD`.
+
+This sync covers two further commits, `919a636` (repository-migration doc update:
+`.claude/CLAUDE.md`/`AGENTS.md` now name `hack-2026-nornikel` as the working repo and
+`nornikel-kg-search` as a frozen, do-not-push archive — see `mem:CORE-01-INDEX`'s
+Repository Identity And History section for the verified dual-repo auto-deploy state) and
+`bb45bce` (current `HEAD`, "docs: refresh all documentation to the shipped state":
+`README.md` rewrite, `AGENTS.md` runtime-defaults fix, `.claude/CLAUDE.md` deployment-notes/
+Known-TODOs rewrite, `docs/deployment/fa-nddev.md` marked `(HISTORICAL)`). Both commits are
+part of a freshly squashed history on `hack-2026-nornikel`'s `main` (24 commits total,
+`40eb27c`..`bb45bce`); commit SHAs cited elsewhere in these memory files that predate this
+squash (e.g. `652317e`, `ec79a96`) are not ancestors of the current `HEAD` — they identify
+commits on the archived `nornikel-kg-search` line only (verified via `git merge-base
+--is-ancestor`, see `mem:CORE-01-INDEX`).
 
 Local `main` and `origin/main` were in sync at `652317e` (`git rev-list --left-right --count
 origin/main...main` -> `0\t0`, verified 2026-07-04, before this sync pass's own commit).

@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: 652317e Merge pull request #19 from rldyourmnd/feat/autodeploy
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
   tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
   .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
@@ -35,6 +34,37 @@ Index the durable project knowledge for the Nornikel Materials KG Search hackath
   landed as PR #15) plus wave E (archive/legacy-format ingestion, PR #16), plus a "Deploy
   results (measured on the stand, 2026-07-03)" section recording live deploy observations.
 - `.serena/reviews/`: tracked plan critical review and research evidence register.
+
+## Repository Identity And History (verified 2026-07-04)
+
+- Working repository: `origin` = `git@github.com:rldyourmnd/hack-2026-nornikel.git`
+  (`git remote -v`). `main`/`origin/main` is the canonical branch; the auto-deploy
+  workflow (`.github/workflows/deploy.yml`) runs from here on every push to `main`
+  (`gh api repos/rldyourmnd/hack-2026-nornikel/actions/workflows` -> `deploy` state
+  `"active"`).
+- Archive repository: `legacy-origin` = `git@github.com:rldyourmnd/nornikel-kg-search.git`,
+  a frozen pre-migration archive (`.claude/CLAUDE.md`'s Scope section, `AGENTS.md`'s Key
+  Notes, both added in commit `919a636`: "do not push there"). It carries the same
+  `.github/workflows/deploy.yml` file, but the workflow is manually disabled there
+  (`gh api repos/rldyourmnd/nornikel-kg-search/actions/workflows` -> `deploy` state
+  `"disabled_manually"`, verified 2026-07-04) — pushes to `legacy-origin` never trigger a
+  deploy.
+- **History-rewrite caveat**: `hack-2026-nornikel`'s `main` is a freshly squashed history
+  (`git log --oneline`: `40eb27c` bootstrap .. `919a636` migration doc .. `bb45bce` HEAD —
+  24 commits total), built during the 2026-07-03 migration. Commit SHAs cited deep in this
+  memory file and in `mem:ARCH-01-EVIDENCE-MVP`/`mem:DATA-01-EVIDENCE-LEDGER`/
+  `mem:RELEASE-01-VALIDATION`/`mem:TECHDEBT-01-NOW`/`mem:TEST-01-EVALUATION-GATES`/
+  `mem:SEC-01-ACL-AND-PROMPT-INJECTION` (e.g. `652317e`, `ec79a96`, `9338017`, `41b3acd`,
+  `944e6f0`, `93f3f87`, `58760b3`) predate this squash and are **not** ancestors of the
+  current `HEAD` (verified: `git merge-base --is-ancestor ec79a96 HEAD` fails; `git
+  merge-base --is-ancestor ec79a96 legacy-origin/main` succeeds). Those SHAs remain
+  resolvable in this local checkout only because `legacy-origin`'s objects are fetched
+  here — they identify commits on the archived `nornikel-kg-search` line, not on
+  `hack-2026-nornikel`'s `main`. Treat every such pre-`919a636` SHA as archive-repo
+  provenance for the described change, not as a commit reachable from this repo's `HEAD`.
+  The described code behavior itself has been independently re-verified against the
+  working tree at `bb45bce` in this sync pass (see `## Current Behavior` below and the
+  per-file Source Of Truth citations, which are path-based and still accurate).
 
 ## Entry Points
 
@@ -137,6 +167,18 @@ resilience/perf/UI follow-on, all verified against the working tree at `327f47c`
   repository — no DNS-status file exists in the tree): the A records had not yet been created by
   the domain owner as of this sync, so the new primary domain does not yet resolve/serve; treat
   this as an unverified operational note, not a proven fact (see `mem:TECHDEBT-01-NOW`).
+
+Two more commits landed after the `652317e`/`ec79a96` state described in the paragraphs
+above (both still verified present in the current squashed history, `git log --oneline -2`):
+`919a636` ("docs: working repository migrated to hack-2026-nornikel") changed `.claude/
+CLAUDE.md`'s Scope section and `AGENTS.md`'s Key Notes to record the `hack-2026-nornikel`/
+`nornikel-kg-search` repository split (see `## Repository Identity And History` above), and
+`bb45bce` ("docs: refresh all documentation to the shipped state", current `HEAD`)
+rewrote `README.md` (228 lines changed), trimmed `AGENTS.md`'s runtime-defaults section to
+state the 32m Nginx limit and full upload-type list directly, updated `.claude/CLAUDE.md`'s
+"Validation and deployment notes"/"Known TODOs" sections, and marked
+`docs/deployment/fa-nddev.md` as `(HISTORICAL)` with an explicit "legacy stand... NOT
+deployed to anymore" banner (all four files verified read at `HEAD` in this sync pass).
 
 See `mem:ARCH-01-EVIDENCE-MVP`, `mem:DATA-01-EVIDENCE-LEDGER`, `mem:TECHDEBT-01-NOW` for the
 per-module detail of each change.

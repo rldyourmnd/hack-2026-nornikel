@@ -1,6 +1,5 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: ec79a96 docs: изи-никель.рф is primary, nornikel.nddev.asia is the mirror
+Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
 Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml
 Area: TEST
 -->
@@ -29,6 +28,13 @@ and the archive/legacy-format ingestion wave (E).
 - `make ci` / `make eval`: local gates matching CI.
 
 ## Current Behavior
+
+**Provenance note (verified 2026-07-04)**: commit SHA `652317e` cited below predates the
+2026-07-03 squash-migration to `hack-2026-nornikel` and is not an ancestor of the current
+`HEAD` — see `mem:CORE-01-INDEX`'s Repository Identity And History section. The
+test-count/gate description was re-verified against this memory's own content in this
+sync pass (not re-run live in this pass; see `mem:TECHDEBT-01-NOW` for the last confirmed
+live-run result).
 
 `uv run pytest` passes **151 tests, 5 skipped** at `652317e` — verified by a live run in this
 sync pass, an increase of 3 passed over the previously recorded 148-passed/5-skipped baseline at
