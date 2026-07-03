@@ -1,12 +1,14 @@
 import {
   AlertTriangle,
   ArrowRight,
+  CalendarClock,
   CheckCircle2,
   Globe,
   Layers,
   Search,
   Share2,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -142,6 +144,57 @@ export function LandingPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="capability-grid">
+        <article className="capability-card">
+          <div className="capability-head">
+            <Globe size={20} />
+            <h3>География</h3>
+          </div>
+          <p>Фильтруйте результаты по странам, регионам и типам практики.</p>
+          <img alt="" className="capability-illus" src="/brand/an-geo.png" />
+          <span className="capability-tag">Россия и зарубежная практика</span>
+        </article>
+
+        <article className="capability-card">
+          <div className="capability-head">
+            <Layers size={20} />
+            <h3>Диапазоны и условия</h3>
+          </div>
+          <p>Учитываем концентрации, температуры, давления и скорости потока.</p>
+          <div className="mini-kv">
+            <div><span>Температура</span><b>200 – 600 °C</b></div>
+            <div><span>Концентрация</span><b>0.1 – 100 г/л</b></div>
+            <div><span>Скорость потока</span><b>0.5 – 5 м/с</b></div>
+          </div>
+        </article>
+
+        <article className="capability-card">
+          <div className="capability-head">
+            <Users size={20} />
+            <h3>Команды и эксперты</h3>
+          </div>
+          <p>Распределяйте экспертизу, назначайте ревью и ведите историю решений.</p>
+          <span className="capability-tag">Ролевая экспертиза и ревью</span>
+        </article>
+
+        <article className="capability-card">
+          <div className="capability-head">
+            <CalendarClock size={20} />
+            <h3>Актуализация знаний</h3>
+          </div>
+          <p>Отслеживаем свежесть источников и предлагаем обновления.</p>
+          <div className="freshness">
+            <div className="freshness-row">
+              <span>Свежесть корпуса</span>
+              <b>92%</b>
+            </div>
+            <div className="freshness-bar">
+              <span style={{ width: "92%" }} />
+            </div>
+          </div>
+        </article>
       </section>
     </div>
   );
