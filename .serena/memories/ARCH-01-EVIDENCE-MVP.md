@@ -482,13 +482,18 @@ verified against the working tree at `HEAD`:
   synthetic corpus only, incl. adversarial prompt-injection cases).
 - `docker compose config`: validates server-first Compose wiring (`api`, `web`, `qdrant`).
 
-## Frontend Redesign — react-router Multi-Page App (2026-07-04, HEAD `8d10cc4`)
+## Frontend Redesign — react-router Multi-Page App (2026-07-04, HEAD `e7b4d51`)
 
 Three commits (`6eca379` feat: design-token overhaul + header/footer shell + landing + routing,
 `f91b90c` feat: jury demo cockpit, `c468df8` feat: question-first search layout) replaced the
 state-nav SPA with a `react-router-dom` v7 (`apps/web/package.json:"react-router-dom": "^7.18.1"`)
 multi-page app, followed by `d644575` (docs note) and `8d10cc4` (untrack the 56MB mockup
-package). Verified against the working tree at `HEAD`:
+package). A follow-up mockup-fidelity wave then landed four commits — `fb5c591` (experts/labs
+directory on real graph entities + new `/entities/by-type` API), `4b8f014` (section hero
+illustrations + comparison verdict matrix), `20e5d67` (framed hero illustrations, RU graph
+labels, token-aligned node colors), `e7b4d51` (landing capability grid) — which upgraded the
+ExpertsPage/ComparePage from static explainers to data-backed views (see the updated bullets and
+the "Mockup-fidelity wave" subsection below). Verified against the working tree at `HEAD`:
 
 - `apps/web/src/app/ui/App.tsx`: `BrowserRouter` + `Routes` define one `Route` tree under a shared
   `AppLayout` element — `index` -> `LandingPage`, `search` -> `SearchPage`, `graph`/`data`/
@@ -534,13 +539,21 @@ package). Verified against the working tree at `HEAD`:
   (`answer.answer_summary`, source chips from `answer.evidence`), a 5-card section-preview grid
   (`/search`, `/graph`, `/data`, `/analytics`, `/security` — this is the only header-less place
   `/security` is linked), a problem->solution->value 3-step section, and a closing banner.
-- `apps/web/src/pages/experts/ui/ExpertsPage.tsx` (new, route `/experts`): a `stat-grid` of
-  `stats.entities_by_type` counts across six entity-type keys (`person`, `expert`, `team`,
-  `laboratory`, `organization`, `publication`) plus a static "Рекомендация экспертов" explainer
-  panel; no server-side expert-recommendation logic exists yet.
-- `apps/web/src/pages/compare/ui/ComparePage.tsx` (new, route `/compare`): a static explainer
-  panel plus a `Link` that pre-fills a comparison question into `/search?q=...`; no dedicated
-  comparison-table endpoint exists — comparisons are produced by the general answer pipeline.
+- `apps/web/src/pages/experts/ui/ExpertsPage.tsx` (route `/experts`, rebuilt in `fb5c591` to be
+  data-backed): on mount calls `fetchStats()` plus three `fetchEntitiesByType(...)` requests
+  (`"person,expert"` limit 12, `"laboratory,facility"` limit 8, `"organization,team"` limit 8)
+  against the new `/entities/by-type` endpoint. Renders a hero + `mascot-span.png` card, four
+  stat cards, a ranked "Кого спросить" list built from the real person/expert entities (each row
+  shows `initials()`-derived avatar + `evidence_count`), a lab-card grid, and a topic-chip row —
+  no more hardcoded expert names.
+- `apps/web/src/pages/compare/ui/ComparePage.tsx` (route `/compare`, rebuilt in `4b8f014`): a
+  verdict-matrix comparison table. A `Verdict` union (`"strong" | "medium" | "needs_data"`) drives
+  a `VerdictCell` (подтверждено / частично / нет данных) rendered across `ROWS` (6 metrics:
+  извлечение, CAPEX/OPEX, энергозатраты, холодный климат, экология, доказательность) ×
+  `COLUMNS` (Биоокисление / Гипербарическое выщелачивание / Флотационные реагенты), with a legend,
+  an `an-compare.png` `PageHero` aside, and a `Link` that pre-fills a comparison question into
+  `/search?q=...`. Still illustrative structure — no dedicated comparison-table endpoint exists;
+  live comparisons are produced by the general answer pipeline.
 - `apps/web/src/shared/ui/PageHero.tsx` (new): `eyebrow`/`title`/`caption` props, used by the
   `App.tsx` route wrapper components and `ExpertsPage`/`ComparePage`.
 - `apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx` reordered to question-first:
@@ -548,9 +561,12 @@ package). Verified against the working tree at `HEAD`:
   condition/geography/year filters plus the source-selection list now collapse into a
   `<details className="filters-details"><summary>Фильтры: ...</summary>...</details>` block below
   it (previously the 49-item source checklist rendered before the question box).
-- Brand assets: `apps/web/public/brand/` (new, 2.7MB total per `du -sh`) holds `logo.png`,
-  `mascot.png`, `mascot-checks.png`, `mascot-span.png`, `hero-graph.png`, `arctic-bg.png`,
-  `evidence-shield.png`, `team-badge.png`. `apps/web/index.html`'s `<title>` is now "Научный
+- Brand assets: `apps/web/public/brand/` (12MB total, 30 files per `ls | wc -l`) — the original
+  eight (`logo.png`, `mascot.png`, `mascot-checks.png`, `mascot-span.png`, `hero-graph.png`,
+  `arctic-bg.png`, `evidence-shield.png`, `team-badge.png`) plus the mockup asset set: product
+  illustrations `feat-*.png` (search/ingest/path/security/…) used as framed `PageHero` asides, and
+  analytics illustrations `an-*.png` (`an-geo`, `an-heatmap`, `an-quality`, `an-compare`, …).
+  ~14 are wired into pages, the rest are available. `apps/web/index.html`'s `<title>` is "Научный
   клубок — единая карта знаний R&D" with matching `og:title`/`og:description`/`og:image`
   (`/brand/hero-graph.png`).
 - `nauchny_klubok_site_package/` (the 56MB mockup/reference package the redesign was built from)
@@ -559,3 +575,33 @@ package). Verified against the working tree at `HEAD`:
 - Gates: `cd apps/web && npm run typecheck` (`tsc --noEmit`) and `npm run build` both pass clean
   (typecheck re-run clean in this sync pass); the live stand `https://nornikel.nddev.asia` serves
   `/` and `/demo` (SPA fallback, per `.claude/CLAUDE.md`).
+
+### Mockup-fidelity wave (`fb5c591`..`e7b4d51`, 2026-07-04)
+
+- **New API contract `GET /entities/by-type`** (`services/api/routes/entities.py:19`,
+  `entities_by_type`): query params `entity_type` (`str`, comma-separated types, 1..200 chars) and
+  `limit` (`int`, default 24, 1..100); splits `entity_type` on commas and returns
+  `{"entities": [...]}`. **Declared before the `/{entity_id}` catch-all** so the literal path is not
+  swallowed by the dynamic route — order matters, keep `by-type` above `{entity_id}`.
+- Backed by `AdapterLedgerRepository.list_entities_by_type(entity_types, limit=24)`
+  (`src/nornikel_kg/adapters/duckdb/repositories.py:897`): returns entities of the given type(s)
+  **most-referenced first**, using `evidence_count` (length of `evidence_span_ids_json`) as a
+  prominence proxy; empty `entity_types` returns `[]`. Powers the experts/labs directory.
+- Client: `fetchEntitiesByType(entityType, limit=24)` + `TypedEntity`
+  (`{entity_id, entity_type, canonical_name, evidence_count}`) in `apps/web/src/shared/api/`
+  (`client.ts`, `types.ts`, re-exported from `index.ts`).
+- Landing capability grid (`e7b4d51`): a fourth landing section (`.capability-grid`, 4 cards) —
+  «География» (`an-geo.png`), «Диапазоны и условия» (a `mini-kv` static range table), «Команды и
+  эксперты», «Актуализация знаний» (a static 92% `freshness` bar). All illustrative copy, no new
+  data fetch.
+- Section hero illustrations (`4b8f014`/`20e5d67`): the `PageHero` `aside` slot now carries a
+  framed `.page-hero-illus` `<img>` (white rounded frame — `border` + `border-radius` +
+  `box-shadow` — added because the product screenshots have white backgrounds that otherwise blend
+  into white hero cards) across search/graph/data/analytics/compare/security sections.
+- Graph labels/colors (`20e5d67`): `GraphPage.tsx`'s `TYPE_LABELS` extended with Russian labels
+  for the full R&D ontology (process/regime/condition/facility/organization/location/
+  technology_solution/economic_indicator/…); `GraphNeighborhood.tsx`'s `TYPE_COLORS` aligned to the
+  entity-color tokens in `theme.css`/`nav.ts`.
+- Gates after the wave: `tsc --noEmit`, `npm run build`, `uv run mypy`, `uv run ruff check .`,
+  `uv run pytest` all clean; landing/demo/data/search/graph/experts/compare browser-verified on the
+  live stand.

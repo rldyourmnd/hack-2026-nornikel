@@ -329,7 +329,7 @@ tree at `HEAD`:
 Full flow: React/Vite multi-page app (react-router-dom v7, ten routes under `AppLayout`) ->
 FastAPI (`/sources/upload`,
 `/sources/import-url`, `/sources/{id}/enrich`, `/sources/reindex-all`, `/qa/ask`,
-`/entities/search`, `/entities/{id}`, `/graph/neighborhood`, `/graph/timeline`, `/gaps/analyze`,
+`/entities/search`, `/entities/by-type`, `/entities/{id}`, `/graph/neighborhood`, `/graph/timeline`, `/gaps/analyze`,
 `/eval/summary`, `/stats/overview`, `/stats/answer-runs`) -> DuckDB-backed evidence ledger +
 entity/relation graph -> optional Qdrant hybrid retrieval (dense via `EMBEDDING_BACKEND=local|
 yandex|fake`, BM25 sparse always local, optional cross-encoder rerank) -> deterministic-or-LLM
