@@ -17,11 +17,15 @@ Owner workflow: rldyour plugins/skills.
 ## LLM Constraints (hackathon rules)
 - **Primary provider (2026-07-03): Yandex AI Studio, organizer-provided** (API key +
   folder, no spend limits) — OpenAI-compatible base `https://ai.api.cloud.yandex.net/v1`
-  through the LiteLLM SDK. Stand models: `aliceai-llm` for extraction AND answers
-  (live-benched: strict-JSON extraction 2.4s, best RU quality; catalog also hosts
-  open-weight qwen3-235b/deepseek-v4-flash/gpt-oss as fallbacks). Dense embeddings:
-  `emb://<folder>/text-embeddings/latest` (1536-dim) via `EMBEDDING_BACKEND=yandex`;
-  sparse BM25 stays local. Embedding quota 10 RPS (raisable via support ticket).
+  through the LiteLLM SDK. Stand models (2026-07-04): answers on
+  `deepseek-v4-flash` (owner requirement; re-benched through the real gateway —
+  json_repair recovers its non-native JSON, 4/4 verified, richer author/factor
+  detail, ~17s warm, `LLM_TIMEOUT_S=60`); extraction stays `aliceai-llm`
+  (native strict-JSON 2.4s — DeepSeek would be ~7x slower on the batch path and
+  the graph is already built). Catalog also hosts qwen3-235b/gpt-oss/yandexgpt-5-pro.
+  Dense embeddings: `emb://<folder>/text-embeddings/latest` (1536-dim) via
+  `EMBEDDING_BACKEND=yandex`; sparse BM25 stays local. Embedding quota 10 RPS
+  (raisable via support ticket).
 - Previous provider (dataeyes.ai + gpt-5.4-mini, organizer-approved) is preserved in
   the server's `.env.bak-dataeyes` — rollback is an env swap.
 - CI never needs LLM secrets or network: all LLM paths must keep deterministic fakes;
