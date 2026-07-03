@@ -1,7 +1,8 @@
 # Claude Project Notes
 
 ## Scope
-Repository: `nornikel-hackathon`
+Repository: `hack-2026-nornikel` (working repo; `nornikel-kg-search` is the
+frozen pre-migration archive, do not push there)
 Owner workflow: rldyour plugins/skills.
 
 ## Project state (verified)

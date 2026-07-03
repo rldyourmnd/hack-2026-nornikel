@@ -90,6 +90,10 @@ Run repository-local validation scripts when present.
 
 ## Key Notes
 
+- Working repository: `rldyourmnd/hack-2026-nornikel` (migrated 2026-07-03;
+  `rldyourmnd/nornikel-kg-search` is a frozen archive — its deploy workflow is
+  disabled, never push there). Auto-deploy runs from this repo's main.
+
 - MVP (waves W0-W5 merged 2026-07-02/03) is a grounded evidence-led flow: Docling PDF/DOCX
   ingest with quarantine, trafilatura URL import, dictionary/GLiNER/LLM extraction with
   entity resolution, own DuckDB+NetworkX graph layer, Qdrant hybrid retrieval
