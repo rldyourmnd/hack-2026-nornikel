@@ -18,6 +18,9 @@ class LLMSettings(BaseSettings):
     llm_timeout_s: int = 30
     llm_max_retries: int = 1
     llm_max_concurrency: int = 3
+    # Client-side pacing under the provider quota (Yandex: 10 concurrent
+    # generations); paired with 429-aware backoff in the gateway.
+    llm_rps: float = 5.0
     llm_token_budget: int = 500_000
 
     langfuse_public_key: str = ""

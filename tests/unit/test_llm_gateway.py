@@ -164,3 +164,27 @@ def test_strictify_adds_additional_properties() -> None:
     assert strict["properties"]["items"]["items"]["additionalProperties"] is False
     # original untouched
     assert "additionalProperties" not in schema
+
+
+def test_gateway_retries_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """429 must back off and retry, not fail the call (shared folder quota)."""
+    gateway = LiteLLMGateway(_settings())
+    import litellm
+
+    calls = {"n": 0}
+
+    def flaky(**kwargs: object) -> object:
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise litellm.RateLimitError(
+                message="rate quota limit exceed", llm_provider="openai", model="m"
+            )
+        return _completion_response('{"sentences": []}')
+
+    monkeypatch.setattr(litellm, "completion", flaky)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    result = gateway.generate_json(
+        task="answer", system_prompt="s", user_prompt="u", json_schema=SCHEMA
+    )
+    assert calls["n"] == 3
+    assert result.content == {"sentences": []}

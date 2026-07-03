@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml
 Area: TEST
 -->
@@ -30,16 +30,27 @@ and the archive/legacy-format ingestion wave (E).
 
 ## Current Behavior
 
-`uv run pytest` passes **141 tests, 4 skipped** at `3e74473` — verified by a live run in this
-sync pass. This is an increase of 45 tests over the previously recorded 96-passed baseline at
-`41ee7ac`. `uv run ruff check .` and `uv run mypy` both pass clean (live-run verified in this
-sync pass).
+`uv run pytest` passes **148 tests, 5 skipped** at `327f47c` — verified by a live run in this
+sync pass, an increase of 7 passed / 1 skipped over the previously recorded 141-passed/4-skipped
+baseline at `3e74473`. `uv run ruff check .` and `uv run mypy` both pass clean (live-run verified
+in this sync pass; mypy: "no issues found in 75 source files").
 
-The 4 skips remain `pytest.importorskip` guards for optional heavy dependencies (`docling`,
-`trafilatura`, and similar) in the integration/corpus-format tests, unchanged in kind from the
-prior sync's 3 skips (one more skip guard was added alongside the new format tests).
+The 5 skips remain `pytest.importorskip` guards for optional heavy dependencies (`docling`,
+`trafilatura`, `fastembed`, and similar), one more than the prior sync's 4 (added alongside
+`tests/unit/test_yandex_embeddings.py`'s `fastembed`-gated sparse test).
 
-New test modules (this sync, all passing):
+New test modules this sync (all passing):
+- `tests/unit/test_yandex_embeddings.py` (5 test functions): `YandexEmbeddingBackend` credential
+  requirement, doc/query model-URI split, `embed_dense` order preservation, sparse-stays-local
+  flat query weights (`pytest.importorskip("fastembed")`-gated), query-embedding cache hits.
+- `tests/unit/test_answer_honesty.py` gained one function,
+  `test_packet_cache_invalidated_by_data_version`: verifies `DemoQAService._load_packet()` caches
+  while `data_version` is unchanged and invalidates after a ledger-mutating write.
+- `tests/integration/test_analytics_api.py` gained two functions, `test_stats_overview_counters`
+  and `test_answer_runs_audit_trail`: route-level coverage for the new
+  `GET /stats/overview`/`GET /stats/answer-runs` endpoints.
+
+Prior-sync test modules (unchanged this sync):
 - `tests/unit/test_quantities_and_dates.py` (9 test functions): unit canonicalization equivalence
   (мг/дм³≡мг/л etc.), numeric-constraint parsing (single/range/RU-operator forms), unit-mismatch
   non-filtering, year-marker-guarded year extraction, bare-year rejection (Kelvin/sample codes).
@@ -109,7 +120,7 @@ change.
 
 ## Verification
 
-- `make ci`: ruff, mypy, pytest (141 passed, 4 skipped at `3e74473`, live-run verified), frontend
+- `make ci`: ruff, mypy, pytest (148 passed, 5 skipped at `327f47c`, live-run verified), frontend
   typecheck, build.
 - `make eval`: `scripts/run_eval.py` — 17-question live QA metrics against the synthetic DuckDB
   ledger only, incl. adversarial injection assertions.

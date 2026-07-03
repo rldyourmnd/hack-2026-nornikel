@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
   tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
   .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
@@ -18,25 +18,22 @@ Index the durable project knowledge for the Nornikel Materials KG Search hackath
 - `README.md`: repository overview, quick start, demo scenario, and implemented scope.
 - `AGENTS.md`: Codex-native project instructions and plugin/tooling policy.
 - `.claude/CLAUDE.md`: Claude Code project memory and operational commands.
-- `apps/web/`: React/Vite analysis workbench.
-- `services/api/`: FastAPI route layer.
+- `apps/web/`: React/Vite workbench, now a six-section SPA (`apps/web/src/pages/`:
+  `workbench`, `graph`, `data`, `analytics`, `eval`, `security`).
+- `services/api/`: FastAPI route layer, now including `services/api/routes/stats.py`.
 - `src/nornikel_kg/`: backend domain, ports, adapters, and application services.
-- `scripts/ingest_corpus.py`: batch-ingests a real document corpus directory (now `.pdf`,
-  `.docx`, `.docm`, `.doc`, `.xlsx`, `.xls`, `.csv`, `.md`, `.markdown`, `.txt`, plus `.zip`/
-  multipart-`.zip.NNN`/`.rar` archive expansion) into the ledger inside the API container; it
-  fails fast at start if the ledger cannot be opened (the `api` container's persistent DuckDB
-  connection makes the script and a running `api` mutually exclusive — see
-  `mem:RELEASE-01-VALIDATION`).
+- `scripts/ingest_corpus.py`: batch-ingests a real document corpus directory into the ledger
+  inside the API container; fails fast at start if the ledger cannot be opened (mutually
+  exclusive with a running `api` container — see `mem:RELEASE-01-VALIDATION`).
 - `eval/`: legacy YAML gold/adversarial fixtures; not read by any code path (`mem:TEST-01-EVALUATION-GATES`).
 - `sample_docs/synthetic/`: original P0 fixture. `sample_docs/synthetic_v2/`: W5 17-source synthetic corpus with `manifest.json`.
-- `tests/`: unit and integration tests (141 passed, 4 skipped at `3e74473`, live-run verified).
-- `docs/deployment/nornikel-nddev.md`: primary live-stand deployment contract, now documenting
-  the DuckDB lock contract and the archive-aware batch-ingest procedure.
+- `tests/`: unit and integration tests (148 passed, 5 skipped at `327f47c`, live-run verified).
+- `docs/deployment/nornikel-nddev.md`: primary live-stand deployment contract.
 - `.serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md`: full-track requirement brief («Научный
   клубок») and gap analysis G1-G10 against the real `DATA_HACK/` corpus.
 - `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md`: the accuracy/SOTA overhaul plan (waves A-D,
-  landed as PR #15) plus wave E (archive/legacy-format ingestion, PR #16) tracked in its own
-  commits — see Current Behavior below.
+  landed as PR #15) plus wave E (archive/legacy-format ingestion, PR #16), plus a "Deploy
+  results (measured on the stand, 2026-07-03)" section recording live deploy observations.
 - `.serena/reviews/`: tracked plan critical review and research evidence register.
 
 ## Entry Points
@@ -51,44 +48,74 @@ Index the durable project knowledge for the Nornikel Materials KG Search hackath
 
 ## Current Behavior
 
-Since the last sync (`41ee7ac`), ten commits landed two merged feature branches plus two
-follow-on fixes, all verified against the working tree at `3e74473`:
+Since the last sync (`65af046`), twelve commits landed the Yandex AI Studio integration plus a
+resilience/perf/UI follow-on, all verified against the working tree at `327f47c`:
 
-- **PR #15 "accuracy/SOTA overhaul waves A-D"** (`2368791` plan doc, `41b3acd` wave A extraction
-  accuracy, `944e6f0` wave B retrieval/resolution accuracy, `93f3f87` wave C answer/graph
-  honesty, `12bc5c1` wave D provable quality gates + demo UI, merged `b611591`). Research
-  verdicts (kept GLiNER `gliner_multi-v2.1`, kept `deepvk/USER-bge-m3` embeddings, added
-  `BAAI/bge-reranker-v2-m3` reranker) are tracked in `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md`.
-- **`b7b12d6` perf fix**: `RetrievalService.index_source` no longer re-embeds the entities
-  collection per source (`include_entities` param, default `False`); `reindex_all()` indexes
-  entities once at the end.
-- **PR #16 "archive and legacy-format corpus ingestion wave E"** (`2e5458a`, merged `65694a7`):
-  `.zip`/multipart-`.zip.NNN`/`.rar` archive expansion, `.xlsx`/`.xls` spreadsheet parsing,
-  legacy `.doc` text extraction, `.docm` routed through the Docling `.docx` path.
-- **`1db832d` fix**: `scripts/ingest_corpus.py` now calls `get_ledger_repository().migrate()`
-  up front and raises `SystemExit` with a clear message if the ledger cannot be opened (the
-  `api` container's persistent DuckDB connection makes the batch script and a running `api`
-  mutually exclusive).
-- **`3e74473` docs**: `docs/deployment/nornikel-nddev.md` documents the DuckDB lock contract and
-  the `stop api` / `run --rm --no-deps` batch-ingest procedure, and routes vector reindex through
-  `POST /sources/reindex-all` instead of a direct `docker compose exec`.
+- **Yandex AI Studio embeddings backend** (`7c5d30b` feat, `210bddd`/`d17675f`/`fa4e637` fixes,
+  merged `6d8c7ff` as PR #17): `src/nornikel_kg/adapters/embeddings/yandex.py`
+  (`YandexEmbeddingBackend`) — dense 1536-dim embeddings via the canonical
+  `https://ai.api.cloud.yandex.net/foundationModels/v1/textEmbedding` host, `x-folder-id`
+  header, 4000-char input truncation (documented 2048-token cap), 7 retries with exponential
+  backoff + jitter, and a process-wide `_RateLimiter` (`YANDEX_EMBED_RPS`, default 8 — paces
+  requests below the shared 10 RPS folder quota, since retry-only backoff alone loses against a
+  saturated quota under concurrency). A module-level query-embedding cache
+  (`_query_cache`/`_QUERY_CACHE_MAX = 256`) spares repeat demo questions. Sparse BM25 stays local
+  (`embed_sparse`/`embed_sparse_query` delegate to `LocalEmbeddingBackend`). Wired into
+  `services/runtime.py` via `EMBEDDING_BACKEND=yandex`. `src/nornikel_kg/ports/retrieval.py`'s
+  `EmbeddingBackendPort` gained `embed_dense_query` (distinct query-vector method, implemented by
+  `local.py`/`fake.py`/`yandex.py`); `QdrantVectorIndex.hybrid_search`/`dense_search` now call
+  `embed_dense_query` instead of `embed_dense` for the query side.
+- **Resilience fixes** (`5194f6c`): `tenacity>=8.2.0` is now a hard main dependency in
+  `pyproject.toml` (litellm's `num_retries` path imports it lazily and raised a bare exception
+  when absent — observed live killing enrichment threads); `IngestionService._schedule_enrichment`
+  now guards its entire thread body in `try/except` and records `status="failed"` instead of
+  silently stranding a run in "running" forever; entity-collection naming made dimension-safe
+  (see below).
+- **Process-wide embedding rate limiter + reindex marker** (`ee641dd`): the `_RateLimiter`
+  described above, plus `RetrievalService.reindex_all()` logging `"Reindex complete: %d units"`
+  as an ops-greppable completion marker.
+- **PR #18 "sectioned UI"** (`98fc57e` feat, merged `53191d2`): `apps/web/src/pages/` gained
+  `graph/`, `data/`, `analytics/`, `eval/`, `security/` alongside `workbench/`;
+  `WorkbenchPage.tsx` renders six nav sections (Поиск/Граф знаний/Данные/Аналитика/Качество/
+  Безопасность); `AnalysisWorkbench.tsx` was slimmed to the search view and gained an
+  `injectedQuestion?: string | null` prop; `ArtifactBankPanel.tsx` gained an optional
+  `onEnrich?: (sourceId: string) => Promise<void>` prop. New `services/api/routes/stats.py`
+  exposes `GET /stats/overview` (`DuckDBLedgerRepository.corpus_stats()`) and
+  `GET /stats/answer-runs` (`list_answer_runs(limit)`), covered by
+  `tests/integration/test_analytics_api.py::test_stats_overview_counters`/
+  `test_answer_runs_audit_trail`.
+- **Qdrant fixes** (`67d3bca`): `QdrantVectorIndex._UPSERT_BATCH = 128` (a single ~1700-point
+  x 1536-dim upsert exceeded Qdrant's request-size limit, observed as a live 400); `services/api/main.py`
+  now sets `logging.getLogger("nornikel_kg").setLevel(logging.INFO)` and calls
+  `logging.basicConfig(level=logging.INFO)` if no root handler exists, so reindex/enrichment INFO
+  logs are visible in the container.
+- **Perf wave** (`327f47c`): `QdrantVectorIndex.index_units(..., skip_unchanged=True)` is
+  incremental — each point carries a `text_hash` payload, unchanged units are hash-skipped before
+  ever calling the embedding API, and stale points from a re-parse are pruned afterwards via
+  `prune_source_units` (no delete-before-index, so a failed re-embed never loses vectors);
+  `RetrievalService.index_source` uses this contract and `reindex_all()` logs the completion
+  marker above. `DuckDBLedgerRepository` gained a `_data_version` counter (bumped on
+  ingest/delete/`set_source_metadata` writes) and a public `data_version` property;
+  `DemoQAService._load_packet` caches the loaded `EvidenceLedgerPacket` keyed by that version
+  (a full ~12k-span scan per `ask` previously dominated latency).
 
 See `mem:ARCH-01-EVIDENCE-MVP`, `mem:DATA-01-EVIDENCE-LEDGER`, `mem:TECHDEBT-01-NOW` for the
-per-module detail of each wave.
+per-module detail of each change.
 
-`uv run pytest` passes **141 tests, 4 skipped** at `3e74473` (verified by a live run in this sync
-pass); `uv run ruff check .` and `uv run mypy` both pass clean (also verified live in this sync
-pass). Local `main` and `origin/main` are in sync (`git rev-list --left-right --count
-origin/main...main` -> `0\t0`, verified).
+`uv run pytest` passes **148 tests, 5 skipped** at `327f47c` (verified by a live run in this sync
+pass, up from 141 passed / 4 skipped); `uv run ruff check .` and `uv run mypy` both pass clean
+(also verified live in this sync pass, mypy: "no issues found in 75 source files").
 
 ## Contracts And Data
 
-Full flow: React/Vite workbench -> FastAPI (`/sources/upload`, `/sources/import-url`,
-`/sources/{id}/enrich`, `/sources/reindex-all`, `/qa/ask`, `/entities/search`, `/entities/{id}`,
-`/graph/neighborhood`, `/graph/timeline`, `/gaps/analyze`, `/eval/summary`) -> DuckDB-backed
-evidence ledger + entity/relation graph -> optional Qdrant hybrid retrieval (dense + BM25
-sparse, optional cross-encoder rerank) -> deterministic-or-LLM answer synthesis -> claim
-verification (citation coverage + numeric-mismatch gate) -> answer-run persistence.
+Full flow: React/Vite workbench (six sections) -> FastAPI (`/sources/upload`,
+`/sources/import-url`, `/sources/{id}/enrich`, `/sources/reindex-all`, `/qa/ask`,
+`/entities/search`, `/entities/{id}`, `/graph/neighborhood`, `/graph/timeline`, `/gaps/analyze`,
+`/eval/summary`, `/stats/overview`, `/stats/answer-runs`) -> DuckDB-backed evidence ledger +
+entity/relation graph -> optional Qdrant hybrid retrieval (dense via `EMBEDDING_BACKEND=local|
+yandex|fake`, BM25 sparse always local, optional cross-encoder rerank) -> deterministic-or-LLM
+answer synthesis -> claim verification (citation coverage + numeric-mismatch gate) ->
+answer-run persistence, cached per `data_version`.
 
 Upload accepts `.csv`, `.md`, `.markdown`, `.txt`, `.text`, `.pdf`, `.docx`, `.docm`, `.doc`,
 `.xlsx`, `.xls` with filename/MIME/size validation (`services/api/routes/sources.py`);
@@ -110,6 +137,8 @@ Upload accepts `.csv`, `.md`, `.markdown`, `.txt`, `.text`, `.pdf`, `.docx`, `.d
 - Do not call `duckdb.connect(...)` outside `DuckDBLedgerRepository._connect()`; the connection
   is persistent and shared, so external processes (including `scripts/ingest_corpus.py`) must
   stop the `api` container before opening the DuckDB file directly.
+- `tenacity` must stay a hard main dependency (`pyproject.toml`); litellm's retry path imports it
+  lazily and fails hard without it.
 
 ## Change Rules
 
@@ -121,5 +150,5 @@ Update this index whenever a new durable memory is added, renamed, split, or del
 - `make eval`: runs `scripts/run_eval.py` (17 hardcoded `EVAL_QUESTIONS`, incl. numeric-constraint,
   conflict-surfacing, and adversarial prompt-injection cases).
 - `docker compose config`: verifies Compose syntax without requiring local secrets.
-- `uv run pytest`: 141 tests pass, 4 skipped at `3e74473` (live-run verified).
-- `uv run ruff check .` / `uv run mypy`: both clean at `3e74473` (live-run verified).
+- `uv run pytest`: 148 tests pass, 5 skipped at `327f47c` (live-run verified).
+- `uv run ruff check .` / `uv run mypy`: both clean at `327f47c` (live-run verified).

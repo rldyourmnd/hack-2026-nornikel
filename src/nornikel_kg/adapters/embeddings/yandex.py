@@ -7,34 +7,15 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+from nornikel_kg.adapters.ratelimit import get_limiter
 from nornikel_kg.ports.retrieval import SparseVector
 
 logger = logging.getLogger(__name__)
 
 
-class _RateLimiter:
-    """Process-wide min-interval limiter for the shared folder quota.
-
-    Retry-with-backoff alone loses against a saturated 10 RPS quota (all
-    attempts land in 429 when many threads fire concurrently — observed
-    live); pacing requests below the quota at the source is the fix.
-    """
-
-    def __init__(self, requests_per_second: float) -> None:
-        self._interval = 1.0 / max(requests_per_second, 0.1)
-        self._lock = threading.Lock()
-        self._next_slot = 0.0
-
-    def acquire(self) -> None:
-        with self._lock:
-            now = time.monotonic()
-            wait = self._next_slot - now
-            self._next_slot = max(self._next_slot, now) + self._interval
-        if wait > 0:
-            time.sleep(wait)
-
-
-_rate_limiter = _RateLimiter(float(os.getenv("YANDEX_EMBED_RPS", "8")))
+_rate_limiter = get_limiter(
+    "yandex-embeddings", float(os.getenv("YANDEX_EMBED_RPS", "8"))
+)
 
 # Canonical AI Studio host (docs, 2026-06): ai.api.cloud.yandex.net; the old
 # llm.api host still answers but is the legacy alias.

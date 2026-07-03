@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import threading
 import time
 from typing import Any
 
 from nornikel_kg.adapters.llm.settings import LLMSettings
+from nornikel_kg.adapters.ratelimit import get_limiter
 from nornikel_kg.ports.llm import (
     LLMBudgetExceededError,
     LLMInvalidResponseError,
@@ -15,6 +17,8 @@ from nornikel_kg.ports.llm import (
 )
 
 logger = logging.getLogger(__name__)
+
+_RATE_LIMIT_RETRIES = 6
 
 
 def _strictify(schema: dict[str, Any]) -> dict[str, Any]:
@@ -99,27 +103,54 @@ class LiteLLMGateway:
         model = self.settings.model_for(task)
         json_schema = _strictify(json_schema)
         started = time.perf_counter()
+        limiter = get_limiter("llm-completions", self.settings.llm_rps)
+        response: Any = None
         with self._semaphore:
-            response = litellm.completion(
-                model=model,
-                api_base=self.settings.dataeyes_api_base,
-                api_key=self.settings.dataeyes_api_key,
-                temperature=0,
-                timeout=self.settings.llm_timeout_s,
-                num_retries=self.settings.llm_max_retries,
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {"name": task, "schema": json_schema, "strict": True},
-                },
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                metadata={
-                    "trace_id": trace_id,
-                    "tags": [task, *(tags or [])],
-                },
-            )
+            delay = 1.0
+            for attempt in range(1, _RATE_LIMIT_RETRIES + 1):
+                limiter.acquire()
+                try:
+                    response = litellm.completion(
+                        model=model,
+                        api_base=self.settings.dataeyes_api_base,
+                        api_key=self.settings.dataeyes_api_key,
+                        temperature=0,
+                        timeout=self.settings.llm_timeout_s,
+                        num_retries=self.settings.llm_max_retries,
+                        response_format={
+                            "type": "json_schema",
+                            "json_schema": {
+                                "name": task,
+                                "schema": json_schema,
+                                "strict": True,
+                            },
+                        },
+                        messages=[
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        metadata={
+                            "trace_id": trace_id,
+                            "tags": [task, *(tags or [])],
+                        },
+                    )
+                    break
+                except litellm.RateLimitError:
+                    # Residual 429 (the folder quota is shared with other
+                    # consumers): back off with jitter, never fail the call
+                    # on rate limits alone until retries are exhausted.
+                    if attempt == _RATE_LIMIT_RETRIES:
+                        raise
+                    logger.warning(
+                        "LLM rate limited (attempt %s/%s); retrying in %.1fs",
+                        attempt,
+                        _RATE_LIMIT_RETRIES,
+                        delay,
+                    )
+                    time.sleep(delay + random.uniform(0, delay / 2))
+                    delay = min(delay * 2, 20.0)
+        if response is None:  # pragma: no cover - loop either breaks or raises
+            raise LLMInvalidResponseError(f"no completion produced for task '{task}'")
         latency_ms = int((time.perf_counter() - started) * 1000)
 
         usage = getattr(response, "usage", None)

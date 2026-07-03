@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/;
   src/nornikel_kg/resources/dictionaries/; src/nornikel_kg/services/; sample_docs/; eval/;
   scripts/ingest_corpus.py
@@ -43,7 +43,11 @@ accuracy/SOTA overhaul (waves A-D) and archive/legacy-format ingestion (wave E).
 - `src/nornikel_kg/adapters/duckdb/repositories.py`: `DuckDBLedgerRepository` — the single
   DuckDB adapter for ledger, graph, retrieval-unit listing, and eval persistence. Gained
   `set_entity_metadata`, `list_evidence_spans_by_ids`, cascade-aware `_delete_source_records`,
-  and `year`/`geography` in `list_sources()`/`SourceSummary`.
+  `year`/`geography` in `list_sources()`/`SourceSummary`, a `_data_version` int counter (bumped
+  in `ingest_source_bytes`/`ingest_parsed_document`/`_delete_source_records`/
+  `set_source_metadata`, i.e. every ledger-mutating write) plus a public `data_version` property,
+  and `corpus_stats()`/`list_answer_runs(limit)` (source/entity/security-label counters and
+  the answer-run audit trail, consumed by `GET /stats/overview`/`GET /stats/answer-runs`).
 - `src/nornikel_kg/resources/dictionaries/{materials,regimes,properties,equipment}.yml`:
   dictionary-seeded ontology, unchanged this wave (last extended in the real-corpus hardening
   wave, `58760b3`; geomechanics terms are still not covered, `mem:TECHDEBT-01-NOW`).
@@ -110,11 +114,24 @@ Qdrant, `mem:ARCH-01-EVIDENCE-MVP`) before falling back to `create_entity`; it s
 merges entities across `entity_type`.
 
 Retrieval indexing writes into two Qdrant collections when `EMBEDDING_BACKEND` is not `off`:
-`evidence_units` and `entities`. `RetrievalService.index_source(..., include_entities=False)` no
-longer re-embeds the entities collection per source (perf fix `b7b12d6`); `reindex_all()`
-re-indexes every source's spans then indexes entities once. Indexed evidence text is prefixed
-with the source title for retrievability of short spans. Sparse (BM25) vectors now use
-`SPARSE_LANGUAGE=russian` at both index (`embed_sparse`) and query (`embed_sparse_query`) time.
+`EVIDENCE_COLLECTION` (env `QDRANT_COLLECTION`, default `evidence_units`) and
+`ENTITY_COLLECTION` (env `QDRANT_ENTITY_COLLECTION`, default `f"{EVIDENCE_COLLECTION}_entities"`
+— deriving the entity collection name from the evidence collection means switching
+`QDRANT_COLLECTION` for a new embedder never queries stale-dimension vectors from an old entity
+collection). `RetrievalService.index_source(..., include_entities=False)` no longer re-embeds
+the entities collection per source (perf fix `b7b12d6`); `reindex_all()` re-indexes every
+source's spans then indexes entities once and logs `"Reindex complete: %d units"` as an
+ops-greppable completion marker. Indexing is now incremental
+(`QdrantVectorIndex.index_units(..., skip_unchanged=True)`): each point payload carries a
+`text_hash`, unchanged units are hash-skipped before calling the embedding API, batched upserts
+use `_UPSERT_BATCH = 128` (a single ~1700-point x 1536-dim upsert previously exceeded Qdrant's
+request-size limit), and `prune_source_units` removes a source's stale points (from a re-parse)
+after indexing, never before. Indexed evidence text is prefixed with the source title for
+retrievability of short spans. Sparse (BM25) vectors now use `SPARSE_LANGUAGE=russian` at both
+index (`embed_sparse`) and query (`embed_sparse_query`) time. Dense vectors come from
+`EMBEDDING_BACKEND=local|yandex|fake`; `yandex` (`YandexEmbeddingBackend`) calls the Yandex AI
+Studio API for `embed_dense`/`embed_dense_query` (1536-dim, `emb://<folder>/text-embeddings/
+latest`) while `embed_sparse`/`embed_sparse_query` still delegate to the local fastembed backend.
 
 Deleting a source (`DuckDBLedgerRepository._delete_source_records`) now cascades: it collects
 the source's `span_id`s before deleting `evidence_spans`, then strips those span IDs out of
@@ -188,7 +205,13 @@ parser/indexing code that writes new fact types.
 
 ## Verification
 
-- `uv run pytest`: 141 tests pass, 4 skipped, at `3e74473` (live-run verified in this sync pass).
+- `uv run pytest`: 148 tests pass, 5 skipped, at `327f47c` (live-run verified in this sync pass).
+- `tests/unit/test_yandex_embeddings.py` (new, 5 test functions): credential requirement,
+  doc/query model-URI split, embed-order preservation, sparse-stays-local flat query weights,
+  query-embedding cache hits.
+- `tests/unit/test_answer_honesty.py` gained `test_packet_cache_invalidated_by_data_version`:
+  verifies `DemoQAService._load_packet()` returns the same cached object while `data_version` is
+  unchanged and a fresh one after a ledger-mutating write.
 - `make eval`: `scripts/run_eval.py` — 17 hardcoded questions against the synthetic corpus only.
 - `tests/unit/test_dictionary_loader.py`, `tests/unit/test_scope_and_constraints.py`: dictionary
   seeding/idempotency/alias resolution, real-domain ontology resolution, publication/author

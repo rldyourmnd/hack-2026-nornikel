@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
   .env.example; docs/deployment/
 Area: DOCS
@@ -45,15 +45,23 @@ Capture how to use and maintain the planning package given the current implement
 Waves W0-W5 (2026-07-02 plan package) and the real-corpus hardening wave (`58760b3` and
 follow-ons through `41ee7ac`) were implemented and merged to `main` as of the prior sync.
 
-This sync covers ten additional commits on `main`: `2368791` (accuracy/SOTA overhaul plan doc),
-`41b3acd`/`944e6f0`/`93f3f87`/`12bc5c1` (waves A-D, merged as PR #15 via `b611591`), `b7b12d6`
-(per-source indexing perf fix), `2e5458a` (archive/legacy-format ingestion wave E, merged as
-PR #16 via `65694a7`), `1db832d` (fail-fast DuckDB-lock fix in the batch ingester), and `3e74473`
-(deployment-doc update documenting the lock contract and archive-aware batch procedure). All ten
-commits are verified present in `git log --oneline 41ee7ac..HEAD`.
+This sync covers twelve additional commits on `main` since the `65af046` memory-sync commit:
+`7c5d30b` (Yandex AI Studio embeddings backend, feat), `210bddd`/`d17675f`/`fa4e637` (Yandex
+host/truncation/mypy fixes), merged `6d8c7ff` as PR #17, `7e0f0f4` (instruction-doc update for
+the provider switch), `5194f6c` (tenacity hard dependency + guarded enrichment thread),
+`ee641dd` (process-wide embedding rate limiter + reindex marker), `98fc57e` (sectioned UI,
+feat), merged `53191d2` as PR #18, `67d3bca` (batched Qdrant upserts + visible app logs), and
+`327f47c` (incremental hash-skip indexing, packet cache, query-embed cache). All twelve commits
+are verified present in `git log --oneline 65af046..HEAD`.
+
+`.claude/CLAUDE.md`/`AGENTS.md` now record Yandex AI Studio (organizer-provided) as the primary
+LLM/embedding provider (`https://ai.api.cloud.yandex.net/v1`, stand model `aliceai-llm`,
+`EMBEDDING_BACKEND=yandex`), with the previous `dataeyes.ai` + `gpt-5.4-mini` configuration kept
+as a server-side rollback (`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not a tracked repo
+artifact).
 
 Local `main` and `origin/main` are in sync (`git rev-list --left-right --count
-origin/main...main` -> `0\t0`, verified 2026-07-03); there is no pending push backlog.
+origin/main...main` -> `0\t0`, verified 2026-07-04); there is no pending push backlog.
 
 `.env.example` now documents `SEED_SYNTHETIC_FIXTURE`, `SYNTHETIC_SAMPLE_DIR`,
 `LLM_TOKEN_BUDGET`, `LLM_EXTRACTION_ENABLED`, `GLINER_ENABLED`, `SYNC_ENRICHMENT`,
@@ -89,6 +97,6 @@ Update `README.md`'s implemented-scope section when a new wave lands.
 - Targeted `rg`/`grep` scans: consistency and accidental secret markers.
 - `git cat-file -t <sha>`: verify a commit SHA still exists before citing it in a new memory.
 - `git rev-list --left-right --count origin/main...main`: verify local/remote sync state
-  (`0\t0`, verified 2026-07-03).
-- `git log --oneline 41ee7ac..HEAD`: verify the exact commit range covered by this sync pass
-  (10 commits, confirmed).
+  (`0\t0`, verified 2026-07-04).
+- `git log --oneline 65af046..HEAD`: verify the exact commit range covered by this sync pass
+  (12 commits, confirmed).

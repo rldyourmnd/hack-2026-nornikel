@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
   docker-compose.yml; .env.example; .github/workflows/ci.yml; tests/;
   .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -112,12 +112,39 @@ verified against the working tree at `3e74473`:
   contract is documented in the script's own docstring and in
   `docs/deployment/nornikel-nddev.md`.
 
+## Resolved Since The Prior Sync (`3e74473` -> `327f47c`, verified, do not re-list as gaps)
+
+- **litellm's lazy `tenacity` import could kill enrichment threads (resolved, `5194f6c`)**:
+  `tenacity>=8.2.0` is now a hard main dependency in `pyproject.toml`.
+- **An unhandled error in the enrichment thread stranded a run in "running" forever (resolved,
+  `5194f6c`)**: `IngestionService._schedule_enrichment`'s `enrich()` closure now wraps its whole
+  body in `try/except`, recording `status="failed"`.
+- **A single large Qdrant upsert could exceed the request-size limit (resolved, `67d3bca`)**:
+  `QdrantVectorIndex._UPSERT_BATCH = 128` batches all upserts.
+- **`nornikel_kg` INFO logs were invisible in the running container (resolved, `67d3bca`)**:
+  `services/api/main.py` now sets the logger level and calls `logging.basicConfig` when needed.
+- **Per-source retrieval indexing re-embedded every unit even when unchanged (resolved,
+  `327f47c`)**: `QdrantVectorIndex.index_units(..., skip_unchanged=True)` hash-skips unchanged
+  units via a `text_hash` payload; stale points from a re-parse are pruned afterwards via
+  `prune_source_units`.
+- **`DemoQAService.ask` re-scanned the full evidence packet on every question (resolved,
+  `327f47c`)**: `_load_packet` now caches the packet keyed by `DuckDBLedgerRepository.data_version`.
+- **No dashboard-level corpus/audit-trail endpoints for the UI (resolved, PR #18)**:
+  `GET /stats/overview` / `GET /stats/answer-runs` (`services/api/routes/stats.py`) plus a
+  six-section SPA (`apps/web/src/pages/`).
+- **No dense-embedding path that offloads the 8-vCPU stand (resolved, PR #17)**:
+  `EMBEDDING_BACKEND=yandex` (`adapters/embeddings/yandex.py`) calls the organizer-provided
+  Yandex AI Studio API for dense vectors; sparse BM25 stays local.
+
 ## Entry Points
 
 - `EntityResolutionService.resolve_or_create`: exact key -> alias -> semantic -> create.
 - `GET /graph/timeline` (`services/api/routes/graph.py`).
 - `ExtractionService.mention_extractor` (GLiNER lazy import).
 - `ExtractionService._llm_mentions`: LLM extraction call site, gated by `LLM_EXTRACTION_ENABLED`.
+- `GET /stats/overview` / `GET /stats/answer-runs` (`services/api/routes/stats.py`).
+- `YandexEmbeddingBackend._embed_one` (`adapters/embeddings/yandex.py`): Yandex AI Studio
+  embedding call site, gated by `EMBEDDING_BACKEND=yandex`.
 
 ## Current Behavior
 
@@ -127,8 +154,9 @@ with typed relations), retrieval (Qdrant hybrid with Russian BM25 and an optiona
 rerank), LLM-gated answer synthesis with a numeric-fabrication gate, graph analytics
 (type-aware neighborhood ranking, cascade-safe deletion, dated publication timeline), scoped QA
 filters (unit-canonicalized numeric constraints, geography, year), and honest confidence/gap/
-conflict signaling with no arbitrary fallback rows. `uv run pytest` passes 141 tests, 4 skipped,
-at `3e74473` (live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified).
+conflict signaling with no arbitrary fallback rows, incremental hash-skip Qdrant indexing, and a
+data-version-cached evidence packet. `uv run pytest` passes 148 tests, 5 skipped, at `327f47c`
+(live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified).
 
 ## Contracts And Data
 
@@ -184,8 +212,19 @@ change.
   proves the routing (a stub parser is called with the right filename/extension), not that a
   real Docling conversion of a `.docm` file with macros/complex layout always succeeds. Treat
   this as an open, unverified operational observation, not a proven code defect.
-- **Reranker/entity-semantic-fallback latency not measured on the stand**: `RERANKER_ENABLED`
-  defaults to `false` and `ENTITY_SEMANTIC_FALLBACK` defaults to `true` in code
-  (`src/nornikel_kg/services/runtime.py`), but this repository sync only verifies the code
-  contract, not a live-stand latency measurement — that is deploy-operational information
-  outside this repository's tracked artifacts.
+- **Reranker latency measured and kept off**: `RERANKER_ENABLED` defaults to `false` in code
+  (`src/nornikel_kg/services/runtime.py`); `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md`'s "Deploy
+  results" section records a live measurement of `bge-reranker-v2-m3` at 58s warm per question
+  (30 pairs, 8 shared vCPU) versus 8.4s without reranking, and keeps it off pending int8
+  quantization or a smaller reranker model. `ENTITY_SEMANTIC_FALLBACK` defaults to `true`; its
+  live-stand latency is not separately recorded in tracked artifacts.
+- **Yandex embedding quota is shared and fixed at 10 RPS**: `adapters/embeddings/yandex.py`'s
+  `_RateLimiter` paces requests via `YANDEX_EMBED_RPS` (default 8) to stay under the folder's
+  10 RPS quota (a hard-coded, organizer-side limit per the module's own docstring/comments,
+  raisable only through a support ticket — not configurable in this repository).
+- **No real-corpus gold evaluation set**: `scripts/run_eval.py`'s `EVAL_QUESTIONS` (17 questions,
+  unchanged this sync) still targets only the synthetic corpora; see the eval-questions gap
+  above for detail.
+- **CI still runs without the `ingest` extra**: `.github/workflows/ci.yml`'s backend job does not
+  install GLiNER/Docling/spreadsheet/legacy-doc dependencies (unchanged this sync, see the GLiNER
+  gap above).

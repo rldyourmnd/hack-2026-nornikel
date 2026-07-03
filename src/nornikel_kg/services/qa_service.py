@@ -184,7 +184,9 @@ class DemoQAService:
         response = AskResponse(
             run_id=run_id,
             answer_summary=summary,
-            confidence=self._confidence_level(request.question, selected_experiments),
+            confidence=self._confidence_level(
+                request.question, selected_experiments, summary, selected_evidence
+            ),
             experiments=selected_experiments,
             evidence=selected_evidence,
             graph_paths=graph_paths if request.include_graph else [],
@@ -750,19 +752,28 @@ class DemoQAService:
         self,
         question: str,
         selected_experiments: list[ExperimentRow],
+        summary: list[AnswerSentence],
+        selected_evidence: list[EvidenceSpan],
     ) -> Literal["low", "medium", "high"]:
-        """Honest confidence: high only when the question's material/property
-        signal actually matched the selected data (audit C1: the old binary
-        «high if non-empty» presented arbitrary rows as trustworthy)."""
-        if not selected_experiments:
-            return "low"
-        requested_tokens = self._requested_material_tokens(question)
-        matched_material = requested_tokens.intersection(
-            self._known_material_tokens(selected_experiments)
-        )
-        if matched_material or self._requested_property(question):
-            return "high"
-        return "medium"
+        """Honest confidence levels.
+
+        high — the question's material/property signal matched structured
+        experiments; medium — a verified evidence-grounded answer without a
+        structured match (the normal case on the real corpus); low — nothing
+        found (audit C1: the old binary «high if non-empty» presented
+        arbitrary rows as trustworthy).
+        """
+        if selected_experiments:
+            requested_tokens = self._requested_material_tokens(question)
+            matched_material = requested_tokens.intersection(
+                self._known_material_tokens(selected_experiments)
+            )
+            if matched_material or self._requested_property(question):
+                return "high"
+            return "medium"
+        if summary and selected_evidence:
+            return "medium"
+        return "low"
 
     def _conflicts_for_question(
         self,

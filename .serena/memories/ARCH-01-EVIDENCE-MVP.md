@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
   pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
 Area: ARCH
@@ -196,13 +196,76 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   `event.year` when `event.date` is null; `shared/api/types.ts`'s `SourceSummary` gained
   `year`/`geography`, `AskResponse.verification` gained `numeric_mismatch_count`, and
   `TimelineEvent` gained `year`.
+- `src/nornikel_kg/adapters/embeddings/yandex.py` (new): `YandexEmbeddingBackend` — dense
+  1536-dim embeddings via the canonical `https://ai.api.cloud.yandex.net/foundationModels/v1/
+  textEmbedding` host (the old `llm.api` host still answers but is the legacy alias, per the
+  module docstring), `x-folder-id` header, 4000-char input truncation (documented 2048-token
+  cap), 7 retries with exponential backoff + jitter (`_MAX_RETRIES = 7`). A process-wide
+  `_RateLimiter` (module-level `_rate_limiter`, `YANDEX_EMBED_RPS` env, default `8`) paces
+  requests below the shared 10 RPS folder quota — retry-with-backoff alone loses against a
+  saturated quota when many enrichment threads fire concurrently (observed live as a 429 storm).
+  `embed_dense`/`embed_dense_query` use separate doc/query model URIs
+  (`YANDEX_EMBED_DOC_MODEL`/`YANDEX_EMBED_QUERY_MODEL`, both default `text-embeddings/latest`);
+  a module-level query cache (`_query_cache`, `_QUERY_CACHE_MAX = 256`) spares repeat demo
+  questions. `embed_sparse`/`embed_sparse_query` delegate to `LocalEmbeddingBackend` (BM25 stays
+  local). Wired via `EMBEDDING_BACKEND=yandex` in `services/runtime.py`.
+- `src/nornikel_kg/ports/retrieval.py`: `EmbeddingBackendPort` gained `embed_dense_query(texts) ->
+  list[list[float]]` (distinct from `embed_dense`, may use a separate query-side model),
+  implemented by `local.py`/`fake.py`/`yandex.py`; `QdrantVectorIndex.hybrid_search`/
+  `dense_search` call `embed_dense_query` for the query vector.
+- `src/nornikel_kg/adapters/qdrant_index/index.py`: `QdrantVectorIndex.index_units(collection,
+  units, *, skip_unchanged: bool = True)` is incremental — every point payload carries a
+  `text_hash` (`hashlib.blake2s`, 16-byte digest); when `skip_unchanged` and the collection
+  exists, units whose stored hash matches the current text are dropped from the pending batch
+  before ever calling the embedding API. `_UPSERT_BATCH = 128` batches `client.upsert` calls (a
+  single ~1700-point x 1536-dim upsert exceeded Qdrant's request-size limit, observed live as a
+  400). New `prune_source_units(collection, source_id, keep_unit_ids)` scrolls a source's points
+  and deletes those not in `keep_unit_ids` (stale points from a re-parse), called after indexing,
+  never before (a failed re-embed must not lose existing vectors).
+- `src/nornikel_kg/services/retrieval_service.py`: `RetrievalService.index_source` calls
+  `index_units` (incremental) then `prune_source_units` when the index supports it;
+  `reindex_all()` logs `"Reindex complete: %d units"` via `logger.info` as an ops-greppable
+  completion marker (deploy tooling greps this exact line rather than relying on a
+  points-count heuristic). `EVIDENCE_COLLECTION = os.getenv("QDRANT_COLLECTION",
+  "evidence_units")`; `ENTITY_COLLECTION = os.getenv("QDRANT_ENTITY_COLLECTION",
+  f"{EVIDENCE_COLLECTION}_entities")` — deriving the entity collection name from the evidence
+  collection means switching `QDRANT_COLLECTION` for a new embedder never queries
+  stale-dimension vectors from an old entity collection.
+- `src/nornikel_kg/adapters/duckdb/repositories.py`: `DuckDBLedgerRepository` gained a
+  `_data_version` int counter (incremented in `ingest_source_bytes`/`ingest_parsed_document`/
+  `_delete_source_records`/`set_source_metadata`, i.e. every ledger-mutating write path) and a
+  public `data_version` property.
+- `src/nornikel_kg/services/qa_service.py`: `DemoQAService._load_packet` caches the loaded
+  `EvidenceLedgerPacket` as `self._packet_cache: tuple[int, EvidenceLedgerPacket] | None`, keyed
+  by `ledger_repository.data_version`; a cache hit skips `load_demo_packet()` (a full
+  evidence/experiment scan that previously dominated `ask` latency), invalidated automatically
+  whenever any write bumps `_data_version`.
+- `src/nornikel_kg/services/ingestion_service.py`: `IngestionService._schedule_enrichment`'s
+  inner `enrich()` closure now wraps its entire body in `try/except Exception`, logging
+  `logger.exception` and recording `status="failed"` on any error (previously an unhandled error
+  inside the daemon thread — e.g. the missing-`tenacity` case below — silently killed the thread
+  and stranded the run's status at `"running"` forever).
+- `pyproject.toml`: `tenacity>=8.2.0` is now a hard main dependency — `litellm`'s `num_retries`
+  retry path imports `tenacity` lazily and raises a bare `Exception` when it is absent, which
+  killed enrichment threads live before this fix.
+- `services/api/main.py`: sets `logging.getLogger("nornikel_kg").setLevel(logging.INFO)` and
+  calls `logging.basicConfig(level=logging.INFO)` when the root logger has no handlers, so
+  reindex-completion and enrichment-failure INFO/ERROR logs are visible in the running container.
+- `apps/web/src/pages/`: six-section SPA — `workbench/` (search, ex-`AnalysisWorkbench` slimmed
+  to an `injectedQuestion?: string | null` prop), `graph/`, `data/`, `analytics/`, `eval/`,
+  `security/`; `WorkbenchPage.tsx` renders the nav (`Поиск`/`Граф знаний`/`Данные`/`Аналитика`/
+  `Качество`/`Безопасность`). `ArtifactBankPanel.tsx` gained an optional
+  `onEnrich?: (sourceId: string) => Promise<void>` prop.
+- `services/api/routes/stats.py` (new): `GET /stats/overview` returns
+  `get_ledger_repository().corpus_stats()`; `GET /stats/answer-runs?limit=` (1-100, default 20)
+  returns `{"runs": get_ledger_repository().list_answer_runs(limit)}`.
 
 ## Current Behavior
 
 P0 scaffold uses React 19/Vite 8/TypeScript, FastAPI, Python 3.12, and DuckDB as the evidence
 ledger and graph store of record. Runtime wiring (`src/nornikel_kg/services/runtime.py`) lazily
 builds every service behind `@lru_cache` singletons: `get_ledger_repository`, `get_qa_service`,
-`get_retrieval_service` (`EMBEDDING_BACKEND=off|local|fake`, plus `RERANKER_ENABLED` wiring a
+`get_retrieval_service` (`EMBEDDING_BACKEND=off|local|fake|yandex`, plus `RERANKER_ENABLED` wiring a
 `CrossEncoderReranker` into `RetrievalService`), `get_ingestion_service`, `get_extraction_service`
 (`GLINER_ENABLED` default `true`, `LLM_EXTRACTION_ENABLED` default `false`, and
 `ENTITY_SEMANTIC_FALLBACK` default `true` — wires a `QdrantSemanticMatcher` into
@@ -260,8 +323,9 @@ wave plan) first, then update ADRs if a stack boundary changes.
 
 ## Verification
 
-- `make ci`: backend/frontend gate; `uv run pytest` verified 141 passed / 4 skipped at `3e74473`
-  (live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified).
+- `make ci`: backend/frontend gate; `uv run pytest` verified 148 passed / 5 skipped at `327f47c`
+  (live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified, mypy: "no
+  issues found in 75 source files").
 - `make eval`: deterministic + retrieval-augmented evidence packet verification (17 questions,
   synthetic corpus only, incl. adversarial prompt-injection cases).
 - `docker compose config`: validates server-first Compose wiring (`api`, `web`, `qdrant`).

@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-03
-Last commit: 3e74473 docs(deploy): DuckDB lock contract and archive-aware batch procedure
+Last updated: 2026-07-04
+Last commit: 327f47c perf: incremental hash-skip indexing, packet cache, query-embed cache
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
   pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
   services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -47,10 +47,21 @@ A-D) and the archive/legacy-format ingestion wave (E).
 
 ## Current Behavior
 
-`uv run pytest` passes **141 tests, 4 skipped** at `3e74473` (verified by a live run in this
-sync pass, up from 96 passed / 3 skipped at `41ee7ac`). `uv run ruff check .` and `uv run mypy`
-both pass clean (verified live in this sync pass — status is no longer "unverified" as it was in
-the prior sync).
+`uv run pytest` passes **148 tests, 5 skipped** at `327f47c` (verified by a live run in this
+sync pass, up from 141 passed / 4 skipped at `3e74473`). `uv run ruff check .` and `uv run mypy`
+both pass clean (verified live in this sync pass; mypy: "no issues found in 75 source files").
+
+`EMBEDDING_BACKEND` now also accepts `yandex` (`adapters/embeddings/yandex.py`): dense vectors
+via the organizer-provided Yandex AI Studio API, offloading the CPU-bound `local` backend's
+sentence-transformers inference; `.env.example` documents `YANDEX_API_KEY`, `YANDEX_FOLDER_ID`,
+`YANDEX_EMBED_DOC_MODEL`/`YANDEX_EMBED_QUERY_MODEL` (both default `text-embeddings/latest`).
+`.claude/CLAUDE.md`/`AGENTS.md` record Yandex AI Studio as the primary LLM provider too
+(`aliceai-llm` stand model via the same OpenAI-compatible LiteLLM gateway,
+`https://ai.api.cloud.yandex.net/v1`); the LLM gateway code itself
+(`src/nornikel_kg/adapters/llm/gateway.py`/`settings.py`) is provider-agnostic and unchanged —
+the switch is an env-level base-URL/key/model override, with the previous `dataeyes.ai`
+configuration kept as a server-side rollback (`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not
+independently verified by this repository sync since it lives outside tracked files).
 
 `apps/web/nginx.conf` still sets `client_max_body_size 32m` and `proxy_read_timeout 300s` for
 `/api/`, unchanged this wave.
@@ -118,11 +129,11 @@ the Nginx body-size limit, keep both the FastAPI code default and `apps/web/ngin
 
 ## Verification
 
-- `make ci`: proves Python lint/type/tests and TypeScript/build; `uv run pytest` verified at 141
-  passed / 4 skipped at `3e74473` in this sync pass; `ruff`/`mypy` both clean (live-run verified).
+- `make ci`: proves Python lint/type/tests and TypeScript/build; `uv run pytest` verified at 148
+  passed / 5 skipped at `327f47c` in this sync pass; `ruff`/`mypy` both clean (live-run verified).
 - `make eval`: proves the 17-question synthetic-fixture answer/safety metrics (incl. adversarial
   injection cases); does not exercise the real-corpus ontology/scope-filter/reranker behavior
   against real data (see `mem:TECHDEBT-01-NOW`).
 - `docker compose config`: proves Compose syntax.
-- `git rev-list --left-right --count origin/main...main` -> `0\t0` (verified 2026-07-03): local
+- `git rev-list --left-right --count origin/main...main` -> `0\t0` (verified 2026-07-04): local
   `main` and `origin/main` are in sync; no pending push backlog.
