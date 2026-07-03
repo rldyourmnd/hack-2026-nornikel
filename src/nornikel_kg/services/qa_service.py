@@ -438,7 +438,7 @@ class EvidenceQAService:
         request_filters: AskFilters | None = None,
     ) -> list[ExperimentRow]:
         normalized_question = self._normalize(question)
-        requested_property = self._requested_property(question)
+        requested_property = self._requested_property(question, experiments)
         has_request_filters = self._has_filter_constraints(request_filters)
         requested_material_tokens = self._requested_material_tokens(question)
         known_material_tokens = self._known_material_tokens(experiments)
@@ -474,7 +474,7 @@ class EvidenceQAService:
                 continue
             if requested_property and not self._property_matches(requested_property, experiment):
                 continue
-            score = self._score_experiment(question, experiment)
+            score = self._score_experiment(question, experiment, requested_property)
             if score > 0:
                 scored.append((score, experiment))
         if not scored and not requested_property:
@@ -584,30 +584,30 @@ class EvidenceQAService:
         normalized_value = self._normalize(value)
         return any(candidate in normalized_value for candidate in candidates)
 
-    def _score_experiment(self, question: str, experiment: ExperimentRow) -> int:
+    def _score_experiment(
+        self, question: str, experiment: ExperimentRow, requested_property: str | None
+    ) -> int:
         normalized_question = self._normalize(question)
         score = 0
         material = self._normalize_material_token(experiment.material_name)
         if material and material in normalized_question:
             score += 6
-        elif self._mentions_nicu_family(normalized_question) and self._is_nicu_family(experiment):
+        elif self._shared_material_element_count(normalized_question, experiment) >= 2:
+            # Same alloy system (e.g. a «Ni-Cu» question vs a Ni-30Cu row) even
+            # when the exact alloy code was not spelled out.
             score += 4
-        if self._property_matches("hardness", experiment) and (
-            "hardness" in normalized_question or "тверд" in normalized_question
-        ):
+        if requested_property and self._property_matches(requested_property, experiment):
             score += 5
         if self._regime_matches(normalized_question, experiment):
             score += 4
-        if "700" in normalized_question and "700" in experiment.regime_summary:
-            score += 1
-        if (
-            "8" in normalized_question or "8h" in normalized_question
-        ) and "8" in experiment.regime_summary:
-            score += 1
+        score += self._shared_numeric_bonus(normalized_question, experiment.regime_summary)
         return score
 
-    def _requested_property(self, question: str) -> str | None:
+    def _requested_property(
+        self, question: str, experiments: list[ExperimentRow] | None = None
+    ) -> str | None:
         normalized_question = self._normalize(question)
+        # Canonical property families recognised by surface synonyms.
         if "электропровод" in normalized_question or "conductivity" in normalized_question:
             return "conductivity"
         if "vickers" in normalized_question or "виккер" in normalized_question:
@@ -616,6 +616,12 @@ class EvidenceQAService:
             return "rockwell_hardness"
         if "hardness" in normalized_question or "тверд" in normalized_question:
             return "hardness"
+        # Generic: any property actually present in the corpus whose name
+        # appears in the question (no domain hardcode beyond the synonyms).
+        for experiment in experiments or []:
+            property_name = self._normalize(experiment.property_name)
+            if property_name and property_name in normalized_question:
+                return experiment.property_id.lower()
         return None
 
     def _property_matches(self, requested_property: str, experiment: ExperimentRow) -> bool:
@@ -629,13 +635,18 @@ class EvidenceQAService:
 
     def _regime_matches(self, normalized_question: str, experiment: ExperimentRow) -> bool:
         regime = self._normalize(experiment.regime_summary)
+        # Canonical regime families by synonym.
         if ("старен" in normalized_question or "aging" in normalized_question) and (
             "старен" in regime or "aging" in regime
         ):
             return True
-        return ("отжиг" in normalized_question or "anneal" in normalized_question) and (
+        if ("отжиг" in normalized_question or "anneal" in normalized_question) and (
             "отжиг" in regime or "anneal" in regime
-        )
+        ):
+            return True
+        # Generic: a specific content word shared between the question and the
+        # regime summary (any process, not only aging/annealing).
+        return bool(self._shared_content_tokens(normalized_question, regime))
 
     def _evidence_for_experiments(
         self,
@@ -747,7 +758,7 @@ class EvidenceQAService:
             matched_material = requested_tokens.intersection(
                 self._known_material_tokens(selected_experiments)
             )
-            if matched_material or self._requested_property(question):
+            if matched_material or self._requested_property(question, selected_experiments):
                 return "high"
             return "medium"
         if summary and selected_evidence:
@@ -798,7 +809,7 @@ class EvidenceQAService:
     ) -> list[dict[str, object]]:
         if unmatched_material_tokens:
             return []
-        requested_property = self._requested_property(question)
+        requested_property = self._requested_property(question, selected_experiments)
         if not selected_experiments or requested_property == "conductivity":
             return packet_gaps
         return []
@@ -818,10 +829,7 @@ class EvidenceQAService:
                     experiments=experiments,
                 )
             ]
-        return [
-            "Показать режимы старения Ni-Cu с измеренной электропроводностью",
-            "Сравнить Ni-30Cu и CuNi30 по твердости после отжига",
-        ]
+        return self._corpus_follow_ups(question, experiments)
 
     def _normalize(self, value: str) -> str:
         return value.lower().replace("ё", "е").replace("-", "")
@@ -911,11 +919,48 @@ class EvidenceQAService:
         value_text = f"{value:g}" if isinstance(value, int | float) else str(value)
         return f"{value_text} {unit}".strip()
 
-    def _mentions_nicu_family(self, normalized_question: str) -> bool:
-        return "nicu" in normalized_question or "cuni" in normalized_question or (
-            "ni" in normalized_question and "cu" in normalized_question
-        )
+    _NUMERIC_TOKEN_RE = re.compile(r"\d+")
+    _CONTENT_TOKEN_RE = re.compile(r"[a-zа-я]{5,}")
 
-    def _is_nicu_family(self, experiment: ExperimentRow) -> bool:
+    def _shared_material_element_count(
+        self, normalized_question: str, experiment: ExperimentRow
+    ) -> int:
+        """How many alloy elements the question and the material share.
+
+        Generic replacement for the old Ni-Cu-family literals: two shared
+        elements mark the same alloy system for any material in the ontology.
+        """
         material = self._normalize_material_token(experiment.material_name)
-        return "ni" in material and "cu" in material
+        material_elements = {element for element in MATERIAL_ELEMENTS if element in material}
+        question_elements = {
+            element for element in MATERIAL_ELEMENTS if element in normalized_question
+        }
+        return len(material_elements & question_elements)
+
+    def _shared_numeric_bonus(self, normalized_question: str, regime_summary: str) -> int:
+        """Bonus for regime numbers (temperature, duration, …) the question
+        repeats — corpus-generic, replacing the literal 700/8 checks."""
+        regime = self._normalize(regime_summary)
+        question_numbers = set(self._NUMERIC_TOKEN_RE.findall(normalized_question))
+        regime_numbers = set(self._NUMERIC_TOKEN_RE.findall(regime))
+        return min(len(question_numbers & regime_numbers), 2)
+
+    def _shared_content_tokens(self, normalized_question: str, normalized_text: str) -> set[str]:
+        question_tokens = set(self._CONTENT_TOKEN_RE.findall(normalized_question))
+        text_tokens = set(self._CONTENT_TOKEN_RE.findall(normalized_text))
+        return question_tokens & text_tokens
+
+    def _corpus_follow_ups(self, question: str, experiments: list[ExperimentRow]) -> list[str]:
+        """Follow-ups derived from corpus materials not named in the question
+        (replaces the hardcoded Ni-Cu follow-up templates)."""
+        normalized_question = self._normalize(question)
+        suggestions: list[str] = []
+        for material in sorted({experiment.material_name.strip() for experiment in experiments}):
+            if not material:
+                continue
+            token = self._normalize_material_token(material)
+            if token and token not in normalized_question:
+                suggestions.append(f"Что было с {material}?")
+            if len(suggestions) >= 2:
+                break
+        return suggestions
