@@ -7,7 +7,6 @@ import {
   Search,
   Share2,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -143,21 +142,6 @@ export function LandingPage() {
             </div>
           ))}
         </div>
-      </section>
-
-      <section className="landing-cta">
-        <div className="landing-cta-icon">
-          <Sparkles size={26} />
-        </div>
-        <div>
-          <div className="landing-cta-title">Доказательная база для уверенных решений</div>
-          <div className="landing-cta-sub">
-            Снижаем риски. Ускоряем R&D. Создаём ценность на основе знаний.
-          </div>
-        </div>
-        <Link className="primary-button" to="/demo">
-          Смотреть демо <ArrowRight size={16} />
-        </Link>
       </section>
     </div>
   );
