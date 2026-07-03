@@ -1,0 +1,37 @@
+equipment:
+  - equipment_id: eq_furnace_demo
+    name: Demo resistance furnace
+    aliases: ["печь сопротивления", "aging furnace"]
+    lab_id: lab_metallurgy
+  - equipment_id: eq_vickers_demo
+    name: Demo Vickers hardness tester
+    aliases: ["микротвердомер", "Vickers HV10"]
+    lab_id: lab_mechanical
+  - equipment_id: eq_sem_demo
+    name: Demo SEM
+    aliases: ["SEM", "сканирующий электронный микроскоп"]
+    lab_id: lab_microstructure
+  - equipment_id: eq_vanyukov_furnace
+    name: Печь Ванюкова
+    aliases: ["Vanyukov furnace", "двухзонная печь Ванюкова", "ПВ"]
+    lab_id: lab_pyrometallurgy
+  - equipment_id: eq_flash_furnace
+    name: Печь взвешенной плавки
+    aliases: ["ПВП", "flash smelting furnace", "печи взвешенной плавки"]
+    lab_id: lab_pyrometallurgy
+  - equipment_id: eq_electrowinning_bath
+    name: Ванна электроэкстракции
+    aliases: ["electrowinning cell", "электролизная ванна", "ванны электроэкстракции"]
+    lab_id: lab_hydrometallurgy
+  - equipment_id: eq_diaphragm_cell
+    name: Диафрагменная ячейка
+    aliases: ["diaphragm cell", "диафрагменные ячейки"]
+    lab_id: lab_hydrometallurgy
+  - equipment_id: eq_flotation_machine
+    name: Флотомашина
+    aliases: ["flotation machine", "флотационная машина"]
+    lab_id: lab_beneficiation
+  - equipment_id: eq_tube_furnace
+    name: Трубчатая печь
+    aliases: ["tube furnace", "трубчатые печи", "трубчатой печи"]
+    lab_id: lab_pyrometallurgy

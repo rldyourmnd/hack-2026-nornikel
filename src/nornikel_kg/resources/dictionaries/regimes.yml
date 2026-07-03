@@ -1,0 +1,46 @@
+regimes:
+  - regime_type: aging
+    canonical_name: Aging
+    aliases: ["aging", "старение"]
+  - regime_type: annealing
+    canonical_name: Annealing
+    aliases: ["annealing", "отжиг"]
+  - regime_type: cold_rolling
+    canonical_name: Cold rolling
+    aliases: ["cold rolling", "холодная прокатка"]
+  - regime_type: solution_treatment
+    canonical_name: Solution treatment
+    aliases: ["solution treatment", "закалка на раствор", "растворный отжиг"]
+  - regime_type: welding_cladding
+    canonical_name: Welding or cladding
+    aliases: ["welding", "cladding", "сварка", "наплавка"]
+  - regime_type: leaching
+    canonical_name: Выщелачивание
+    aliases: ["leaching", "кучное выщелачивание", "выщелачивания", "автоклавное выщелачивание", "heap leaching"]
+  - regime_type: electrowinning
+    canonical_name: Электроэкстракция
+    aliases: ["electrowinning", "электроэкстракции", "электролиз", "electrolysis"]
+  - regime_type: slag_depletion
+    canonical_name: Обеднение шлака
+    aliases: ["slag depletion", "обеднения шлака", "обеднение шлаков", "обеднении шлака"]
+  - regime_type: converting
+    canonical_name: Конвертирование
+    aliases: ["converting", "конвертирования", "непрерывное конвертирование"]
+  - regime_type: smelting
+    canonical_name: Плавка
+    aliases: ["smelting", "плавки", "восстановительная плавка", "взвешенная плавка", "автогенная плавка"]
+  - regime_type: flotation
+    canonical_name: Флотация
+    aliases: ["flotation", "флотации", "коллективная флотация"]
+  - regime_type: desalination
+    canonical_name: Обессоливание
+    aliases: ["desalination", "обессоливания", "опреснение", "деминерализация"]
+  - regime_type: drying
+    canonical_name: Сушка
+    aliases: ["drying", "сушки"]
+  - regime_type: circulation
+    canonical_name: Циркуляция
+    aliases: ["circulation", "циркуляции католита", "циркуляция электролита", "circulation of catholyte"]
+  - regime_type: injection
+    canonical_name: Закачка
+    aliases: ["injection", "закачки", "закачка в глубокие горизонты"]

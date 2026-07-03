@@ -1,0 +1,88 @@
+materials:
+  - material_id: mat_nicu_30
+    canonical_name: Ni-30Cu
+    alloy_family: Ni-Cu
+    aliases: ["Ni30Cu", "Ni-Cu 30", "никель-медь 30", "сплав Ni-30Cu"]
+    composition:
+      - element: Ni
+        amount: 70
+        unit: wt%
+      - element: Cu
+        amount: 30
+        unit: wt%
+  - material_id: mat_cuni_30
+    canonical_name: CuNi30
+    alloy_family: Cu-Ni
+    aliases: ["Cu-30Ni", "МН30", "copper-nickel 30"]
+  - material_id: mat_nicrmo_demo
+    canonical_name: Ni-Cr-Mo demo alloy
+    alloy_family: Ni-Cr-Mo
+    aliases: ["NiCrMo-D", "никель-хром-молибденовый сплав"]
+  - material_id: mat_slag
+    canonical_name: Шлак
+    alloy_family: pyrometallurgy
+    aliases: ["slag", "отвальный шлак", "шлаки", "шлака", "шлаком"]
+  - material_id: mat_matte_copper
+    canonical_name: Медный штейн
+    alloy_family: pyrometallurgy
+    aliases: ["copper matte", "штейн медный", "штейн", "штейна", "медно-никелевый штейн"]
+  - material_id: mat_matte_nickel
+    canonical_name: Никелевый штейн
+    alloy_family: pyrometallurgy
+    aliases: ["nickel matte", "штейн никелевый", "файнштейн"]
+  - material_id: mat_nickel_cathode
+    canonical_name: Никелевый катод
+    alloy_family: hydrometallurgy
+    aliases: ["nickel cathode", "катодный никель", "катод никелевый", "катоды"]
+  - material_id: mat_electrolyte
+    canonical_name: Электролит
+    alloy_family: hydrometallurgy
+    aliases: ["electrolyte", "католит", "анолит", "электролита"]
+  - material_id: mat_gypsum_techno
+    canonical_name: Техногенный гипс
+    alloy_family: waste
+    aliases: ["technogenic gypsum", "гипс", "гипса"]
+  - material_id: mat_sulfates
+    canonical_name: Сульфаты
+    alloy_family: water_chemistry
+    aliases: ["sulfates", "сульфат", "сульфатов", "SO4"]
+  - material_id: mat_chlorides
+    canonical_name: Хлориды
+    alloy_family: water_chemistry
+    aliases: ["chlorides", "хлорид", "хлоридов"]
+  - material_id: mat_so2
+    canonical_name: Диоксид серы
+    alloy_family: gas
+    aliases: ["SO2", "sulfur dioxide", "сернистый газ", "диоксида серы"]
+  - material_id: mat_mine_water
+    canonical_name: Шахтная вода
+    alloy_family: water
+    aliases: ["mine water", "шахтные воды", "шахтных вод", "рудничная вода"]
+  - material_id: mat_ore_nickel
+    canonical_name: Никелевая руда
+    alloy_family: ore
+    aliases: ["nickel ore", "руда никелевая", "медно-никелевая руда", "руды"]
+  - material_id: mat_concentrate
+    canonical_name: Концентрат
+    alloy_family: beneficiation
+    aliases: ["concentrate", "концентрата", "концентраты", "концентратов"]
+  - material_id: mat_precious_metals
+    canonical_name: Драгоценные металлы
+    alloy_family: precious
+    aliases: ["МПГ", "precious metals", "PGM", "платиноиды", "золото", "серебро", "драгметаллы", "благородные металлы"]
+  - material_id: mat_copper
+    canonical_name: Медь
+    alloy_family: base_metal
+    aliases: ["copper", "меди", "медью", "Cu"]
+  - material_id: mat_nickel
+    canonical_name: Никель
+    alloy_family: base_metal
+    aliases: ["nickel", "никеля", "никелем", "Ni"]
+  - material_id: mat_cobalt
+    canonical_name: Кобальт
+    alloy_family: base_metal
+    aliases: ["cobalt", "кобальта", "Co"]
+  - material_id: mat_metal_phase
+    canonical_name: Металлическая фаза
+    alloy_family: pyrometallurgy
+    aliases: ["metal phase", "металлической фазы", "металлофаза", "донная фаза"]

@@ -1,0 +1,8 @@
+units:
+  temperature: ["C", "K"]
+  duration: ["min", "h"]
+  hardness: ["HV", "HRC"]
+  strength: ["MPa"]
+  conductivity: ["MS/m", "%IACS"]
+  corrosion_rate: ["mm/year"]
+  length: ["um", "mm"]
