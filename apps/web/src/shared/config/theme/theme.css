@@ -2100,10 +2100,14 @@ a {
 }
 
 .page-hero-illus {
-  width: 220px;
-  max-width: 32vw;
+  width: 240px;
+  max-width: 34vw;
   height: auto;
   object-fit: contain;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border);
+  background: #fff;
+  box-shadow: var(--shadow-card);
 }
 
 /* Comparison table (P08) */

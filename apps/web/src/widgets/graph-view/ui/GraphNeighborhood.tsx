@@ -10,16 +10,32 @@ import {
 } from "@/shared/api";
 import { Panel } from "@/shared/ui";
 
+// Aligned with the entity-color tokens in shared/config/nav.ts / theme.css.
 const TYPE_COLORS: Record<string, string> = {
-  material: "#2563eb",
-  regime: "#d97706",
-  property: "#16a34a",
-  equipment: "#9333ea",
-  team: "#0891b2",
-  person: "#0e7490",
-  laboratory: "#4f46e5",
-  decision: "#dc2626",
-  conclusion: "#e11d48",
+  material: "#0d9488",
+  process: "#2563eb",
+  regime: "#2563eb",
+  condition: "#2563eb",
+  property: "#7c3aed",
+  equipment: "#0ea5e9",
+  facility: "#0ea5e9",
+  experiment: "#7c3aed",
+  method: "#0ea5e9",
+  publication: "#059669",
+  patent: "#059669",
+  standard: "#059669",
+  person: "#2563eb",
+  expert: "#2563eb",
+  team: "#2563eb",
+  laboratory: "#2563eb",
+  organization: "#2563eb",
+  location: "#0891b2",
+  technology_solution: "#7c3aed",
+  economic_indicator: "#d97706",
+  conclusion: "#7c3aed",
+  recommendation: "#059669",
+  limitation: "#dc2626",
+  decision: "#7c3aed",
   value: "#64748b",
 };
 
