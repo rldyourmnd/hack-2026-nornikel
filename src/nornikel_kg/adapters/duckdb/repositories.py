@@ -932,6 +932,90 @@ class DuckDBLedgerRepository:
             for row in rows
         ]
 
+    def graph_neighborhood(
+        self, entity_id: str, *, depth: int, limit: int
+    ) -> dict[str, Any] | None:
+        """Bounded k-hop neighborhood via indexed per-hop SQL.
+
+        Replaces full-graph NetworkX materialization: the frontier is expanded
+        one hop at a time over the indexed relations table (both edge
+        directions), stopping at `depth` hops or once `limit` nodes are reached.
+        Returns the reached node data + induced edges, or None if the focus
+        entity is unknown. Ranking/trimming to `limit` stays in GraphService so
+        the response shape and ordering are unchanged.
+        """
+        self.migrate()
+        depth = max(1, min(depth, 2))
+        with self._connect() as connection:
+            focus = connection.execute(
+                "SELECT 1 FROM entities WHERE entity_id = ?", [entity_id]
+            ).fetchone()
+            if focus is None:
+                return None
+            reached: set[str] = {entity_id}
+            frontier: set[str] = {entity_id}
+            for _hop in range(depth):
+                if not frontier:
+                    break
+                placeholders = ", ".join("?" for _ in frontier)
+                neighbor_rows = connection.execute(
+                    f"""
+                    SELECT dst_entity_id AS neighbor FROM relations
+                    WHERE src_entity_id IN ({placeholders})
+                    UNION
+                    SELECT src_entity_id AS neighbor FROM relations
+                    WHERE dst_entity_id IN ({placeholders})
+                    """,
+                    list(frontier) + list(frontier),
+                ).fetchall()
+                neighbors = {str(row[0]) for row in neighbor_rows}
+                frontier = neighbors - reached
+                reached |= neighbors
+                if len(reached) >= limit:
+                    break
+            node_placeholders = ", ".join("?" for _ in reached)
+            node_rows = connection.execute(
+                f"""
+                SELECT entity_id, entity_type, canonical_name, evidence_span_ids_json
+                FROM entities WHERE entity_id IN ({node_placeholders})
+                """,
+                list(reached),
+            ).fetchall()
+            real_ids = [str(row[0]) for row in node_rows]
+            edge_rows: list[Any] = []
+            if real_ids:
+                edge_placeholders = ", ".join("?" for _ in real_ids)
+                edge_rows = connection.execute(
+                    f"""
+                    SELECT relation_id, src_entity_id, relation_type, dst_entity_id,
+                           evidence_span_ids_json
+                    FROM relations
+                    WHERE src_entity_id IN ({edge_placeholders})
+                      AND dst_entity_id IN ({edge_placeholders})
+                    """,
+                    real_ids + real_ids,
+                ).fetchall()
+        nodes = [
+            {
+                "entity_id": str(row[0]),
+                "entity_type": str(row[1]),
+                "canonical_name": str(row[2]),
+                "evidence_count": len(json.loads(str(row[3] or "[]"))),
+            }
+            for row in node_rows
+        ]
+        edges = [
+            {
+                "relation_id": str(row[0]),
+                "src_entity_id": str(row[1]),
+                "relation_type": str(row[2]),
+                "dst_entity_id": str(row[3]),
+                "evidence_count": len(json.loads(str(row[4] or "[]"))),
+            }
+            for row in edge_rows
+        ]
+        return {"nodes": nodes, "edges": edges}
+
     def list_entities_by_type(
         self, entity_types: list[str], limit: int = 24
     ) -> list[dict[str, Any]]:
