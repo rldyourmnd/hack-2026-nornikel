@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
+Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
   tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
   .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
@@ -150,9 +150,17 @@ resilience/perf/UI follow-on, all verified against the working tree at `327f47c`
 - **Answer prompt demands synthesis over table references** (`24282f1`):
   `services/answer_composer.py`'s `_ANSWER_SYSTEM_PROMPT` now explicitly instructs the model to
   synthesize concrete values/factors instead of pointing the reader to table/figure numbers
-  (live model bench on a real packet, 2026-07-04: `aliceai-llm` stays the answer model — 6-11s,
-  perfect citation discipline; `gpt-oss-120b` synthesized factors best but ran 26-91s live, too
-  slow for interactive use; see `mem:TECHDEBT-01-NOW` for the full bench).
+  (live model bench on a real packet, 2026-07-04: `aliceai-llm` was the answer model at that
+  point — 6-11s, perfect citation discipline; `gpt-oss-120b` synthesized factors best but ran
+  26-91s live, too slow for interactive use). **Superseded same day by `f72c7f6`** ("config:
+  answers on deepseek-v4-flash per owner requirement", verified in `.claude/CLAUDE.md` and
+  `.env.example` at `HEAD`): the answer model is now `deepseek-v4-flash` (owner requirement,
+  re-benched through the real LiteLLM gateway — `json_repair` recovers its non-native JSON,
+  4/4 verified synthesis, citation 1.0, zero numeric fabrication, richer author/factor detail,
+  ~17s warm, `LLM_TIMEOUT_S` raised `30`->`60`); extraction stays `aliceai-llm` (native
+  strict-JSON, ~7x faster on the batch path, graph already built). See `mem:TECHDEBT-01-NOW`
+  for the full bench history, including the earlier raw-catalog DeepSeek call that produced
+  broken JSON before `json_repair` was in the path.
 - **GitHub Actions auto-deploy + `изи-никель.рф` primary domain** (`9338017`, merged `652317e`
   as PR #19): new `.github/workflows/deploy.yml` ships the tracked tree over SSH on every push
   to `main`, rebuilds `api`/`web`, restarts the stack and smoke-checks `/api/health` +

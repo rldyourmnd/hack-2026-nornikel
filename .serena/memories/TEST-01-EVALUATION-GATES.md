@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
+Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
 Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml
 Area: TEST
 -->

@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
+Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
   docker-compose.yml; .env.example; .github/workflows/ci.yml; .github/workflows/deploy.yml;
   tests/; .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md;
@@ -186,14 +186,30 @@ verified against the working tree at `3e74473`:
 
 ## Operational Observations (not test-verified in this repository; dated)
 
-- **Live model bench on a real evidence packet, 2026-07-04** (cited in the `24282f1` commit
-  message, not reproducible from a tracked test/fixture in this sync): answers stay on
+- **Live model bench on a real evidence packet, 2026-07-04, round 1** (cited in the `24282f1`
+  commit message, not reproducible from a tracked test/fixture in this sync): answers stayed on
   `aliceai-llm` — 6-11s latency, perfect citation discipline; `qwen3-235b` ran 31s;
-  `gpt-oss-120b` ran 26-91s live (unstable) but synthesized factors best; `deepseek-v4-flash`
-  produced broken JSON at 40s; `qwen3.6` returned empty content. Dense embedder
-  `text-embeddings/latest` (1536-dim) was confirmed by a margin test: +0.30 vs +0.20 (v2) vs
-  +0.16 (v1). Treat as a dated operational note, not a regression-tested guarantee — no
-  tracked benchmark artifact backs these numbers.
+  `gpt-oss-120b` ran 26-91s live (unstable) but synthesized factors best; `deepseek-v4-flash`'s
+  **raw catalog call** (no `json_repair` in the path) produced broken JSON at 40s; `qwen3.6`
+  returned empty content. Dense embedder `text-embeddings/latest` (1536-dim) was confirmed by a
+  margin test: +0.30 vs +0.20 (v2) vs +0.16 (v1).
+- **Re-bench through the real gateway, same day, round 2 (`f72c7f6`, verified in `.claude/
+  CLAUDE.md`/`.env.example` at `HEAD`)**: `deepseek-v4-flash` was re-tested through the actual
+  `LiteLLMGateway` path (which includes the `json_repair.repair_json` fallback on a JSON decode
+  failure, `mem:ARCH-01-EVIDENCE-MVP`) rather than a raw catalog call — 4/4 verified synthesis,
+  citation coverage 1.0, zero numeric fabrication, richer author/factor detail than
+  `aliceai-llm`, ~17s warm. The stand now answers on `deepseek-v4-flash` (owner requirement);
+  `.env.example`'s `LLM_TIMEOUT_S` was raised `30`->`60` to fit the higher latency. Extraction
+  stays on `aliceai-llm` (native strict-JSON, ~7x faster on the batch path, graph already
+  built). Catalog constraint (reported, not independently re-verified in this sync): only
+  `deepseek-v4-flash` exists in the organizer's Yandex AI Studio catalog — `deepseek-v4`,
+  `deepseek-v4-pro`/`-r1`/`-v3.2` all return HTTP 400. The concrete `LLM_ANSWER_MODEL`/
+  `LLM_EXTRACTION_MODEL` strings live only in the server's untracked `.env` (`LLM_ANSWER_MODEL`/
+  `LLM_EXTRACTION_MODEL` stay blank in the tracked `.env.example`); the switch is persistent on
+  the server and re-read on every `docker compose ... up -d` (including the auto-deploy
+  workflow's redeploy step), but this specific mechanism is not independently verifiable from
+  this repository. Treat both benches as dated operational notes, not regression-tested
+  guarantees — no tracked benchmark artifact backs these numbers.
 
 ## Entry Points
 

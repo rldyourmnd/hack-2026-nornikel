@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
+Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
   pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
   services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -79,8 +79,13 @@ via the organizer-provided Yandex AI Studio API, offloading the CPU-bound `local
 sentence-transformers inference; `.env.example` documents `YANDEX_API_KEY`, `YANDEX_FOLDER_ID`,
 `YANDEX_EMBED_DOC_MODEL`/`YANDEX_EMBED_QUERY_MODEL` (both default `text-embeddings/latest`).
 `.claude/CLAUDE.md`/`AGENTS.md` record Yandex AI Studio as the primary LLM provider too
-(`aliceai-llm` stand model via the same OpenAI-compatible LiteLLM gateway,
-`https://ai.api.cloud.yandex.net/v1`); the LLM gateway code itself
+(same OpenAI-compatible LiteLLM gateway, `https://ai.api.cloud.yandex.net/v1`). Per-task model
+split as of `f72c7f6` (verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`): answers on
+`deepseek-v4-flash` (owner requirement — richer author/factor detail, ~17s warm,
+`LLM_TIMEOUT_S` raised `30`->`60` in `.env.example` to fit), extraction stays `aliceai-llm`
+(native strict-JSON, faster on the batch path). `LLM_ANSWER_MODEL`/`LLM_EXTRACTION_MODEL`
+remain blank in the tracked `.env.example`; the concrete model strings are only set in the
+server's untracked `.env` (not verifiable from this repository). The LLM gateway code itself
 (`src/nornikel_kg/adapters/llm/gateway.py`/`settings.py`) is provider-agnostic and unchanged —
 the switch is an env-level base-URL/key/model override, with the previous `dataeyes.ai`
 configuration kept as a server-side rollback (`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not

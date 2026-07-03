@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
+Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
 Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
   .env.example; docs/deployment/
 Area: DOCS
@@ -55,10 +55,12 @@ feat), merged `53191d2` as PR #18, `67d3bca` (batched Qdrant upserts + visible a
 are verified present in `git log --oneline 65af046..HEAD`.
 
 `.claude/CLAUDE.md`/`AGENTS.md` now record Yandex AI Studio (organizer-provided) as the primary
-LLM/embedding provider (`https://ai.api.cloud.yandex.net/v1`, stand model `aliceai-llm`,
-`EMBEDDING_BACKEND=yandex`), with the previous `dataeyes.ai` + `gpt-5.4-mini` configuration kept
-as a server-side rollback (`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not a tracked repo
-artifact).
+LLM/embedding provider (`https://ai.api.cloud.yandex.net/v1`, `EMBEDDING_BACKEND=yandex`), with
+the previous `dataeyes.ai` + `gpt-5.4-mini` configuration kept as a server-side rollback
+(`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not a tracked repo artifact). As of `f72c7f6`
+(2026-07-04, verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`) the stand model split is
+answers on `deepseek-v4-flash` (owner requirement), extraction on `aliceai-llm` — see
+`mem:TECHDEBT-01-NOW` for the bench history.
 
 This sync additionally covers five more commits on `main` since `327f47c`: `6feff7a` (shared
 client-side rate-limit queue for the LLM gateway and Yandex embeddings, new
@@ -85,8 +87,14 @@ squash (e.g. `652317e`, `ec79a96`) are not ancestors of the current `HEAD` — t
 commits on the archived `nornikel-kg-search` line only (verified via `git merge-base
 --is-ancestor`, see `mem:CORE-01-INDEX`).
 
-Local `main` and `origin/main` were in sync at `652317e` (`git rev-list --left-right --count
-origin/main...main` -> `0\t0`, verified 2026-07-04, before this sync pass's own commit).
+One more commit, `f72c7f6` (current `HEAD`, "config: answers on deepseek-v4-flash per owner
+requirement") changed `.claude/CLAUDE.md`/`.env.example` to switch the stand's answer model to
+`deepseek-v4-flash` while extraction stays `aliceai-llm` — see `mem:TECHDEBT-01-NOW` for the
+verified bench detail.
+
+Local `main` and `origin/main` were in sync (`git rev-list --left-right --count
+origin/main...main` -> `0\t0`, verified 2026-07-04 at `f72c7f6`, before this sync pass's own
+commit).
 
 `.env.example` now documents `SEED_SYNTHETIC_FIXTURE`, `SYNTHETIC_SAMPLE_DIR`,
 `LLM_TOKEN_BUDGET`, `LLM_EXTRACTION_ENABLED`, `GLINER_ENABLED`, `SYNC_ENRICHMENT`,

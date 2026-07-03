@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
+Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
   .github/workflows/deploy.yml; pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
 Area: ARCH
@@ -204,8 +204,12 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   `_ANSWER_SYSTEM_PROMPT` (`24282f1`) additionally instructs the model to synthesize concrete
   values/factors and never refer the reader to table/figure numbers (live bench, 2026-07-04:
   `gpt-oss-120b` synthesized factors best but ran 26-91s, too slow interactively; `aliceai-llm`
-  stays the answer model at 6-11s with perfect citation discipline — see
-  `mem:TECHDEBT-01-NOW`).
+  was the answer model at that point, 6-11s with perfect citation discipline). **Answer model
+  changed same day (`f72c7f6`, verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`)**: the
+  stand now answers on `deepseek-v4-flash` (owner requirement) — `json_repair` recovers its
+  non-native JSON through the real gateway, 4/4 verified, citation 1.0, zero numeric
+  fabrication, richer detail, ~17s warm (`LLM_TIMEOUT_S=60`); extraction is unchanged on
+  `aliceai-llm` (native strict-JSON, faster on the batch path) — see `mem:TECHDEBT-01-NOW`.
 - `src/nornikel_kg/domain/analysis.py`: `_regime_bucket` strips the `reg_`/`regime_` id prefix
   before bucketing by regime type + temperature (previously the raw id put every experiment into
   one bucket, producing fake contradictions between aging and annealing at the same
