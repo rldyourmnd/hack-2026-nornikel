@@ -17,12 +17,18 @@ Owner workflow: rldyour plugins/skills.
 ## LLM Constraints (hackathon rules)
 - **Primary provider (2026-07-03): Yandex AI Studio, organizer-provided** (API key +
   folder, no spend limits) — OpenAI-compatible base `https://ai.api.cloud.yandex.net/v1`
-  through the LiteLLM SDK. Stand models (2026-07-04): answers on
-  `deepseek-v4-flash` (owner requirement; re-benched through the real gateway —
-  json_repair recovers its non-native JSON, 4/4 verified, richer author/factor
-  detail, ~17s warm, `LLM_TIMEOUT_S=60`); extraction stays `aliceai-llm`
-  (native strict-JSON 2.4s — DeepSeek would be ~7x slower on the batch path and
-  the graph is already built). Catalog also hosts qwen3-235b/gpt-oss/yandexgpt-5-pro.
+  through the LiteLLM SDK. Stand models (2026-07-04): `deepseek-v4-flash` for
+  BOTH answers and extraction (owner requirement; re-benched through the real
+  gateway — json_repair recovers its non-native JSON, 0 JSON failures, 4/4
+  verified answers, richer detail; ~16-17s per call so `LLM_TIMEOUT_S=60`).
+  The full corpus graph was rebuilt clean on DeepSeek (2026-07-04): 3107
+  entities / 6771 relations with a tight R&D ontology (material/property/regime/
+  value/person/equipment/publication) — leaner than the prior aliceai graph
+  (4206/16560) because alice emitted a noisy 100+-type tail; connectivity is
+  strong (e.g. «Медный штейн»: 154 evidence spans, 111 typed edges —
+  HAS_MEASUREMENT/APPLIES_REGIME/DESCRIBED_IN/MADE_OF/USED_EQUIPMENT). Catalog
+  also hosts aliceai-llm (native strict-JSON 2.4s, fast fallback), qwen3-235b,
+  gpt-oss, yandexgpt-5-pro.
   Dense embeddings: `emb://<folder>/text-embeddings/latest` (1536-dim) via
   `EMBEDDING_BACKEND=yandex`; sparse BM25 stays local. Embedding quota 10 RPS
   (raisable via support ticket).
