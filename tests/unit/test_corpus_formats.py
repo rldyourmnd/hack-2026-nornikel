@@ -27,6 +27,23 @@ def test_plain_zip_expands_ingestible_members(tmp_path: Path) -> None:
     assert stats["zip_expanded"] == 1
 
 
+def test_zip_same_basename_different_folders_do_not_collide(tmp_path: Path) -> None:
+    """Two report.pdf in different inner folders must both survive (no overwrite)."""
+    archive = tmp_path / "bundle.zip"
+    _make_zip(
+        archive,
+        {
+            "CRU-2012/report.pdf": b"%PDF-1.4 twelve",
+            "CRU-2013/report.pdf": b"%PDF-1.4 thirteen",
+        },
+    )
+    extracted, stats = expand_archives([archive], tmp_path / "work")
+    assert len(extracted) == 2  # both kept, not one overwritten
+    bodies = {path.read_bytes() for path in extracted}
+    assert bodies == {b"%PDF-1.4 twelve", b"%PDF-1.4 thirteen"}
+    assert stats["archive_members"] == 2
+
+
 def test_multipart_zip_is_reassembled(tmp_path: Path) -> None:
     """CM_05_09.zip.001 + .002 style splits concatenate into one valid zip."""
     whole = tmp_path / "whole.zip"

@@ -27,20 +27,57 @@ INGESTIBLE_EXTENSIONS = {
 _MULTIPART_RE = re.compile(r"^(?P<base>.+\.zip)\.(?P<part>\d{3})$", re.IGNORECASE)
 
 
+def _sanitize_member_path(filename: str) -> Path | None:
+    """Archive-relative path with traversal components stripped, or None.
+
+    Preserves inner directories (so same-named files in different folders do
+    not collide) while dropping absolute roots, drive letters, and `..`.
+    """
+    raw = filename.replace("\\", "/")
+    parts = [
+        part
+        for part in Path(raw).parts
+        if part not in ("", "/", "..") and ":" not in part
+    ]
+    if not parts:
+        return None
+    return Path(*parts)
+
+
+def _collision_free(target_dir: Path, relative: Path) -> Path:
+    """A destination under target_dir that never overwrites an existing file."""
+    candidate = target_dir / relative
+    if not candidate.exists():
+        return candidate
+    stem, suffix = candidate.stem, candidate.suffix
+    index = 1
+    while True:
+        candidate = candidate.with_name(f"{stem}__{index}{suffix}")
+        if not candidate.exists():
+            return candidate
+        index += 1
+
+
 def _safe_extract_zip(archive_path: Path, target_dir: Path) -> list[Path]:
-    """Extract ingestible members with a zip-slip guard; returns file paths."""
+    """Extract ingestible members preserving inner paths, with a zip-slip guard.
+
+    Inner directory structure is kept and same-basename collisions across
+    folders are disambiguated — the corpus is year-partitioned, so flattening
+    would silently overwrite (e.g. two `report.pdf` from different years).
+    """
     extracted: list[Path] = []
     with zipfile.ZipFile(archive_path) as archive:
         for member in archive.infolist():
             if member.is_dir():
                 continue
-            member_name = Path(member.filename).name  # flatten: drop inner dirs
-            if Path(member_name).suffix.lower() not in INGESTIBLE_EXTENSIONS:
+            relative = _sanitize_member_path(member.filename)
+            if relative is None or relative.suffix.lower() not in INGESTIBLE_EXTENSIONS:
                 continue
-            destination = target_dir / member_name
+            destination = _collision_free(target_dir, relative)
             if not destination.resolve().is_relative_to(target_dir.resolve()):
                 logger.warning("Zip-slip path skipped: %s", member.filename)
                 continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(member) as source, destination.open("wb") as sink:
                 shutil.copyfileobj(source, sink)
             extracted.append(destination)
