@@ -47,7 +47,7 @@ def test_arbitrary_csv_ingests_as_generic_table_with_facts(tmp_path: Path) -> No
     repository = DuckDBLedgerRepository(tmp_path / "catalog.duckdb")
     csv_content = (
         "Показатель,Значение,Ед.изм\nСульфаты,250,мг/л\nСухой остаток,1200,мг/л\n"
-    ).encode("utf-8")
+    ).encode()
 
     result = repository.ingest_source_bytes(filename="water_chemistry.csv", content=csv_content)
 

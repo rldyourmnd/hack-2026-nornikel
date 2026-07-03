@@ -96,6 +96,23 @@ def test_spreadsheet_parser_produces_table_rows(tmp_path: Path) -> None:
     assert parsed.tables
     row_texts = [row.text for table in parsed.tables for row in table.rows]
     assert any("штейн" in text for text in row_texts)
+    # E: the worksheet name is carried on the parsed table...
+    assert parsed.tables[0].sheet_name == "Sheet"
+    # ...and becomes sheet-qualified provenance on ingest.
+    repo = DuckDBLedgerRepository(tmp_path / "sheets.duckdb")
+    repo.migrate()
+    repo.ingest_parsed_document(
+        source_id="src_xlsx",
+        raw_sha256="deadbeef",
+        title="catalog",
+        document_type="spreadsheet",
+        parsed=parsed,
+        artifact_locator="catalog.xlsx",
+    )
+    spans = repo.list_evidence_spans("src_xlsx")
+    assert spans
+    assert str(spans[0].locator.get("stable_locator", "")).startswith("sheet:Sheet:")
+    assert spans[0].locator.get("sheet") == "Sheet"
 
 
 def test_legacy_doc_without_text_raises_parser_error() -> None:
@@ -144,6 +161,17 @@ def test_cp1251_csv_is_accepted(tmp_path: Path) -> None:
     assert packet is not None
     spans = repo.list_evidence_spans()
     assert any("Никель" in span.visible_text for span in spans)
+
+
+def test_cp1251_markdown_decodes_cyrillic(tmp_path: Path) -> None:
+    """A Windows-1251 .md ingests with correct Cyrillic via the unified decoder,
+    not mojibake (the markdown path previously hard-assumed UTF-8)."""
+    content = "Обеднение шлака изучено детально.\n".encode("cp1251")
+    repo = DuckDBLedgerRepository(tmp_path / "cp1251md.duckdb")
+    repo.migrate()
+    repo.ingest_source_bytes(filename="report.md", content=content)
+    spans = repo.list_evidence_spans()
+    assert any("Обеднение шлака" in span.visible_text for span in spans)
 
 
 def test_xlsx_caps_are_env_configurable(

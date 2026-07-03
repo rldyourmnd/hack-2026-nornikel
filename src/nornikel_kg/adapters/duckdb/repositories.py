@@ -214,7 +214,7 @@ class DuckDBLedgerRepository:
                     evidence_count = self._insert_markdown_evidence(
                         connection,
                         source_id=source_id,
-                        text=content.decode("utf-8", errors="replace"),
+                        text=decode_text_bytes(content)[0],
                         artifact_locator=filename,
                         parser_profile="markdown_text_v1",
                         selected_lines=(),
@@ -302,7 +302,22 @@ class DuckDBLedgerRepository:
                     text_spans += 1
                 for table in parsed.tables:
                     for row in table.rows:
-                        row_locator = f"table_{table.table_index}:row_{row.row_index}"
+                        # Spreadsheets carry the worksheet name in the locator so
+                        # Excel provenance reads sheet:Summary:table_001:row_003;
+                        # PDF/DOCX tables keep the flat table_{i}:row_{j} form.
+                        if table.sheet_name:
+                            row_locator = (
+                                f"sheet:{table.sheet_name}:"
+                                f"table_{table.table_index:03d}:row_{row.row_index:03d}"
+                            )
+                            locator_extra: dict[str, object] | None = {
+                                "sheet": table.sheet_name,
+                                "row": row.row_index,
+                                "headers": list(table.header),
+                            }
+                        else:
+                            row_locator = f"table_{table.table_index}:row_{row.row_index}"
+                            locator_extra = None
                         row_span = self.evidence_factory.create(
                             source_id=source_id,
                             artifact_type="table",
@@ -315,6 +330,7 @@ class DuckDBLedgerRepository:
                             validation_status="validated_rule",
                             evidence_confidence=0.97,
                             security_label=security_label,
+                            locator_extra=locator_extra,
                         )
                         self._insert_evidence_span(connection, row_span)
                         self._insert_numeric_facts(

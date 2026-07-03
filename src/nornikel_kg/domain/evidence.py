@@ -23,6 +23,7 @@ class EvidenceSpanFactory:
         evidence_confidence: float = 1.0,
         security_label: SecurityLabel = "internal",
         extraction_run_id: str | None = None,
+        locator_extra: dict[str, object] | None = None,
     ) -> EvidenceSpan:
         computed_artifact_id = artifact_id(
             source_id=source_id,
@@ -45,7 +46,11 @@ class EvidenceSpanFactory:
             span_type=span_type,
             visible_text=visible_text,
             page=page,
-            locator={"stable_locator": stable_locator, "bbox": list(bbox) if bbox else None},
+            locator={
+                "stable_locator": stable_locator,
+                "bbox": list(bbox) if bbox else None,
+                **(locator_extra or {}),
+            },
             extraction_run_id=extraction_run_id,
             validation_status=validation_status,
             evidence_confidence=evidence_confidence,
