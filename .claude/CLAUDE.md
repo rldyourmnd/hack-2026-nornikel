@@ -7,7 +7,10 @@ Owner workflow: rldyour plugins/skills.
 
 ## Project state (verified)
 - P0 backend is a deterministic evidence-led QA system built on DuckDB.
-- Sources: `src/nornikel_kg/`; API routes: `services/api/routes/`; frontend: `apps/web/`.
+- Sources: `src/nornikel_kg/`; API routes: `services/api/routes/`; frontend: `apps/web/`
+  (react-router multi-page: AppLayout header/footer shell + landing `/` and
+  jury demo `/demo`; design tokens + brand assets in `public/brand/`;
+  mockup source in `nauchny_klubok_site_package/`, kept out of the web build).
 - `make ci`, `make eval` and browser/ deploy smoke are used for validation.
 - Memory/invariant source-of-truth is `.serena/memories/`.
 - MVP upgrade plan (2026-07-02, entry point `.serena/plans/00_PLAN_INDEX.md`): waves W0-W5
