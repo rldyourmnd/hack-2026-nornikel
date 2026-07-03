@@ -66,13 +66,17 @@ def get_qa_service() -> DemoQAService:
 def get_retrieval_service() -> RetrievalService:
     backend_kind = os.getenv("EMBEDDING_BACKEND", "off").lower()
     index = None
-    if backend_kind in {"local", "fake"}:
+    if backend_kind in {"local", "fake", "yandex"}:
         from nornikel_kg.adapters.qdrant_index import QdrantVectorIndex
 
         if backend_kind == "local":
             from nornikel_kg.adapters.embeddings import LocalEmbeddingBackend
 
             embeddings: object = LocalEmbeddingBackend()
+        elif backend_kind == "yandex":
+            from nornikel_kg.adapters.embeddings import YandexEmbeddingBackend
+
+            embeddings = YandexEmbeddingBackend()
         else:
             from nornikel_kg.adapters.embeddings import FakeEmbeddingBackend
 
