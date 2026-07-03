@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Last commit: 8d10cc4 chore: untrack the 56MB design reference package
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml; .serena/plans/10_AUDIT_RESPONSE_PLAN.md
 Area: TECHDEBT
 -->
@@ -130,7 +130,8 @@ verified against the working tree at `3e74473`:
   `327f47c`)**: `_load_packet` now caches the packet keyed by `DuckDBLedgerRepository.data_version`.
 - **No dashboard-level corpus/audit-trail endpoints for the UI (resolved, PR #18)**:
   `GET /stats/overview` / `GET /stats/answer-runs` (`services/api/routes/stats.py`) plus a
-  six-section SPA (`apps/web/src/pages/`).
+  six-section SPA (`apps/web/src/pages/`) — that SPA nav shell was itself superseded by the
+  2026-07-04 `react-router-dom` redesign (see `mem:CORE-01-INDEX`'s "Frontend Redesign" section).
 - **No dense-embedding path that offloads the 8-vCPU stand (resolved, PR #17)**:
   `EMBEDDING_BACKEND=yandex` (`adapters/embeddings/yandex.py`) calls the organizer-provided
   Yandex AI Studio API for dense vectors; sparse BM25 stays local.
@@ -234,8 +235,9 @@ Thirteen commits (`a2a8908`..`ee84a6b`) closed the real-corpus MVP gaps identifi
   `adapters/trafilatura/fetcher.py:assert_public_url` blocks non-http(s) schemes and
   private/loopback/link-local/reserved/metadata hosts before URL import fetches.
   `services/api/routes/health.py`'s `GET /health` now reports `llm_enabled`/`answer_model`/
-  `extraction_model`/`embedding_backend`; `WorkbenchPage.tsx` renders the live model instead of
-  a hardcoded one.
+  `extraction_model`/`embedding_backend`; `WorkbenchPage.tsx` rendered the live model instead of
+  a hardcoded one (that component was deleted in the 2026-07-04 redesign — `widgets/app-layout/
+  ui/Header.tsx` renders it now, see `mem:ARCH-01-EVIDENCE-MVP`).
 - **Geography detection used only a Cyrillic-vs-Latin script heuristic, mislabeling a
   Russian-language review of foreign practice (resolved, `60374a6`)**: new
   `domain/geography.py:detect_geography` reads explicit RU/foreign country-organization-
@@ -353,6 +355,11 @@ change.
 
 ## Known Gaps
 
+- **`/security` route is orphaned from the primary header nav (2026-07-04 frontend redesign,
+  verified)**: `apps/web/src/shared/config/nav.ts`'s `NAV_ITEMS` lists eight entries and omits
+  `/security`; the route (`App.tsx`) and `SecurityPage` still exist and render, but are only
+  reachable via `pages/demo/ui/DemoPage.tsx`'s `SECTIONS` link or a direct URL, not via the
+  header/mobile nav.
 - **`изи-никель.рф` primary domain may not resolve yet (unverified operational note, dated
   2026-07-04)**: `.claude/CLAUDE.md`/`docs/deployment/nornikel-nddev.md` document the DNS
   prerequisite (an A record for `изи-никель.рф`/`www` -> `165.22.203.232`; the host's

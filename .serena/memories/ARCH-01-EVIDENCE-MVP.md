@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Last commit: 8d10cc4 chore: untrack the 56MB design reference package
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml; src/nornikel_kg/domain/encoding.py; src/nornikel_kg/domain/table_facts.py;
   src/nornikel_kg/domain/geography.py; src/nornikel_kg/services/archive_expansion.py;
   src/nornikel_kg/adapters/trafilatura/fetcher.py; services/api/routes/health.py;
@@ -325,11 +325,11 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
 - `services/api/main.py`: sets `logging.getLogger("nornikel_kg").setLevel(logging.INFO)` and
   calls `logging.basicConfig(level=logging.INFO)` when the root logger has no handlers, so
   reindex-completion and enrichment-failure INFO/ERROR logs are visible in the running container.
-- `apps/web/src/pages/`: six-section SPA — `workbench/` (search, ex-`AnalysisWorkbench` slimmed
-  to an `injectedQuestion?: string | null` prop), `graph/`, `data/`, `analytics/`, `eval/`,
-  `security/`; `WorkbenchPage.tsx` renders the nav (`Поиск`/`Граф знаний`/`Данные`/`Аналитика`/
-  `Качество`/`Безопасность`). `ArtifactBankPanel.tsx` gained an optional
-  `onEnrich?: (sourceId: string) => Promise<void>` prop.
+- `apps/web/src/pages/`: at PR #18 this was a six-section state-nav SPA anchored by
+  `workbench/`'s `WorkbenchPage.tsx`. **Superseded by the 2026-07-04 frontend redesign** (see the
+  dated section below) — `workbench/` was deleted, its search view now lives at `pages/search/`,
+  and the top-level nav moved into `widgets/app-layout/`. `ArtifactBankPanel.tsx` gained an
+  optional `onEnrich?: (sourceId: string) => Promise<void>` prop (unaffected by the redesign).
 - `services/api/routes/stats.py` (new): `GET /stats/overview` returns
   `get_ledger_repository().corpus_stats()`; `GET /stats/answer-runs?limit=` (1-100, default 20)
   returns `{"runs": get_ledger_repository().list_answer_runs(limit)}`.
@@ -473,9 +473,89 @@ verified against the working tree at `HEAD`:
   numbered `citation-chip` plus a `citation-verified` badge per answer sentence; clicking a chip
   scrolls to and highlights the corresponding evidence card. `apps/web/src/widgets/
   artifact-bank/ui/EvidenceList.tsx` and `apps/web/src/shared/config/theme/theme.css` carry the
-  supporting markup/styles. `WorkbenchPage.tsx` renders the live `health.answer_model` (was
-  previously a hardcoded model name). `apps/web/src/pages/data/ui/DataPage.tsx` renders
+  supporting markup/styles. The live `health.answer_model` (or `"детерминированный режим"` when
+  `llm_enabled` is false) is now rendered by `apps/web/src/widgets/app-layout/ui/Header.tsx`
+  (`WorkbenchPage.tsx`, which did this previously, was deleted in the 2026-07-04 redesign — see
+  below). `apps/web/src/pages/data/ui/DataPage.tsx` renders
   `stats.quarantine_reasons` (see `mem:DATA-01-EVIDENCE-LEDGER`).
 - `make eval`: deterministic + retrieval-augmented evidence packet verification (17 questions,
   synthetic corpus only, incl. adversarial prompt-injection cases).
 - `docker compose config`: validates server-first Compose wiring (`api`, `web`, `qdrant`).
+
+## Frontend Redesign — react-router Multi-Page App (2026-07-04, HEAD `8d10cc4`)
+
+Three commits (`6eca379` feat: design-token overhaul + header/footer shell + landing + routing,
+`f91b90c` feat: jury demo cockpit, `c468df8` feat: question-first search layout) replaced the
+state-nav SPA with a `react-router-dom` v7 (`apps/web/package.json:"react-router-dom": "^7.18.1"`)
+multi-page app, followed by `d644575` (docs note) and `8d10cc4` (untrack the 56MB mockup
+package). Verified against the working tree at `HEAD`:
+
+- `apps/web/src/app/ui/App.tsx`: `BrowserRouter` + `Routes` define one `Route` tree under a shared
+  `AppLayout` element — `index` -> `LandingPage`, `search` -> `SearchPage`, `graph`/`data`/
+  `analytics`/`eval`/`security` -> route wrapper components (`GraphRoute`/`DataRoute`/
+  `AnalyticsRoute`/`EvalRoute`/`SecurityRoute`) that each render a `PageHero` plus the section page,
+  `compare` -> `ComparePage`, `experts` -> `ExpertsPage`, `demo` -> `DemoPage`, and a catch-all
+  `path="*"` that `Navigate replace to="/"`. `AnalyticsRoute` wires `AnalyticsPage`'s
+  `onGapQuery` to `navigate(\`/search?q=${encodeURIComponent(question)}\`)`.
+- `apps/web/src/widgets/app-layout/` (new): `AppLayout.tsx` renders `Header` + `<main
+  className="site-main"><Outlet /></main>` + `Footer`. `Header.tsx` renders the brand link (logo
+  `/brand/logo.png` + "Научный клубок"), a "Команда: Попугайчики" badge, a `NavLink` row built
+  from `shared/config/nav.ts`'s `NAV_ITEMS`, a "Норникель Hackathon" badge whose `title` shows the
+  live model (`fetchHealth()` -> `health.llm_enabled ? health.answer_model :
+  "детерминированный режим"`, falls back to `"Yandex AI Studio"` before the fetch resolves), and a
+  mobile menu toggle. `Footer.tsx` renders a global "Смотреть демо" CTA linking to `/demo`. The old
+  `apps/web/src/pages/workbench/` (`WorkbenchPage.tsx`, sidebar-nav SPA shell) was deleted.
+- `apps/web/src/shared/config/nav.ts` (new): `NAV_ITEMS` lists eight entries — `/search`
+  (Поиск), `/graph` (Граф знаний), `/data` (Данные), `/analytics` (Аналитика), `/compare`
+  (Сравнение), `/experts` (Эксперты), `/eval` (Качество), `/demo` (Демо). **`/security` is not in
+  `NAV_ITEMS`** — verified by grep, the route and `SecurityPage` still exist and are linked from
+  `pages/demo/ui/DemoPage.tsx`'s `SECTIONS` list and reachable by direct URL, but the header/mobile
+  nav omits it (known gap, see `mem:TECHDEBT-01-NOW`). The same file also exports `ENTITY_COLORS`/
+  `entityColor(entityType)`, a shared entity-type -> CSS-variable-name map used by graph-node
+  coloring.
+- `apps/web/src/shared/config/theme/theme.css` (rebuilt, now 1889 lines): blue primary
+  (`--color-brand: #2563eb`, `--color-brand-strong: #1d4ed8`, `--color-brand-deep: #1e3a8a`,
+  `--color-brand-soft: #dbeafe`) plus teal/violet accents; entity-type color tokens
+  (`--entity-material: #0d9488`, `--entity-process: #2563eb`, `--entity-equipment: #0ea5e9`,
+  `--entity-experiment: #7c3aed`, `--entity-publication: #059669`, `--entity-expert: #2563eb`,
+  `--entity-conclusion: #7c3aed`) backing `nav.ts`'s `ENTITY_COLORS`; `Inter` is the primary font
+  family; new CSS blocks style the header/footer shell, `page-hero`, landing, demo cockpit, and the
+  collapsible search filters.
+- `apps/web/src/pages/landing/ui/LandingPage.tsx` (new, route `/`): hero section (title + CTA
+  links to `/demo` and `/search` + `hero-graph.png`), a `heroStats` row sourced from
+  `fetchStats()` (`stats.evidence_spans`, `stats.sources`, a static "0 неподтверждённых чисел"
+  metric, and a static "RU / зарубеж" geography label), a 4-item feature-card grid, and a 3-step
+  "как это работает" section.
+- `apps/web/src/pages/demo/ui/DemoPage.tsx` (new, route `/demo`, "jury cockpit"): on mount calls
+  `fetchStats()`, `fetchEvalSummary()`, and `askQuestion(JURY_QUESTION)` (a hardcoded
+  precious-metals-in-matte/slag question); renders a left KPI column (sources, citation coverage,
+  answer accuracy) and a right KPI column (quarantined files, conflict count, expert count, a
+  static "≈ 7 сек" latency label gated on `answer.run_id`), a live-answer result card
+  (`answer.answer_summary`, source chips from `answer.evidence`), a 5-card section-preview grid
+  (`/search`, `/graph`, `/data`, `/analytics`, `/security` — this is the only header-less place
+  `/security` is linked), a problem->solution->value 3-step section, and a closing banner.
+- `apps/web/src/pages/experts/ui/ExpertsPage.tsx` (new, route `/experts`): a `stat-grid` of
+  `stats.entities_by_type` counts across six entity-type keys (`person`, `expert`, `team`,
+  `laboratory`, `organization`, `publication`) plus a static "Рекомендация экспертов" explainer
+  panel; no server-side expert-recommendation logic exists yet.
+- `apps/web/src/pages/compare/ui/ComparePage.tsx` (new, route `/compare`): a static explainer
+  panel plus a `Link` that pre-fills a comparison question into `/search?q=...`; no dedicated
+  comparison-table endpoint exists — comparisons are produced by the general answer pipeline.
+- `apps/web/src/shared/ui/PageHero.tsx` (new): `eyebrow`/`title`/`caption` props, used by the
+  `App.tsx` route wrapper components and `ExpertsPage`/`ComparePage`.
+- `apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx` reordered to question-first:
+  `QuestionForm` (from `@/features/ask-question`) renders first, and the material/process/
+  condition/geography/year filters plus the source-selection list now collapse into a
+  `<details className="filters-details"><summary>Фильтры: ...</summary>...</details>` block below
+  it (previously the 49-item source checklist rendered before the question box).
+- Brand assets: `apps/web/public/brand/` (new, 2.7MB total per `du -sh`) holds `logo.png`,
+  `mascot.png`, `mascot-checks.png`, `mascot-span.png`, `hero-graph.png`, `arctic-bg.png`,
+  `evidence-shield.png`, `team-badge.png`. `apps/web/index.html`'s `<title>` is now "Научный
+  клубок — единая карта знаний R&D" with matching `og:title`/`og:description`/`og:image`
+  (`/brand/hero-graph.png`).
+- `nauchny_klubok_site_package/` (the 56MB mockup/reference package the redesign was built from)
+  was added to `.gitignore` in `8d10cc4` after an earlier `git add -A` had tracked it; it stays on
+  disk but is no longer part of the tracked tree or the web build context.
+- Gates: `cd apps/web && npm run typecheck` (`tsc --noEmit`) and `npm run build` both pass clean
+  (typecheck re-run clean in this sync pass); the live stand `https://nornikel.nddev.asia` serves
+  `/` and `/demo` (SPA fallback, per `.claude/CLAUDE.md`).

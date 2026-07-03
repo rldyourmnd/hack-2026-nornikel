@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
+Last commit: 8d10cc4 chore: untrack the 56MB design reference package
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/; .serena/plans/10_AUDIT_RESPONSE_PLAN.md; src/nornikel_kg/domain/encoding.py;
   src/nornikel_kg/domain/table_facts.py; src/nornikel_kg/domain/geography.py;
   scripts/run_realcase_eval.py
@@ -19,8 +19,11 @@ Index the durable project knowledge for the Nornikel Materials KG Search hackath
 - `README.md`: repository overview, quick start, demo scenario, and implemented scope.
 - `AGENTS.md`: Codex-native project instructions and plugin/tooling policy.
 - `.claude/CLAUDE.md`: Claude Code project memory and operational commands.
-- `apps/web/`: React/Vite workbench, now a six-section SPA (`apps/web/src/pages/`:
-  `workbench`, `graph`, `data`, `analytics`, `eval`, `security`).
+- `apps/web/`: React/Vite app, now a `react-router-dom` v7 multi-page app
+  (`apps/web/src/app/ui/App.tsx`) with routes `/` (`pages/landing`), `/search`, `/graph`, `/data`,
+  `/analytics`, `/compare`, `/experts`, `/eval`, `/security`, `/demo` under a shared `AppLayout`
+  (`apps/web/src/widgets/app-layout/`: `Header` + `Footer`, replacing the old sidebar-nav SPA
+  shell); see `mem:ARCH-01-EVIDENCE-MVP`'s "Frontend Redesign" section for the verified detail.
 - `services/api/`: FastAPI route layer, now including `services/api/routes/stats.py`.
 - `src/nornikel_kg/`: backend domain, ports, adapters, and application services.
 - `scripts/ingest_corpus.py`: batch-ingests a real document corpus directory into the ledger
@@ -215,6 +218,25 @@ pass, up from 154 passed / 5 skipped at `4ede8c5`); `uv run ruff check .` passes
 ("All checks passed!") and `uv run mypy` passes clean ("Success: no issues found in 79 source
 files") — both live-run verified in this sync pass.
 
+## Frontend Redesign (2026-07-04, HEAD `8d10cc4`)
+
+Four commits after `ee84a6b` (`6eca379`, `f91b90c`, `c468df8`, `d644575`, `8d10cc4`) replaced the
+six-section state-nav SPA with a `react-router-dom` v7 multi-page app: `App.tsx` now routes `/`,
+`/search`, `/graph`, `/data`, `/analytics`, `/compare`, `/experts`, `/eval`, `/security`, `/demo`
+under a shared `AppLayout` (new `widgets/app-layout/`: top `Header` with logo + team badge +
+`nav.ts`-driven section nav + live-model badge, and a global `Footer` CTA); the old
+`pages/workbench/` was deleted. Design tokens were rebuilt in `shared/config/theme/theme.css`
+(blue primary + teal/violet accents, entity-type color tokens, `Inter` font); new pages
+`landing` (`/`), `demo` (`/demo`, jury cockpit), `experts`, `compare` were added, and
+`AnalysisWorkbench.tsx` was reordered question-first with filters collapsed into a
+`<details>` block. Brand assets live in `apps/web/public/brand/` (2.7MB); the 56MB mockup
+package `nauchny_klubok_site_package/` that the redesign was built from is now gitignored
+(`8d10cc4`) but kept on disk. `cd apps/web && npm run typecheck`/`npm run build` both pass clean
+(re-verified in this sync pass); the live stand `https://nornikel.nddev.asia` serves `/` and
+`/demo`. Full verified module-level detail: `mem:ARCH-01-EVIDENCE-MVP`'s "Frontend Redesign"
+section. Known gap: `/security` is not listed in `shared/config/nav.ts`'s `NAV_ITEMS` (see
+`mem:TECHDEBT-01-NOW`).
+
 ## Wave 10 — Real-Corpus Audit Response (2026-07-04, HEAD `ee84a6b`)
 
 Thirteen commits (`a2a8908`..`ee84a6b`, see `git log --oneline 42ca7ba..HEAD`) closed the
@@ -304,7 +326,8 @@ tree at `HEAD`:
 
 ## Contracts And Data
 
-Full flow: React/Vite workbench (six sections) -> FastAPI (`/sources/upload`,
+Full flow: React/Vite multi-page app (react-router-dom v7, ten routes under `AppLayout`) ->
+FastAPI (`/sources/upload`,
 `/sources/import-url`, `/sources/{id}/enrich`, `/sources/reindex-all`, `/qa/ask`,
 `/entities/search`, `/entities/{id}`, `/graph/neighborhood`, `/graph/timeline`, `/gaps/analyze`,
 `/eval/summary`, `/stats/overview`, `/stats/answer-runs`) -> DuckDB-backed evidence ledger +
