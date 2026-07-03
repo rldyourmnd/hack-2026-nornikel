@@ -45,6 +45,44 @@ class NumericConstraint:
     op: str  # "<=" | ">="
     value: float
     unit: str  # canonical, never empty
+    subject: str = ""  # canonical subject token ("" = applies to any subject)
+
+
+# Analyte / parameter subjects recognized in questions, mapped to a canonical
+# token. Multi-analyte water-chemistry questions («сульфаты, хлориды, Ca, Mg,
+# Na по 200–300 мг/л») need each number bound to its species, not just its unit.
+_SUBJECT_ALIASES: dict[str, str] = {
+    "сульфат": "сульфаты",
+    "sulfate": "сульфаты",
+    "so4": "сульфаты",
+    "хлорид": "хлориды",
+    "chloride": "хлориды",
+    "cl": "хлориды",
+    "кальци": "кальций",
+    "calcium": "кальций",
+    "ca": "кальций",
+    "магни": "магний",
+    "magnesium": "магний",
+    "mg": "магний",
+    "натри": "натрий",
+    "sodium": "натрий",
+    "na": "натрий",
+    "сухой остаток": "сухой остаток",
+    "dry residue": "сухой остаток",
+    "минерализац": "сухой остаток",
+    "скорость потока": "скорость потока",
+    "скорость циркуляц": "скорость потока",
+    "расход": "скорость потока",
+    "flow": "скорость потока",
+    "температур": "температура",
+    "temperature": "температура",
+    "производительн": "производительность",
+    "productivity": "производительность",
+    "capex": "capex",
+    "opex": "opex",
+    "глубин": "глубина",
+    "depth": "глубина",
+}
 
 
 # Units we recognize inside questions. Longest-first alternation.
@@ -105,6 +143,117 @@ def parse_numeric_constraints(question: str) -> list[NumericConstraint]:
             NumericConstraint(op, _to_float(match.group("value")), normalize_unit(unit_raw))
         )
     return constraints
+
+
+def _subjects_before(text: str) -> list[str]:
+    """Canonical subject tokens mentioned in a text fragment (order-preserving)."""
+    low = text.lower()
+    found: list[str] = []
+    for alias, canonical in _SUBJECT_ALIASES.items():
+        # Word-ish boundary for short chemical symbols so "na" doesn't match
+        # inside "начало"; longer aliases match as substrings.
+        if len(alias) <= 3:
+            if re.search(rf"(?<![а-яёa-z]){re.escape(alias)}(?![а-яёa-z])", low) and (
+                canonical not in found
+            ):
+                found.append(canonical)
+        elif alias in low and canonical not in found:
+            found.append(canonical)
+    return found
+
+
+def parse_parameter_constraints(question: str) -> list[NumericConstraint]:
+    """Subject-bound numeric constraints from a question.
+
+    Binds each numeric range/bound to the analyte/parameter subjects that
+    precede it, so «сульфаты, хлориды, Ca, Mg, Na по 200–300 мг/л, сухой
+    остаток ≤1000 мг/дм³» yields per-species constraints instead of one
+    unit-only rule that collides across species. A constraint with no
+    resolvable subject keeps subject="" (matches any subject, as before).
+    """
+    constraints: list[NumericConstraint] = []
+    # Segment the question at each numeric-bound clause; subjects named since
+    # the previous clause bind to this clause's constraint.
+    spans: list[tuple[int, int, list[NumericConstraint]]] = []
+    for match in _RANGE_RE.finditer(question):
+        if not match.group("unit"):
+            continue
+        unit = normalize_unit(match.group("unit"))
+        spans.append(
+            (
+                match.start(),
+                match.end(),
+                [
+                    NumericConstraint(">=", _to_float(match.group("low")), unit),
+                    NumericConstraint("<=", _to_float(match.group("high")), unit),
+                ],
+            )
+        )
+    range_spans = [(s, e) for s, e, _ in spans]
+    for match in _SINGLE_RE.finditer(question):
+        if not match.group("unit"):
+            continue
+        if any(s <= match.start() < e for s, e in range_spans):
+            continue  # already covered by a range match
+        op = "<=" if match.group("op").lower() in _LE_OPS else ">="
+        spans.append(
+            (
+                match.start(),
+                match.end(),
+                [
+                    NumericConstraint(
+                        op,
+                        _to_float(match.group("value")),
+                        normalize_unit(match.group("unit")),
+                    )
+                ],
+            )
+        )
+    spans.sort(key=lambda item: item[0])
+    prev_end = 0
+    for start, end, clause in spans:
+        subjects = _subjects_before(question[prev_end:start])
+        for base in clause:
+            if subjects:
+                for subject in subjects:
+                    constraints.append(
+                        NumericConstraint(base.op, base.value, base.unit, subject)
+                    )
+            else:
+                constraints.append(base)
+        prev_end = end
+    return constraints
+
+
+def facts_satisfy_constraints(
+    facts: list[tuple[str, float, str]],
+    constraints: list[NumericConstraint],
+) -> bool:
+    """True when subject-bound constraints are all satisfied by the facts.
+
+    `facts` are (canonical_subject, value, canonical_unit). A subject-bound
+    constraint must find at least one same-subject same-unit fact in range;
+    a subjectless constraint falls back to unit-only matching. Constraints
+    with no candidate fact at all are treated as satisfied (honest recall —
+    absence of data is not a violation).
+    """
+    for constraint in constraints:
+        candidates = [
+            (subject, value, unit)
+            for subject, value, unit in facts
+            if unit == constraint.unit
+            and (not constraint.subject or subject == constraint.subject)
+        ]
+        if not candidates:
+            continue
+        ok = any(
+            (constraint.op == "<=" and value <= constraint.value)
+            or (constraint.op == ">=" and value >= constraint.value)
+            for _subject, value, unit in candidates
+        )
+        if not ok:
+            return False
+    return True
 
 
 def satisfies_constraints(

@@ -22,8 +22,14 @@ from nornikel_kg.domain.models import (
     GraphPath,
     PropertyMeasurement,
 )
-from nornikel_kg.domain.quantities import parse_numeric_constraints, satisfies_constraints
+from nornikel_kg.domain.quantities import (
+    facts_satisfy_constraints,
+    parse_numeric_constraints,
+    parse_parameter_constraints,
+    satisfies_constraints,
+)
 from nornikel_kg.domain.security import SourceLabelPolicy
+from nornikel_kg.domain.table_facts import parse_labeled_span_facts
 from nornikel_kg.ports.ledger import EvidenceLedgerPort
 
 MATERIAL_ELEMENTS = frozenset({"ni", "cu", "cr", "mo", "al", "fe", "co", "mn", "ti"})
@@ -155,6 +161,9 @@ class DemoQAService:
         )
         selected_evidence = self._apply_scope_to_evidence(
             selected_evidence, filters, keep_unknown_year=not strict_years
+        )
+        selected_evidence = self._drop_constraint_violating_evidence(
+            request.question, selected_evidence
         )
         graph_paths = [
             self._graph_path_for_experiment(experiment, selected_evidence)
@@ -312,6 +321,35 @@ class DemoQAService:
             filters, recorder.source_metadata(), keep_unknown_year=keep_unknown_year
         )
         return [span for span in evidence if keeps(span.source_id)]
+
+    def _drop_constraint_violating_evidence(
+        self,
+        question: str,
+        evidence: list[EvidenceSpan],
+    ) -> list[EvidenceSpan]:
+        """Remove evidence whose own table facts VIOLATE a subject-bound
+        numeric constraint from the question.
+
+        For «сульфаты … ≤300 мг/л, сухой остаток ≤1000 мг/дм³» a span stating
+        «сухой остаток: 1200 мг/л» is dropped, while spans with no relevant
+        facts are kept (absence of data is not a violation — honest recall).
+        """
+        constraints = parse_parameter_constraints(question)
+        if not constraints:
+            return evidence
+        kept: list[EvidenceSpan] = []
+        for span in evidence:
+            facts: list[tuple[str, float, str]] = []
+            for fact in parse_labeled_span_facts(span.visible_text):
+                # The constrained subject may be the row subject (tall tables)
+                # or the column property (wide tables) — match either.
+                facts.append((fact.subject, fact.value, fact.unit))
+                if fact.prop and fact.prop != fact.subject:
+                    facts.append((fact.prop, fact.value, fact.unit))
+            if not facts or facts_satisfy_constraints(facts, constraints):
+                kept.append(span)
+        # Never blank the packet on constraint filtering alone.
+        return kept or evidence
 
     def _apply_numeric_constraints(
         self,
