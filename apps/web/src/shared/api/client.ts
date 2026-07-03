@@ -6,6 +6,7 @@ import type {
   EvalSummary,
   GapsAnalysis,
   GraphNeighborhood,
+  HealthStatus,
   SourceIngestResponse,
   SourceSummary,
   StatsOverview,
@@ -211,6 +212,14 @@ export async function fetchStats(): Promise<StatsOverview> {
     throw new Error(await readErrorMessage(response, "Stats request failed"));
   }
   return (await response.json()) as StatsOverview;
+}
+
+export async function fetchHealth(): Promise<HealthStatus> {
+  const response = await fetch(`${API_BASE_URL}/health`);
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Health request failed"));
+  }
+  return (await response.json()) as HealthStatus;
 }
 
 export async function listAnswerRuns(limit = 20): Promise<AnswerRunSummary[]> {

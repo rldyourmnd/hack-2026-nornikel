@@ -179,3 +179,12 @@ export type EvalSummary = {
   question_count?: number;
   metrics: Record<string, number>;
 };
+
+export type HealthStatus = {
+  status: string;
+  version: string;
+  llm_enabled: boolean;
+  answer_model: string;
+  extraction_model: string;
+  embedding_backend: string;
+};

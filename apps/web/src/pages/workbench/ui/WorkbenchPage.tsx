@@ -7,8 +7,9 @@ import {
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { fetchHealth, type HealthStatus } from "@/shared/api";
 import { AnalyticsPage } from "@/pages/analytics";
 import { DataPage } from "@/pages/data";
 import { EvalPage } from "@/pages/eval";
@@ -69,6 +70,13 @@ const HEADERS: Record<PageKey, { title: string; caption: string }> = {
 export function WorkbenchPage() {
   const [page, setPage] = useState<PageKey>("search");
   const [injectedQuestion, setInjectedQuestion] = useState<string | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+
+  useEffect(() => {
+    fetchHealth()
+      .then(setHealth)
+      .catch(() => setHealth(null));
+  }, []);
 
   function openSearchWith(question: string) {
     setInjectedQuestion(question);
@@ -102,8 +110,16 @@ export function WorkbenchPage() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="status-pill">Yandex AI Studio · aliceai-llm</span>
-          <span className="status-pill">DuckDB + Qdrant hybrid</span>
+          <span className="status-pill">
+            {health
+              ? health.llm_enabled
+                ? `Yandex AI Studio · ${health.answer_model}`
+                : "LLM выключен · детерминированный режим"
+              : "Yandex AI Studio"}
+          </span>
+          <span className="status-pill">
+            DuckDB + Qdrant hybrid{health ? ` · ${health.embedding_backend}` : ""}
+          </span>
         </div>
       </aside>
       <section className="content">
