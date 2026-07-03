@@ -92,7 +92,7 @@ verified against the working tree at `3e74473`:
   `93f3f87`)**: `GraphService.neighborhood` now applies a type boost for `person`/`publication`/
   `team`/`laboratory`.
 - **No literature-review grouping in answer synthesis (resolved, `93f3f87`)**:
-  `DemoQAService._source_context` + `LLMAnswerComposer._packet_prompt` now carry per-span year/
+  `EvidenceQAService._source_context` + `LLMAnswerComposer._packet_prompt` now carry per-span year/
   geography labels and an explicit grouping instruction.
 - **Timeline events without dates (resolved, `41b3acd`+`93f3f87`)**: `ExtractionService.
   _link_publication` now extracts `(year, iso_date)` via `domain/dates.py` and writes them into
@@ -126,7 +126,7 @@ verified against the working tree at `3e74473`:
   `327f47c`)**: `QdrantVectorIndex.index_units(..., skip_unchanged=True)` hash-skips unchanged
   units via a `text_hash` payload; stale points from a re-parse are pruned afterwards via
   `prune_source_units`.
-- **`DemoQAService.ask` re-scanned the full evidence packet on every question (resolved,
+- **`EvidenceQAService.ask` re-scanned the full evidence packet on every question (resolved,
   `327f47c`)**: `_load_packet` now caches the packet keyed by `DuckDBLedgerRepository.data_version`.
 - **No dashboard-level corpus/audit-trail endpoints for the UI (resolved, PR #18)**:
   `GET /stats/overview` / `GET /stats/answer-runs` (`services/api/routes/stats.py`) plus a
@@ -151,7 +151,7 @@ verified against the working tree at `3e74473`:
   `LLM_MAX_CONCURRENCY` to `8` (documented Yandex quota: 10 concurrent generations); code
   defaults (`LLMSettings.llm_rps=5.0`, `llm_max_concurrency=3`) are unchanged.
 - **A citation-verified answer without a structured match looked untrustworthy (resolved,
-  `ef812af`)**: `services/qa_service.py:DemoQAService._confidence_level` gained
+  `ef812af`)**: `services/qa_service.py:EvidenceQAService._confidence_level` gained
   `summary`/`selected_evidence` parameters; when no experiment matched but the answer is
   citation-verified evidence-grounded (`summary and selected_evidence`), confidence is now
   `"medium"` instead of `"low"`.
@@ -172,7 +172,7 @@ verified against the working tree at `3e74473`:
   `src/nornikel_kg/domain/dates.py:parse_time_scope(question, *, now_year)` recognizes «за
   последние N лет»/`last N years`, «за последний год», RU «с»/«до»/«по» + year (year marker
   required), and `YYYY-YYYY` ranges; a bare year mention with no such phrasing stays a fact,
-  not a scope. `services/qa_service.py:DemoQAService._effective_filters` applies the derived
+  not a scope. `services/qa_service.py:EvidenceQAService._effective_filters` applies the derived
   scope only when the request's explicit `AskFilters.year_from`/`year_to` are unset.
   `_scope_predicate`/`_apply_scope_to_evidence` (new) mean the evidence packet itself is now
   filtered by year/geography, not only `selected_experiments`. A scope derived from question
@@ -428,3 +428,28 @@ change.
 - **CI still runs without the `ingest` extra**: `.github/workflows/ci.yml`'s backend job does not
   install GLiNER/Docling/spreadsheet/legacy-doc dependencies (unchanged this sync, see the GLiNER
   gap above).
+
+
+## Backend-hardening resolutions (wave 11, 2026-07-04, `feat/backend-hardening`)
+
+These earlier gaps/deferrals are now addressed (branch `404a5c3`..`dd23e7e`; gates green):
+- **Demo QA dead-code removed** (`404a5c3`): `_fallback_packet`/`_demo_evidence` deleted (previously
+  "harmless, test-coupled" T3 items); `DemoQAService` -> `EvidenceQAService`, `load_demo_packet` ->
+  `load_evidence_packet`; `/eval/summary` no longer hardcodes a Ni-30Cu question.
+- **Ni-Cu-hardcoded QA scoring de-hardcoded** (`52230ca`): element/corpus-generic signals; 17 gold
+  questions still pass.
+- **Persisted generic fact layer** (`c458d9e`): the prior "resolved" note (`7b0f927`) only added the
+  parse-time `NumericFact` utility; wave 11 adds migration `003_numeric_facts` so facts are PERSISTED
+  and SQL-queryable, and arbitrary CSVs ingest as generic tables instead of raising.
+- **T2.2 archive upload via the API** (previously deferred as "batch path covers it"): now implemented
+  as `POST /sources/upload-archive` (`ca1e937`), reusing `expand_archives` with a per-member size cap.
+- **T2.6 answer semantic-support check** (previously deferred to avoid per-answer LLM latency): added
+  as a RULE-BASED, CI-safe check (`dd23e7e`, containment + negation-parity, no LLM) surfaced as
+  `AnswerVerification.semantic_unsupported_count`; a full NLI model remains an optional offline path.
+- **NetworkX full-graph materialization** replaced by depth-limited SQL neighborhood + relation
+  indexes (`623176a`, migration `004`).
+- **Sheet provenance / unified decode / narrow-only allowed_labels** landed (`ab7d2b4`/`dd23e7e`).
+
+Still open (not in this wave): durable jobs table for enrichment/reindex; JWT/OIDC RBAC (only the
+narrow-only request mode exists); real-corpus gold eval (needs `DATA_HACK` ingest); CI still runs
+without the `ingest` extra (spreadsheet/GLiNER/Docling paths use `pytest.importorskip`).

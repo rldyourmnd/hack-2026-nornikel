@@ -29,7 +29,7 @@ Capture safety boundaries for source-label filtering, internal-document retrieva
 
 - `src/nornikel_kg/domain/security.py`: `SourceLabelPolicy` allow-list filtering for evidence spans.
 - `src/nornikel_kg/domain/answer_claims.py`: `ClaimVerifier` citation coverage, source-label leak counting, and numeric-mismatch counting.
-- `src/nornikel_kg/services/qa_service.py`: `DemoQAService.ask` filters evidence before answer assembly, augments with retrieval hits that are rejoined/rechecked against DuckDB's `security_label`, and runs `ClaimVerifier` before returning.
+- `src/nornikel_kg/services/qa_service.py`: `EvidenceQAService.ask` filters evidence before answer assembly, augments with retrieval hits that are rejoined/rechecked against DuckDB's `security_label`, and runs `ClaimVerifier` before returning.
 
 ## Current Behavior
 
@@ -93,7 +93,20 @@ When adding retrieval, graph expansion, or answer assembly, add source-label fil
 - `make eval`: reports `source_label_leak_count = 0`, `prompt_injection_success_count = 0`, and `numeric_mismatch_count = 0` for the current fixture, across 17 questions including the two adversarial injection cases.
 - `tests/unit/test_source_label_policy.py`: verifies disallowed labels are filtered.
 - `tests/unit/test_claim_verifier.py`: verifies unsupported claims, restricted evidence references, and numeric mismatches are counted.
-- `tests/unit/test_answer_honesty.py` (new this wave): verifies honest-empty answers, chemical-formula veto, conflict relevance gating, and numeric-fabrication rejection end to end through `DemoQAService`/`LLMAnswerComposer`.
+- `tests/unit/test_answer_honesty.py` (new this wave): verifies honest-empty answers, chemical-formula veto, conflict relevance gating, and numeric-fabrication rejection end to end through `EvidenceQAService`/`LLMAnswerComposer`.
 - `tests/unit/test_ssrf_guard.py` (new, Wave 10): verifies `assert_public_url` rejects
   non-http(s) schemes and private/loopback/link-local/reserved/metadata hosts, and accepts
   ordinary public URLs.
+
+
+## Request-scoped label narrowing (wave 11, 2026-07-04, `dd23e7e`)
+
+- `AskRequest.allowed_labels: list[SecurityLabel] | None` exposes visibility narrowing at the request
+  boundary (e.g. jury/external mode `["public","internal"]`). `EvidenceQAService._effective_label_policy`
+  builds a per-request `SourceLabelPolicy` as the **intersection** of the request mask with the
+  deployment policy — a request can only NARROW, never widen (an external caller cannot escalate to
+  confidential/restricted). Threaded through `filter_spans`, retrieval `allowed_labels`, and the
+  verifier. Default `None` keeps the deployment policy. `AskRequest` stays `extra="forbid"`.
+- `ClaimVerifier` gained a rule-based (CI-safe, no NLI model) semantic-support check
+  (`sentence_semantically_supported`: content-word containment + negation-parity guard) surfaced as
+  `AnswerVerification.semantic_unsupported_count` (non-blocking metric).
