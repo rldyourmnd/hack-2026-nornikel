@@ -43,24 +43,29 @@ Owner workflow: rldyour plugins/skills.
 - Synthetic fixture path defaults to `sample_docs/synthetic`.
 
 ## Validation and deployment notes
-- Primary stand: `https://изи-никель.рф` (punycode `xn----jtbedbbojo8m.xn--p1ai`);
-  mirror: `https://nornikel.nddev.asia` (secondary). Host `ssh curestry` (compose project
-  `/srv/nornikel-kg-search`; TLS via host nginx-proxy + acme-companion; Langfuse v3 in
-  `/srv/langfuse` reachable over the external `lf-net` network). Deploy contract:
-  `docs/deployment/nornikel-nddev.md`. Interim mirror: `fa.nddev.asia`
-  (`docs/deployment/fa-nddev.md`).
+- Primary stand: `https://изи-никель.рф` (punycode `xn----jtbedbbojo8m.xn--p1ai`;
+  DNS delegation pending on the owner side — the cert auto-issues once A records
+  exist); mirror: `https://nornikel.nddev.asia`. Host `ssh curestry` (compose
+  project `/srv/nornikel-kg-search`; TLS via host nginx-proxy + acme-companion;
+  Langfuse v3 in `/srv/langfuse` over the external `lf-net` network). Deploy
+  contract: `docs/deployment/nornikel-nddev.md`.
 - Do not leave local runtime artifacts (temp DBs, browser artifacts, runtime markers).
-- Upload hardening contract: `POST /sources/upload` accepts `.csv`, `.md`, `.markdown`,
-  `.txt`, `.text`, `.pdf`, `.docx` with MIME checks and `MAX_SOURCE_UPLOAD_BYTES`
-  (default `5242880`; `26214400` on the server) size limit; `POST /sources/import-url`
-  ingests online resources via trafilatura.
-- The bundled web Nginx proxy sets `client_max_body_size 6m` and 300s `/api/` proxy
-  timeouts; the per-vhost limit on the server is 30m.
+- Upload hardening contract: `POST /sources/upload` accepts `.csv .md .markdown
+  .txt .text .pdf .docx .docm .doc .xlsx .xls` with MIME checks and
+  `MAX_SOURCE_UPLOAD_BYTES` (default `5242880`; `26214400` on the server);
+  `POST /sources/import-url` ingests online resources via trafilatura; archives
+  (.zip / multipart .zip.001 / .rar) go through `scripts/ingest_corpus.py`.
+- The bundled web Nginx proxy sets `client_max_body_size 32m` and 300s `/api/`
+  proxy timeouts; the per-vhost limit on the server is 30m.
+- DuckDB lock contract: the api process holds one persistent connection — batch
+  tools (`ingest_corpus.py`, `run_eval.py --store`) need an api-stop window.
 - Error details from API failures are surfaced to the UI through shared API client (`apps/web/src/shared/api/client.ts`).
 
 ## Known TODOs / P1
-- Planned in `.serena/plans/03_IMPLEMENTATION_PLAN.md` (W1-W3): Docling PDF/DOCX ingest
-  (text layer only, no OCR), LiteLLM extraction + answer synthesis, Qdrant hybrid retrieval,
-  own graph layer (entities/relations in DuckDB + NetworkX), gaps/conflicts, graph UI.
-- Deployment moves to a new server before the deadline (~2026-07-16); `fa.nddev.asia`
-  is the interim stand. See `.serena/plans/06_DEPLOYMENT_AND_OBSERVABILITY.md`.
+- Real-corpus gold eval set (the 17 eval questions run on the synthetic fixture).
+- Geomechanics ontology coverage; CI runs without the `ingest` extra
+  (GLiNER/Docling/spreadsheet paths untested in CI); one non-standard `.docm`
+  quarantines under the Docling backend.
+- Owner-side: DNS A records for `изи-никель.рф` → 165.22.203.232; support
+  ticket to raise the Yandex embeddings quota (10 RPS); reissue the Yandex API
+  key after the hackathon (it appeared in chat).

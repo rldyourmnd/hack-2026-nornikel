@@ -1,4 +1,9 @@
-# fa.nddev.asia Deployment Notes
+# fa.nddev.asia Deployment Notes (HISTORICAL)
+
+> **Status (2026-07-03): legacy stand.** It still answers with an old
+> pre-Yandex build but is NOT deployed to anymore. The production stand is
+> https://изи-никель.рф (mirror https://nornikel.nddev.asia) — see
+> `nornikel-nddev.md`. Kept for the historical record only.
 
 Target host:
 
