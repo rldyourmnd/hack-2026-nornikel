@@ -97,6 +97,52 @@ def extract_year(text: str) -> int | None:
     return None
 
 
+# Natural-language time scopes in questions (track example: «покажите все
+# эксперименты и публикации ... за последние 5 лет»).
+_LAST_N_YEARS_RE = re.compile(
+    r"за\s+последн\w+\s+(\d{1,2})\s+(?:лет|год[а-я]*)|last\s+(\d{1,2})\s+years?",
+    re.IGNORECASE,
+)
+_LAST_YEAR_RE = re.compile(r"за\s+последний\s+год\b", re.IGNORECASE)
+# The «год» marker is REQUIRED for RU since/until — without it «нагрев до
+# 2000» or «раствор с 2019 мг» would masquerade as a time scope.
+_SINCE_YEAR_RE = re.compile(
+    r"(?:(?:начиная\s+)?с|after|since)\s+((?:19|20)\d{2})\s*(?:г\.|год[а-я]*)", re.IGNORECASE
+)
+_UNTIL_YEAR_RE = re.compile(
+    r"(?:до|по|before|until)\s+((?:19|20)\d{2})\s*(?:г\.|год[а-я]*)", re.IGNORECASE
+)
+_YEAR_RANGE_RE = re.compile(r"\b((?:19|20)\d{2})\s*[-–—]\s*((?:19|20)\d{2})\s*(?:гг\.|год[а-я]*)?")
+
+
+def parse_time_scope(question: str, *, now_year: int) -> tuple[int | None, int | None]:
+    """(year_from, year_to) implied by the question text, or (None, None).
+
+    Only explicit temporal phrasings are honored — a bare year mention is a
+    fact, not a scope (the numeric-constraint guard has the mirror rule).
+    """
+    match = _YEAR_RANGE_RE.search(question)
+    if match:
+        start, end = int(match.group(1)), int(match.group(2))
+        if _in_bounds(start) and _in_bounds(end) and start <= end:
+            return start, end
+    match = _LAST_N_YEARS_RE.search(question)
+    if match:
+        n = int(match.group(1) or match.group(2))
+        if 1 <= n <= 50:
+            return now_year - n, None
+    if _LAST_YEAR_RE.search(question):
+        return now_year - 1, None
+    year_from = year_to = None
+    match = _SINCE_YEAR_RE.search(question)
+    if match and _in_bounds(int(match.group(1))):
+        year_from = int(match.group(1))
+    match = _UNTIL_YEAR_RE.search(question)
+    if match and _in_bounds(int(match.group(1))):
+        year_to = int(match.group(1))
+    return year_from, year_to
+
+
 def extract_year_from_filename(filename: str) -> int | None:
     """Year embedded in a filename (common for conference/journal scans)."""
     candidates = [

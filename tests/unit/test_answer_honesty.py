@@ -165,3 +165,25 @@ def test_packet_cache_invalidated_by_data_version(
     assert service._load_packet() is first  # cached while version unchanged
     repository.ingest_source_bytes(filename="bump.md", content=b"new note about slag")
     assert service._load_packet() is not first  # write invalidated the cache
+
+
+def test_question_time_scope_keeps_unknown_year_sources(
+    repository: DuckDBLedgerRepository,
+) -> None:
+    """«за последние 5 лет» from question text must not blank sources whose
+    year is unknown; an explicit UI year filter stays strict."""
+    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    derived = service.ask(
+        AskRequest(question="Что известно по Ni-30Cu за последние 5 лет?")
+    )
+    assert derived.experiments  # fixture has no year metadata — kept
+
+    from nornikel_kg.domain.models import AskFilters
+
+    strict = service.ask(
+        AskRequest(
+            question="Что известно по Ni-30Cu?",
+            filters=AskFilters(year_from=2021),
+        )
+    )
+    assert strict.experiments == []  # explicit filter drops unknown-year sources

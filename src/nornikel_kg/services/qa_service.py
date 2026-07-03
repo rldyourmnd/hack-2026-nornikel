@@ -7,6 +7,7 @@ from difflib import SequenceMatcher
 from typing import Any, Literal, Protocol
 
 from nornikel_kg.domain.answer_claims import ClaimVerifier
+from nornikel_kg.domain.dates import parse_time_scope
 from nornikel_kg.domain.evidence import EvidenceSpanFactory
 from nornikel_kg.domain.ids import claim_id, fact_id, source_id_from_bytes, stable_hash
 from nornikel_kg.domain.ledger import EvidenceLedgerPacket
@@ -117,6 +118,13 @@ class DemoQAService:
     def ask(self, request: AskRequest) -> AskResponse:
         started = time.perf_counter()
         packet = self._load_packet()
+        filters = self._effective_filters(request)
+        # Explicit UI year filters are strict; a scope derived from question
+        # text keeps unknown-year sources (not knowing the year is not the
+        # same as being out of range).
+        strict_years = request.filters is not None and (
+            request.filters.year_from is not None or request.filters.year_to is not None
+        )
         allowed_evidence = self.source_label_policy.filter_spans(packet.evidence)
         allowed_span_ids = {span.span_id for span in allowed_evidence}
         unmatched_material_tokens = self._unmatched_material_tokens(
@@ -126,14 +134,16 @@ class DemoQAService:
         selected_experiments = self._select_experiments(
             question=request.question,
             experiments=packet.experiments,
-            request_filters=request.filters,
+            request_filters=filters,
         )
         selected_experiments = [
             experiment
             for experiment in selected_experiments
             if any(span_id in allowed_span_ids for span_id in experiment.evidence_ids)
         ]
-        selected_experiments = self._apply_source_scope(selected_experiments, request.filters)
+        selected_experiments = self._apply_source_scope(
+            selected_experiments, filters, keep_unknown_year=not strict_years
+        )
         selected_experiments = self._apply_numeric_constraints(
             request.question, selected_experiments
         )
@@ -142,6 +152,9 @@ class DemoQAService:
             request=request,
             allowed_evidence=allowed_evidence,
             selected_evidence=selected_evidence,
+        )
+        selected_evidence = self._apply_scope_to_evidence(
+            selected_evidence, filters, keep_unknown_year=not strict_years
         )
         graph_paths = [
             self._graph_path_for_experiment(experiment, selected_evidence)
@@ -202,9 +215,7 @@ class DemoQAService:
                 self.run_recorder.record_answer_run(
                     run_id=run_id,
                     question=request.question,
-                    filters=request.filters.model_dump(exclude_none=True)
-                    if request.filters
-                    else {},
+                    filters=filters.model_dump(exclude_none=True) if filters else {},
                     packet_stats={
                         "experiments": len(selected_experiments),
                         "evidence": len(selected_evidence),
@@ -216,10 +227,36 @@ class DemoQAService:
                 )
         return response
 
+    def _scope_predicate(
+        self,
+        filters: AskFilters,
+        metadata: dict[str, dict[str, Any]],
+        *,
+        keep_unknown_year: bool,
+    ) -> Any:
+        def keeps(source_id: str | None) -> bool:
+            meta = metadata.get(source_id or "", {})
+            if filters.geography:
+                geography = meta.get("geography")
+                if geography is None or geography not in filters.geography:
+                    return False
+            year = meta.get("year")
+            if year is None:
+                return keep_unknown_year or (
+                    filters.year_from is None and filters.year_to is None
+                )
+            if filters.year_from is not None and year < filters.year_from:
+                return False
+            return not (filters.year_to is not None and year > filters.year_to)
+
+        return keeps
+
     def _apply_source_scope(
         self,
         experiments: list[ExperimentRow],
         filters: AskFilters | None,
+        *,
+        keep_unknown_year: bool = False,
     ) -> list[ExperimentRow]:
         """Geography / publication-year filters (track: «отечественная vs зарубежная»)."""
         if filters is None or (
@@ -229,22 +266,52 @@ class DemoQAService:
         recorder = self.run_recorder
         if recorder is None:
             return experiments
-        metadata = recorder.source_metadata()
+        keeps = self._scope_predicate(
+            filters, recorder.source_metadata(), keep_unknown_year=keep_unknown_year
+        )
+        return [experiment for experiment in experiments if keeps(experiment.source_id)]
 
-        def keeps(experiment: ExperimentRow) -> bool:
-            meta = metadata.get(experiment.source_id or "", {})
-            if filters.geography:
-                geography = meta.get("geography")
-                if geography is None or geography not in filters.geography:
-                    return False
-            year = meta.get("year")
-            if filters.year_from is not None and (year is None or year < filters.year_from):
-                return False
-            return not (
-                filters.year_to is not None and (year is None or year > filters.year_to)
-            )
+    def _effective_filters(self, request: AskRequest) -> AskFilters | None:
+        """Explicit filters enriched with the question's own time scope.
 
-        return [experiment for experiment in experiments if keeps(experiment)]
+        Track example Q3 phrases the range in words («за последние 5 лет») —
+        it must act exactly like the UI year filter. Explicit filters win.
+        """
+        from datetime import date
+
+        year_from, year_to = parse_time_scope(
+            request.question, now_year=date.today().year
+        )
+        if year_from is None and year_to is None:
+            return request.filters
+        base = request.filters or AskFilters()
+        return base.model_copy(
+            update={
+                "year_from": base.year_from if base.year_from is not None else year_from,
+                "year_to": base.year_to if base.year_to is not None else year_to,
+            }
+        )
+
+    def _apply_scope_to_evidence(
+        self,
+        evidence: list[EvidenceSpan],
+        filters: AskFilters | None,
+        *,
+        keep_unknown_year: bool = False,
+    ) -> list[EvidenceSpan]:
+        """The answer packet must honor geography/year scope, not only the
+        experiment table — otherwise out-of-range spans leak into synthesis."""
+        if filters is None or (
+            not filters.geography and filters.year_from is None and filters.year_to is None
+        ):
+            return evidence
+        recorder = self.run_recorder
+        if recorder is None:
+            return evidence
+        keeps = self._scope_predicate(
+            filters, recorder.source_metadata(), keep_unknown_year=keep_unknown_year
+        )
+        return [span for span in evidence if keeps(span.source_id)]
 
     def _apply_numeric_constraints(
         self,
