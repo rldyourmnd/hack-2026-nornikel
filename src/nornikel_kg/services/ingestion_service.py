@@ -8,6 +8,7 @@ from typing import Protocol
 
 from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository, SourceIngestError
 from nornikel_kg.domain.dates import extract_year, extract_year_from_filename
+from nornikel_kg.domain.geography import detect_geography
 from nornikel_kg.domain.ids import source_id_from_bytes, stable_hash
 from nornikel_kg.domain.models import SourceIngestResponse
 from nornikel_kg.ports.parser import (
@@ -267,12 +268,9 @@ class IngestionService:
         fallback_year: int | None = None,
     ) -> None:
         year = extract_year_from_filename(filename) or extract_year(head) or fallback_year
-        lowered = head.lower()
-        cyrillic = sum(1 for ch in lowered if "а" <= ch <= "я" or ch == "ё")
-        latin = sum(1 for ch in lowered if "a" <= ch <= "z")
-        geography = None
-        if cyrillic + latin > 40:
-            geography = "ru" if cyrillic >= latin else "foreign"
+        # Country/affiliation signals beat document language: a Russian-language
+        # review of Finnish practice is "foreign", an English Norilsk paper "ru".
+        geography = detect_geography(head)
         try:
             self.repository.set_source_metadata(source_id, year=year, geography=geography)
         except Exception:  # metadata is best-effort, never blocks ingest

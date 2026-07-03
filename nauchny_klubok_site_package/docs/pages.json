@@ -1,0 +1,201 @@
+[
+  {
+    "id": "P01",
+    "file": "01_mockups/page01_landing_home.png",
+    "route": "/",
+    "title": "Landing / главная",
+    "goal": "За 10 секунд объяснить ценность: единая R&D-карта знаний с проверяемыми источниками.",
+    "blocks": [
+      "Header: логотип, команда, навигация, hackathon badge",
+      "Hero: оффер + CTA + knowledge graph",
+      "Stats: sources, evidence spans, unsupported numbers, geography",
+      "Feature cards: поиск, верификация, граф, gaps/conflicts",
+      "How it works: ingest → extraction → evidence answer",
+      "Final CTA"
+    ],
+    "implementation": [
+      "Статы брать из backend overview, не хардкодить",
+      "Граф в hero — статичная SVG/PNG-иллюстрация",
+      "CTA ведёт в демо/поиск"
+    ]
+  },
+  {
+    "id": "P02",
+    "file": "01_mockups/page02_search_analysis.png",
+    "route": "/search",
+    "title": "Поиск и анализ",
+    "goal": "Естественный вопрос + многопараметрические фильтры.",
+    "blocks": [
+      "Question textarea",
+      "Filters: material, process, conditions, geography, years, confidence",
+      "Draft evidence packet: 3–5 релевантных источников",
+      "Query suggestions",
+      "Verification explainer"
+    ],
+    "implementation": [
+      "Формировать structured query object",
+      "Не запускать OCR; no-text sources не участвуют",
+      "Перед ответом показывать candidate sources"
+    ]
+  },
+  {
+    "id": "P03",
+    "file": "01_mockups/page03_answer_with_citations.png",
+    "route": "/answer/:runId",
+    "title": "Ответ с доказательствами",
+    "goal": "Показать ответ, где каждое утверждение связано с evidence.",
+    "blocks": [
+      "Query recap + filters",
+      "Answer bullets with citation chips",
+      "Evidence cards with page/table/span locator",
+      "Verification metrics: citation coverage, numeric mismatch, confidence",
+      "Next checks / limitations"
+    ],
+    "implementation": [
+      "Каждое предложение хранит supporting_span_ids",
+      "Клик по citation скроллит к evidence card",
+      "Числа показывать только если есть provenance"
+    ]
+  },
+  {
+    "id": "P04",
+    "file": "01_mockups/page04_knowledge_graph.png",
+    "route": "/graph",
+    "title": "Граф знаний",
+    "goal": "Навигация по сущностям и связям: material/process/equipment/result/publication/expert.",
+    "blocks": [
+      "Entity search + filters",
+      "Graph canvas",
+      "Node details panel",
+      "Example graph paths",
+      "Conflicts card"
+    ],
+    "implementation": [
+      "Не грузить полный граф на клиент; запрашивать neighborhood/path",
+      "Цвета узлов фиксировать по entity type",
+      "Каждая связь должна иметь evidence_span_ids"
+    ]
+  },
+  {
+    "id": "P05",
+    "file": "01_mockups/page05_data_import.png",
+    "route": "/data",
+    "title": "Данные и импорт",
+    "goal": "Контроль корпуса: загрузка, статусы, карантин, enrichment.",
+    "blocks": [
+      "Corpus metrics",
+      "Supported formats",
+      "OCR disabled banner",
+      "Upload/import buttons",
+      "Sources table",
+      "Archive unpacking row",
+      "Pagination"
+    ],
+    "implementation": [
+      "OCR выключен; scan/image-only → quarantine reason no_text_layer_ocr_disabled",
+      "Архивы показывать как parent + member files",
+      "Статусы: processed, queued, enrichment, quarantine"
+    ]
+  },
+  {
+    "id": "P06",
+    "file": "01_mockups/page06_source_evidence.png",
+    "route": "/sources/:id",
+    "title": "Источник и evidence",
+    "goal": "Точная трассировка от ответа до страницы/таблицы/строки.",
+    "blocks": [
+      "Source browser",
+      "Document/table preview",
+      "Metadata panel",
+      "Reliability card",
+      "Extracted entities",
+      "Provenance block",
+      "Related facts"
+    ],
+    "implementation": [
+      "Показывать locator: page, table, row, sheet, span_id",
+      "Подсвечивать row/fragment, на который ссылается ответ",
+      "Факты без locator не считать verified"
+    ]
+  },
+  {
+    "id": "P07",
+    "file": "01_mockups/page07_gaps_conflicts.png",
+    "route": "/analytics/gaps",
+    "title": "Пробелы и противоречия",
+    "goal": "Управленческая матрица: где есть данные, где gaps, где conflicts.",
+    "blocks": [
+      "Coverage matrix",
+      "Legend",
+      "Conflict list",
+      "Gap list",
+      "Convert gap to hypothesis CTA",
+      "What to study next"
+    ],
+    "implementation": [
+      "Матрицу строить из реальных фактов, не из demo rules",
+      "Conflict = несколько facts с несовместимыми значениями/методами",
+      "Gap = отсутствует покрытие для выбранной комбинации"
+    ]
+  },
+  {
+    "id": "P08",
+    "file": "01_mockups/page08_technology_comparison.png",
+    "route": "/compare",
+    "title": "Сравнение технологий",
+    "goal": "Сравнить варианты по эффективности, CAPEX/OPEX, климату, ограничениям и источникам.",
+    "blocks": [
+      "Summary / recommended strategy",
+      "Verdict legend",
+      "Filters",
+      "Comparison table",
+      "Source count per technology",
+      "Notes"
+    ],
+    "implementation": [
+      "Каждая ячейка таблицы должна иметь evidence source или статус needs_data",
+      "Russia/foreign grouping по practice_geography",
+      "Не смешивать относительные оценки и фактические числа"
+    ]
+  },
+  {
+    "id": "P09",
+    "file": "01_mockups/page09_experts_labs.png",
+    "route": "/experts",
+    "title": "Эксперты и лаборатории",
+    "goal": "Показать носителей экспертизы по теме.",
+    "blocks": [
+      "Filters",
+      "Stats: experts/labs/publications/topics",
+      "Expertise network",
+      "Who to ask panel",
+      "Expert/lab cards",
+      "Topic chips"
+    ],
+    "implementation": [
+      "Эксперта связывать с темой через publications/projects/facts",
+      "Не показывать персональные данные сверх справочника",
+      "Рекомендация эксперта должна объясняться связями"
+    ]
+  },
+  {
+    "id": "P10",
+    "file": "01_mockups/page10_jury_demo_dashboard.png",
+    "route": "/demo",
+    "title": "Демо для жюри",
+    "goal": "Один экран для питча: проблема, результат, метрики, ценность.",
+    "blocks": [
+      "Hero: Demo for jury",
+      "Central result card",
+      "KPI cards",
+      "Mini previews: search, graph, data, analytics, security",
+      "Problem → Solution → Value",
+      "Final CTA"
+    ],
+    "implementation": [
+      "Использовать реальные demo-run данные, без synthetic leakage",
+      "KPI явно помечать: corpus/run/eval",
+      "Экран должен работать как 5-minute pitch cockpit"
+    ]
+  }
+]
