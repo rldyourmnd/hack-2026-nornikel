@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
 Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
-Scope: \1; scripts/run_realcase_eval.py
+Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
 

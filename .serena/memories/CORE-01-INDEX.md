@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
 Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
-Scope: \1; .serena/plans/10_AUDIT_RESPONSE_PLAN.md; src/nornikel_kg/domain/encoding.py;
+Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/; .serena/plans/10_AUDIT_RESPONSE_PLAN.md; src/nornikel_kg/domain/encoding.py;
   src/nornikel_kg/domain/table_facts.py; src/nornikel_kg/domain/geography.py;
   scripts/run_realcase_eval.py
 Area: CORE

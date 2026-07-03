@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
 Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
-Scope: \1; src/nornikel_kg/domain/table_facts.py; src/nornikel_kg/domain/encoding.py;
+Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/; src/nornikel_kg/domain/table_facts.py; src/nornikel_kg/domain/encoding.py;
   src/nornikel_kg/domain/geography.py
 Area: DATA
 -->
