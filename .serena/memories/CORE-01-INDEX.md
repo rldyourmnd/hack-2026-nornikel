@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
   tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
   .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
@@ -157,10 +157,17 @@ resilience/perf/UI follow-on, all verified against the working tree at `327f47c`
   `.env.example` at `HEAD`): the answer model is now `deepseek-v4-flash` (owner requirement,
   re-benched through the real LiteLLM gateway — `json_repair` recovers its non-native JSON,
   4/4 verified synthesis, citation 1.0, zero numeric fabrication, richer author/factor detail,
-  ~17s warm, `LLM_TIMEOUT_S` raised `30`->`60`); extraction stays `aliceai-llm` (native
-  strict-JSON, ~7x faster on the batch path, graph already built). See `mem:TECHDEBT-01-NOW`
-  for the full bench history, including the earlier raw-catalog DeepSeek call that produced
-  broken JSON before `json_repair` was in the path.
+  ~17s warm, `LLM_TIMEOUT_S` raised `30`->`60`). **Extraction moved to `deepseek-v4-flash` too,
+  same day (`42ca7ba`, verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`)**, owner
+  requirement: isolation bench reported 0/6 JSON failures and more relations/span than
+  `aliceai-llm` (~16s/span, 2.4x slower per span); the full corpus was re-extracted and the
+  graph rebuilt clean — 3107 entities / 6771 relations with a tight R&D ontology, versus the
+  prior `aliceai-llm` extraction's 4206/16560 (reported noisy 100+-type tail). Connectivity
+  spot-check («Медный штейн»): 154 evidence spans, 111 typed edges. `aliceai-llm` (native
+  strict-JSON, 2.4s) remains in the catalog as a fast fallback, not the active path. See
+  `mem:TECHDEBT-01-NOW` and `mem:DATA-01-EVIDENCE-LEDGER` for the full bench/graph-rebuild
+  history, including the earlier raw-catalog DeepSeek call that produced broken JSON before
+  `json_repair` was in the path.
 - **GitHub Actions auto-deploy + `изи-никель.рф` primary domain** (`9338017`, merged `652317e`
   as PR #19): new `.github/workflows/deploy.yml` ships the tracked tree over SSH on every push
   to `main`, rebuilds `api`/`web`, restarts the stack and smoke-checks `/api/health` +

@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
   docker-compose.yml; .env.example; .github/workflows/ci.yml; .github/workflows/deploy.yml;
   tests/; .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md;
@@ -208,8 +208,24 @@ verified against the working tree at `3e74473`:
   `LLM_EXTRACTION_MODEL` stay blank in the tracked `.env.example`); the switch is persistent on
   the server and re-read on every `docker compose ... up -d` (including the auto-deploy
   workflow's redeploy step), but this specific mechanism is not independently verifiable from
-  this repository. Treat both benches as dated operational notes, not regression-tested
-  guarantees — no tracked benchmark artifact backs these numbers.
+  this repository.
+- **Extraction also moved to `deepseek-v4-flash`, same day, round 3 (`42ca7ba`, verified in
+  `.claude/CLAUDE.md`/`.env.example` at `HEAD`)**: owner requirement extended DeepSeek to
+  extraction too, superseding round 2's "extraction stays on `aliceai-llm`" note above.
+  Isolation bench reported (per the commit message, not reproduced against a live corpus in
+  this repository): 0/6 JSON failures and more relations per span than `aliceai-llm`, at
+  ~16s/span (2.4x slower per span than `aliceai-llm`'s 2.4s). The full real corpus was
+  re-extracted and the graph rebuilt clean: 3107 entities / 6771 relations with a tight R&D
+  ontology (`material` 706, `property` 545, `regime` 448, `value` 380, `person` 360,
+  `equipment` 302, `publication` 204, `laboratory` 83, `team` 52), versus the prior `aliceai-llm`
+  extraction's 4206 entities / 16560 relations (reported noisy 100+-entity-type tail outside the
+  declared `ENTITY_TYPES` vocabulary) — see `mem:DATA-01-EVIDENCE-LEDGER`'s "Corpus Graph
+  Rebuilt On DeepSeek" section. Connectivity spot-check («Медный штейн»): 154 evidence spans,
+  111 typed edges. Answers on the rebuilt graph stay claim-verified (citation coverage 1.0,
+  zero numeric fabrication reported). `aliceai-llm` (native strict-JSON, 2.4s) remains in the
+  catalog as a fast fallback model, not the active extraction or answer path. Treat all three
+  benches as dated operational notes, not regression-tested guarantees — no tracked benchmark
+  or graph-export artifact backs these specific numbers.
 
 ## Entry Points
 

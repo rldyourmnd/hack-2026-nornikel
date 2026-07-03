@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
   .env.example; docs/deployment/
 Area: DOCS

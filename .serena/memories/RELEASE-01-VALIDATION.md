@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
   pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
   services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -79,13 +79,16 @@ via the organizer-provided Yandex AI Studio API, offloading the CPU-bound `local
 sentence-transformers inference; `.env.example` documents `YANDEX_API_KEY`, `YANDEX_FOLDER_ID`,
 `YANDEX_EMBED_DOC_MODEL`/`YANDEX_EMBED_QUERY_MODEL` (both default `text-embeddings/latest`).
 `.claude/CLAUDE.md`/`AGENTS.md` record Yandex AI Studio as the primary LLM provider too
-(same OpenAI-compatible LiteLLM gateway, `https://ai.api.cloud.yandex.net/v1`). Per-task model
-split as of `f72c7f6` (verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`): answers on
-`deepseek-v4-flash` (owner requirement — richer author/factor detail, ~17s warm,
-`LLM_TIMEOUT_S` raised `30`->`60` in `.env.example` to fit), extraction stays `aliceai-llm`
-(native strict-JSON, faster on the batch path). `LLM_ANSWER_MODEL`/`LLM_EXTRACTION_MODEL`
-remain blank in the tracked `.env.example`; the concrete model strings are only set in the
-server's untracked `.env` (not verifiable from this repository). The LLM gateway code itself
+(same OpenAI-compatible LiteLLM gateway, `https://ai.api.cloud.yandex.net/v1`). Both LLM
+roles now run on `deepseek-v4-flash` as of `42ca7ba` (owner requirement, verified in `.claude/
+CLAUDE.md`/`.env.example` at `HEAD`; superseding the answers-only switch in `f72c7f6`): answers
+(richer author/factor detail, ~17s warm) and extraction (0/6 JSON failures isolation-benched,
+more relations/span than `aliceai-llm`, ~16s/span — 2.4x slower per span but a cleaner-typed
+graph), `LLM_TIMEOUT_S` raised `30`->`60` in `.env.example` to fit both. `aliceai-llm` (native
+strict-JSON, 2.4s) stays in the catalog as a fast fallback, not the active path.
+`LLM_ANSWER_MODEL`/`LLM_EXTRACTION_MODEL` remain blank in the tracked `.env.example`; the
+concrete model strings are only set in the server's untracked `.env` (not verifiable from this
+repository). The LLM gateway code itself
 (`src/nornikel_kg/adapters/llm/gateway.py`/`settings.py`) is provider-agnostic and unchanged —
 the switch is an env-level base-URL/key/model override, with the previous `dataeyes.ai`
 configuration kept as a server-side rollback (`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not

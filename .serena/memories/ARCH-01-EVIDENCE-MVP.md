@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
   .github/workflows/deploy.yml; pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
 Area: ARCH
@@ -208,8 +208,13 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   changed same day (`f72c7f6`, verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`)**: the
   stand now answers on `deepseek-v4-flash` (owner requirement) — `json_repair` recovers its
   non-native JSON through the real gateway, 4/4 verified, citation 1.0, zero numeric
-  fabrication, richer detail, ~17s warm (`LLM_TIMEOUT_S=60`); extraction is unchanged on
-  `aliceai-llm` (native strict-JSON, faster on the batch path) — see `mem:TECHDEBT-01-NOW`.
+  fabrication, richer detail, ~17s warm (`LLM_TIMEOUT_S=60`). **Extraction moved to
+  `deepseek-v4-flash` too, same day (`42ca7ba`, verified in `.claude/CLAUDE.md`/`.env.example`
+  at `HEAD`)**: isolation bench reported 0/6 JSON failures and more relations/span than
+  `aliceai-llm`, at ~16s/span (2.4x slower); the corpus graph was rebuilt clean on DeepSeek —
+  see `mem:DATA-01-EVIDENCE-LEDGER`'s "Corpus Graph Rebuilt On DeepSeek" section for the
+  entity/relation counts. `aliceai-llm` (native strict-JSON, 2.4s) stays available as a fast
+  fallback model in the catalog, not the active extraction path.
 - `src/nornikel_kg/domain/analysis.py`: `_regime_bucket` strips the `reg_`/`regime_` id prefix
   before bucketing by regime type + temperature (previously the raw id put every experiment into
   one bucket, producing fake contradictions between aging and annealing at the same

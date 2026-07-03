@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/adapters/llm/; sample_docs/synthetic_v2/; scripts/run_eval.py; tests/unit/test_source_label_policy.py; tests/unit/test_claim_verifier.py; tests/unit/test_answer_honesty.py
 Area: SEC
 -->

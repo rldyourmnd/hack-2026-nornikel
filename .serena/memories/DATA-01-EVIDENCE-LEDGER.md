@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: f72c7f6 config: answers on deepseek-v4-flash per owner requirement
+Last commit: 42ca7ba config: extraction also on deepseek-v4-flash; graph rebuilt
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/;
   src/nornikel_kg/resources/dictionaries/; src/nornikel_kg/services/; sample_docs/; eval/;
   scripts/ingest_corpus.py
@@ -147,6 +147,23 @@ are deleted; dictionary-seeded entities (stable IDs, not `ent_`-prefixed) are ke
 evidence empties, since migrations reseed them. `extraction_claims` and `ingestion_runs` rows for
 the source are also deleted. `DELETE /sources/{id}` additionally best-effort deletes the
 source's Qdrant units.
+
+## Corpus Graph Rebuilt On DeepSeek (2026-07-04, commit `42ca7ba`, verified in `.claude/CLAUDE.md` at `HEAD`)
+
+The full real corpus was re-extracted after both extraction and answers moved to
+`deepseek-v4-flash` (owner requirement; `mem:TECHDEBT-01-NOW` has the model-switch bench
+history). Reported result (per `.claude/CLAUDE.md`'s commit-message-sourced note, not
+independently reproduced against a live corpus in this repository — no tracked graph-export
+artifact exists to re-verify the exact counts): **3107 entities / 6771 relations** with a
+tighter R&D ontology (`material` 706, `property` 545, `regime` 448, `value` 380, `person` 360,
+`equipment` 302, `publication` 204, `laboratory` 83, `team` 52), versus the prior `aliceai-llm`
+extraction's 4206 entities / 16560 relations, whose additional volume was reported as a
+noisy 100+-entity-type tail outside `domain/extraction.py`'s declared `ENTITY_TYPES` vocabulary.
+Connectivity spot-check («Медный штейн»): 154 evidence spans, 111 typed edges across
+`HAS_MEASUREMENT`/`APPLIES_REGIME`/`DESCRIBED_IN`/`MADE_OF`/`USED_EQUIPMENT`. Answers on the
+rebuilt graph stay claim-verified (citation coverage 1.0, zero numeric fabrication reported).
+Treat the specific entity/relation counts as a dated operational observation sourced from the
+launching agent's report, not a regression-tested fixture assertion.
 
 ## Real-Corpus Ontology Extension (2026-07-03, commit `58760b3` — unchanged this sync)
 
