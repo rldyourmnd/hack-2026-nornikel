@@ -51,3 +51,6 @@ qdrant_storage/
 .serena/.locks/
 .serena/.state/
 DATA_HACK/
+
+# Design mockups/assets reference package (assets used are copied to apps/web/public/brand/)
+nauchny_klubok_site_package/
