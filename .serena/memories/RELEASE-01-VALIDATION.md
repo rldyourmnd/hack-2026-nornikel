@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docs/deployment/nornikel-nddev.md;
   pyproject.toml; services/api/Dockerfile; apps/web/nginx.conf; .env.example; apps/web/;
   services/api/; scripts/ingest_corpus.py; .serena/plans/09_ACCURACY_SOTA_OVERHAUL.md
@@ -49,7 +50,7 @@ A-D) and the archive/legacy-format ingestion wave (E).
 
 ## Current Behavior
 
-`uv run pytest` passes **151 tests, 5 skipped** at `652317e` (verified by a live run in this
+`uv run pytest` passes **154 tests, 5 skipped** at `4ede8c5` (verified by a live run in this
 sync pass, up from 148 passed / 5 skipped at `327f47c`). `uv run ruff check .` and `uv run mypy`
 both pass clean (verified live in this sync pass; mypy: "no issues found in 76 source files").
 

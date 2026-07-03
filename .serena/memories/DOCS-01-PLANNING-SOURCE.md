@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/;
   .env.example; docs/deployment/
 Area: DOCS

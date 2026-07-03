@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/;
   src/nornikel_kg/resources/dictionaries/; src/nornikel_kg/services/; sample_docs/; eval/;
   scripts/ingest_corpus.py
@@ -210,7 +211,7 @@ parser/indexing code that writes new fact types.
 
 ## Verification
 
-- `uv run pytest`: 151 tests pass, 5 skipped, at `652317e` (live-run verified in this sync pass;
+- `uv run pytest`: 154 tests pass, 5 skipped, at `4ede8c5` (live-run verified in this sync pass;
   the 3-test increase over the prior `327f47c` baseline is `tests/unit/test_ratelimit.py` and
   `tests/unit/test_llm_gateway.py::test_gateway_retries_rate_limit`, unrelated to the ledger
   itself — see `mem:TECHDEBT-01-NOW`).

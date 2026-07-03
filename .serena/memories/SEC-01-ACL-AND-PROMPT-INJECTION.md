@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/adapters/llm/; sample_docs/synthetic_v2/; scripts/run_eval.py; tests/unit/test_source_label_policy.py; tests/unit/test_claim_verifier.py; tests/unit/test_answer_honesty.py
 Area: SEC
 -->

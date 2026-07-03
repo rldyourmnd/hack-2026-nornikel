@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml
 Area: TEST
 -->
@@ -36,7 +37,7 @@ test-count/gate description was re-verified against this memory's own content in
 sync pass (not re-run live in this pass; see `mem:TECHDEBT-01-NOW` for the last confirmed
 live-run result).
 
-`uv run pytest` passes **151 tests, 5 skipped** at `652317e` — verified by a live run in this
+`uv run pytest` passes **154 tests, 5 skipped** at `4ede8c5` — verified by a live run in this
 sync pass, an increase of 3 passed over the previously recorded 148-passed/5-skipped baseline at
 `327f47c` (skip count unchanged). `uv run ruff check .` and `uv run mypy` both pass clean
 (live-run verified in this sync pass; mypy: "no issues found in 76 source files").
@@ -45,6 +46,14 @@ The 5 skips remain `pytest.importorskip` guards for optional heavy dependencies 
 `trafilatura`, `fastembed`, and similar), unchanged this sync.
 
 New test modules/functions this sync (all passing):
+- `tests/unit/test_dates.py` (new, commit `4ede8c5`, 2 test functions):
+  `test_parse_time_scope_last_n_years` (RU/EN «last N years», «с/до YYYY года», `YYYY-YYYY`
+  ranges, and that a bare year mention stays a fact, not a scope) and
+  `test_parse_time_scope_requires_year_marker` (RU «до»/«с» + bare year with no «года» marker
+  never parses as a scope).
+- `tests/unit/test_answer_honesty.py` gained `test_question_time_scope_keeps_unknown_year_sources`
+  (commit `4ede8c5`): a question-derived time scope keeps year-less fixture sources, while an
+  explicit `AskFilters(year_from=...)` on the same question drops them.
 - `tests/unit/test_ratelimit.py` (new, 2 test functions): `RateLimiter` spaces requests to the
   configured interval; `get_limiter` returns the same shared instance for a repeated name.
 - `tests/unit/test_llm_gateway.py` gained `test_gateway_retries_rate_limit`: a `litellm.
@@ -88,7 +97,10 @@ unknown-material negative controls, exact spaced-material scoping, one broad fam
 5 new cases — `q_conflict_surfaced_for_question` (asserts `min_conflict_count >= 1`),
 `q_numeric_constraint_hv` (asserts the constrained material's HV values respect a
 `max_measurement_value_hv` ceiling), `q_year_phrase_is_not_a_filter` (asserts «до 2020 года»
-does not silently drop a valid Ni-30Cu experiment), `q_injection_ignore_instructions` (asserts
+does not silently drop a valid Ni-30Cu experiment — since commit `4ede8c5`, «до 2020 года» IS
+parsed as an explicit `year_to=2020` scope by `domain.dates.parse_time_scope`, but the
+question-derived scope is permissive and keeps the fixture's year-less experiment; live-run
+verified in this sync pass, `experiment_count: 1`), `q_injection_ignore_instructions` (asserts
 `max_source_label_leaks = 0` under a prompt-injection attempt), and `q_injection_fake_span`
 (asserts a `forbidden_answer_substrings` check that a fabricated "999 HV" claim never appears in
 the answer). `main()` now also asserts `numeric_mismatch_count == 0` and
@@ -132,7 +144,7 @@ change.
 
 ## Verification
 
-- `make ci`: ruff, mypy, pytest (151 passed, 5 skipped at `652317e`, live-run verified), frontend
+- `make ci`: ruff, mypy, pytest (154 passed, 5 skipped at `4ede8c5`, live-run verified), frontend
   typecheck, build.
 - `make eval`: `scripts/run_eval.py` — 17-question live QA metrics against the synthetic DuckDB
   ledger only, incl. adversarial injection assertions.

@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: README.md; apps/web/; services/api/; src/nornikel_kg/; eval/; sample_docs/; scripts/;
   tests/; docker-compose.yml; .github/workflows/ci.yml; .env.example; pyproject.toml;
   .serena/plans/; .serena/reviews/; docs/deployment/; .gitignore
@@ -26,7 +27,7 @@ Index the durable project knowledge for the Nornikel Materials KG Search hackath
   exclusive with a running `api` container — see `mem:RELEASE-01-VALIDATION`).
 - `eval/`: legacy YAML gold/adversarial fixtures; not read by any code path (`mem:TEST-01-EVALUATION-GATES`).
 - `sample_docs/synthetic/`: original P0 fixture. `sample_docs/synthetic_v2/`: W5 17-source synthetic corpus with `manifest.json`.
-- `tests/`: unit and integration tests (151 passed, 5 skipped at `652317e`, live-run verified).
+- `tests/`: unit and integration tests (154 passed, 5 skipped at `4ede8c5`, live-run verified).
 - `docs/deployment/nornikel-nddev.md`: primary live-stand deployment contract.
 - `.serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md`: full-track requirement brief («Научный
   клубок») and gap analysis G1-G10 against the real `DATA_HACK/` corpus.
@@ -180,10 +181,20 @@ state the 32m Nginx limit and full upload-type list directly, updated `.claude/C
 `docs/deployment/fa-nddev.md` as `(HISTORICAL)` with an explicit "legacy stand... NOT
 deployed to anymore" banner (all four files verified read at `HEAD` in this sync pass).
 
+One further commit, `4ede8c5` ("feat(qa): natural-language time scopes from question text",
+current `HEAD`), added `domain.dates.parse_time_scope` and wired it into
+`DemoQAService._effective_filters`/`_apply_scope_to_evidence` so a question's own temporal
+phrasing (e.g. «за последние 5 лет») now gates the evidence packet as well as the experiment
+table, permissively for derived scopes and strictly for explicit UI filters — see
+`mem:ARCH-01-EVIDENCE-MVP` and `mem:TECHDEBT-01-NOW` for the verified detail. `uv run pytest`
+now passes **154 tests, 5 skipped** (up from 151), `ruff`/`mypy` clean, and `make eval`'s
+`q_year_phrase_is_not_a_filter` case passes via this new permissive-scope path — all
+independently live-run verified in this sync pass.
+
 See `mem:ARCH-01-EVIDENCE-MVP`, `mem:DATA-01-EVIDENCE-LEDGER`, `mem:TECHDEBT-01-NOW` for the
 per-module detail of each change.
 
-`uv run pytest` passes **151 tests, 5 skipped** at `652317e` (verified by a live run in this sync
+`uv run pytest` passes **154 tests, 5 skipped** at `4ede8c5` (verified by a live run in this sync
 pass, up from 148 passed / 5 skipped); `uv run ruff check .` and `uv run mypy` both pass clean
 (also verified live in this sync pass, mypy: "no issues found in 76 source files").
 
@@ -231,6 +242,6 @@ Update this index whenever a new durable memory is added, renamed, split, or del
 - `make eval`: runs `scripts/run_eval.py` (17 hardcoded `EVAL_QUESTIONS`, incl. numeric-constraint,
   conflict-surfacing, and adversarial prompt-injection cases).
 - `docker compose config`: verifies Compose syntax without requiring local secrets.
-- `uv run pytest`: 151 tests pass, 5 skipped at `652317e` (live-run verified).
+- `uv run pytest`: 154 tests pass, 5 skipped at `4ede8c5` (live-run verified, up from 151 passed).
 - `uv run ruff check .` / `uv run mypy`: both clean at `652317e` (live-run verified, mypy: "no
   issues found in 76 source files").

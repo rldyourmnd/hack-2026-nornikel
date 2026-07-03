@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: apps/web/; services/api/; src/nornikel_kg/; docker-compose.yml; .github/workflows/ci.yml;
   .github/workflows/deploy.yml; pyproject.toml; .serena/newproj/nornikel-kg-search/; README.md
 Area: ARCH
@@ -40,7 +41,18 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   names); bare 4-digit years are only trusted next to an explicit year marker
   (`_YEAR_MARKER_RE`: «2023 г.», «в ... году», «© 2021») or an ISO/DMY date elsewhere in the
   text, so sample codes and Kelvin temperatures («1963 K») do not masquerade as years
-  (`MIN_YEAR=1950`, `MAX_YEAR=2027`).
+  (`MIN_YEAR=1950`, `MAX_YEAR=2027`). `parse_time_scope(question, *, now_year) ->
+  tuple[int | None, int | None]` (new, commit `4ede8c5`) turns explicit natural-language
+  temporal phrasings in a *question* into `(year_from, year_to)`: `_YEAR_RANGE_RE`
+  (`YYYY-YYYY`/`YYYY–YYYY`, optional «гг.»/«года»), `_LAST_N_YEARS_RE` («за последние N
+  лет» / «last N years», 1-50), `_LAST_YEAR_RE` («за последний год»), `_SINCE_YEAR_RE`
+  (RU «с»/«начиная с»/EN `after`/`since` + year), `_UNTIL_YEAR_RE` (RU «до»/«по»/EN
+  `before`/`until` + year). The RU since/until patterns **require** a trailing «г.»/«год…»
+  marker — without it, «нагрев до 2000 градусов» or «раствор с 2019 мг/л» never parse as a
+  scope (verified: `tests/unit/test_dates.py::test_parse_time_scope_requires_year_marker`).
+  A bare year mention with no explicit temporal phrasing (e.g. «проба 2020») is never
+  returned as a scope — same "fact, not filter" contract as `extract_year`
+  (`tests/unit/test_dates.py::test_parse_time_scope_last_n_years`).
 - `src/nornikel_kg/domain/normalization.py`: `canonical_key` now strips edge quotes/punctuation
   (`_EDGE_PUNCT_RE`) and folds Cyrillic->Latin homoglyphs (`_fold_homoglyphs`) **only** in tokens
   that already contain a Latin letter — pure-Cyrillic tokens (including alloy codes like «МН30»)
@@ -136,10 +148,33 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   generations). This makes the gateway no longer provider-agnostic-and-unchanged: the retry/pacing
   logic is generic (any provider raising `litellm.RateLimitError` benefits), but it is new code,
   not just an env-level provider switch.
-- `src/nornikel_kg/services/qa_service.py`: `DemoQAService` — numeric constraints now go through
+- `src/nornikel_kg/services/qa_service.py`: `DemoQAService.ask` (commit `4ede8c5`) now calls
+  `_effective_filters(request)` first: explicit `request.filters.year_from`/`year_to` win, but
+  when they are unset, `domain.dates.parse_time_scope(request.question, now_year=date.today()
+  .year)` fills them in from the question text (e.g. «за последние 5 лет»), via
+  `AskFilters.model_copy(update={...})`. A question-derived scope is **permissive**
+  (`keep_unknown_year=True`): sources with no recorded year are kept, since not knowing the
+  year is not the same as being out of range; an explicit UI/API year filter stays **strict**
+  (`keep_unknown_year=False`, computed as `strict_years = request.filters is not None and
+  (request.filters.year_from is not None or request.filters.year_to is not None)`). The shared
+  predicate `_scope_predicate(filters, metadata, *, keep_unknown_year)` (new) implements this
+  once and is used by both `_apply_source_scope` (experiment table, extended with a
+  `keep_unknown_year` kwarg) and the new `_apply_scope_to_evidence(evidence, filters, *,
+  keep_unknown_year)` — the latter means `DemoQAService.ask` now also filters the evidence
+  packet passed to answer synthesis by year/geography scope, not only the experiment table
+  (previously an out-of-scope evidence span could still leak into the LLM packet even though
+  its experiment was filtered out). `_confidence_level`/run-recording now read the
+  scope-enriched `filters` (renamed local variable), not the raw `request.filters`, so
+  `record_answer_run`'s persisted `filters` reflect the effective (explicit-or-derived) scope.
+  Verified: `tests/unit/test_answer_honesty.py::test_question_time_scope_keeps_unknown_year_sources`
+  (derived scope keeps a year-less fixture source; an explicit `AskFilters(year_from=2021)`
+  drops it) and `scripts/run_eval.py`'s `q_year_phrase_is_not_a_filter` («... до 2020 года?»)
+  now passes via this permissive derived-scope path (the question's «до 2020 года» phrase is
+  parsed as an explicit `year_to=2020` scope, but the fixture's year-less Ni-30Cu experiment is
+  still kept — live-run verified in this sync pass, `experiment_count: 1`).
+  Numeric constraints go through
   `domain.quantities` (unit-bearing only, canonicalized comparison) via `_apply_numeric_constraints`;
-  `_apply_source_scope` for geography/year filters (unchanged contract, still via
-  `RunRecorderProtocol.source_metadata()`); `_select_experiments` no longer falls back to an
+  `_select_experiments` no longer falls back to an
   arbitrary `experiments[:5]` when no material/property/regime signal matches — an honest empty
   list is returned instead (kept when a material or explicit filter *did* match, matching the
   prior "the scope itself is the query" contract); `_alias_material_tokens` resolves RU material
@@ -358,8 +393,8 @@ wave plan) first, then update ADRs if a stack boundary changes.
 
 ## Verification
 
-- `make ci`: backend/frontend gate; `uv run pytest` verified 151 passed / 5 skipped at `652317e`
-  (live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified, mypy: "no
+- `make ci`: backend/frontend gate; `uv run pytest` verified 154 passed / 5 skipped at `4ede8c5`
+  (live-run verified in this sync pass, up from 151 passed / 5 skipped); `ruff`/`mypy` both clean (live-run verified, mypy: "no
   issues found in 76 source files").
 - `make eval`: deterministic + retrieval-augmented evidence packet verification (17 questions,
   synthetic corpus only, incl. adversarial prompt-injection cases).

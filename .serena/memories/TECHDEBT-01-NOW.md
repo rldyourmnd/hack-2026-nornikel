@@ -1,5 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04\nLast commit: bb45bce docs: refresh all documentation to the shipped state
+Last updated: 2026-07-04
+Last commit: 4ede8c5 feat(qa): natural-language time scopes from question text
 Scope: src/nornikel_kg/; apps/web/; services/api/; scripts/ingest_corpus.py; pyproject.toml;
   docker-compose.yml; .env.example; .github/workflows/ci.yml; .github/workflows/deploy.yml;
   tests/; .serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md;
@@ -164,6 +165,25 @@ verified against the working tree at `3e74473`:
   rebuilds `api`/`web`, restarts the stack, and smoke-checks `/api/health` +
   `/api/stats/overview`.
 
+## Resolved Since The Prior Sync (repo-migration squash -> `4ede8c5`, verified, do not re-list as gaps)
+
+- **Questions phrased with a natural-language time scope («за последние 5 лет») were not
+  converted into a year filter, and year/geography scope only ever gated the experiment
+  table, never the evidence packet handed to answer synthesis (resolved, `4ede8c5`)**:
+  `src/nornikel_kg/domain/dates.py:parse_time_scope(question, *, now_year)` recognizes «за
+  последние N лет»/`last N years`, «за последний год», RU «с»/«до»/«по» + year (year marker
+  required), and `YYYY-YYYY` ranges; a bare year mention with no such phrasing stays a fact,
+  not a scope. `services/qa_service.py:DemoQAService._effective_filters` applies the derived
+  scope only when the request's explicit `AskFilters.year_from`/`year_to` are unset.
+  `_scope_predicate`/`_apply_scope_to_evidence` (new) mean the evidence packet itself is now
+  filtered by year/geography, not only `selected_experiments`. A scope derived from question
+  text is permissive (keeps sources with no recorded year); an explicit UI/API filter stays
+  strict. Verified: `tests/unit/test_dates.py` (2 test functions),
+  `tests/unit/test_answer_honesty.py::test_question_time_scope_keeps_unknown_year_sources`,
+  and `scripts/run_eval.py`'s `q_year_phrase_is_not_a_filter` (live-run verified in this sync
+  pass, `experiment_count: 1`). `uv run pytest` now passes 154 tests (up from 151), 5 skipped
+  unchanged; `ruff`/`mypy` both clean (all live-run verified in this sync pass).
+
 ## Operational Observations (not test-verified in this repository; dated)
 
 - **Live model bench on a real evidence packet, 2026-07-04** (cited in the `24282f1` commit
@@ -195,7 +215,7 @@ rerank), LLM-gated answer synthesis with a numeric-fabrication gate, graph analy
 filters (unit-canonicalized numeric constraints, geography, year), and honest confidence/gap/
 conflict signaling with no arbitrary fallback rows, incremental hash-skip Qdrant indexing, and a
 data-version-cached evidence packet, quota-paced/retrying LLM and embedding gateways, and
-auto-deploy on push to `main`. `uv run pytest` passes 151 tests, 5 skipped, at `652317e`
+auto-deploy on push to `main`. `uv run pytest` passes 154 tests, 5 skipped, at `4ede8c5`
 (live-run verified in this sync pass); `ruff`/`mypy` both clean (live-run verified, mypy: "no
 issues found in 76 source files").
 
