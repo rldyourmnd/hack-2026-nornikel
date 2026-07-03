@@ -1,0 +1,3 @@
+experiment_id,material,regime,temperature_c,duration_h,atmosphere,property,method,baseline_value,treated_value,unit,effect
+v2_cuni30_annealing_el,CuNi30,annealing,850,2,argon,Elongation,ISO 6892,28,41,%,increase
+v2_cuni30_annealing_el_b,CuNi30,annealing,850,2,argon,Elongation,ISO 6892,39,27,%,decrease

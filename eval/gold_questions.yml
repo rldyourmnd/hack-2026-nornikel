@@ -1,0 +1,46 @@
+questions:
+  - question_id: q_ideal_nicu_hardness
+    question: "Что делали по Ni-30Cu при старении 700 C 8 ч и как изменилась твердость?"
+    expected_material_ids: ["mat_nicu_30"]
+    expected_regime_ids: ["reg_aging_700c_8h_air"]
+    expected_property_ids: ["prop_vickers_hardness"]
+    expected_effect_direction: increase
+    expected_answer_contains: ["245 HV", "35 HV", "старение"]
+  - question_id: q_gap_nicu_conductivity
+    question: "Есть ли электропроводность для Ni-30Cu после старения 700 C 8 ч?"
+    expected_gaps: ["missing_measurement"]
+  - question_id: q_conflict_method
+    question: "Есть ли противоречия по твердости Ni-Cu после старения?"
+    expected_conflicts: ["method_mismatch"]
+  - question_id: q_unknown_material_nicu20_screenshot
+    question: "что со сплавами? с ni-20"
+    expected_material_ids: []
+    expected_answer_contains: []
+    expected_follow_up_queries: ["Что было с CuNi30?", "Что было с Ni-30Cu?"]
+    forbidden_materials: ["CuNi30", "Ni-30Cu"]
+  - question_id: q_unknown_material_nicu20_space
+    question: "что со сплавами? с ni 20"
+    expected_material_ids: []
+    expected_answer_contains: []
+    expected_follow_up_queries: ["Что было с CuNi30?", "Что было с Ni-30Cu?"]
+    forbidden_materials: ["CuNi30", "Ni-30Cu"]
+  - question_id: q_unknown_material_nicu20_unicode_dash
+    question: "что со сплавами? с Ni–20"
+    expected_material_ids: []
+    expected_answer_contains: []
+    expected_follow_up_queries: ["Что было с CuNi30?", "Что было с Ni-30Cu?"]
+    forbidden_materials: ["CuNi30", "Ni-30Cu"]
+  - question_id: q_exact_spaced_nicu30
+    question: "что со сплавами? с Ni 30 Cu"
+    expected_material_ids: ["mat_nicu_30"]
+    expected_answer_contains: ["Ni-30Cu", "245 HV"]
+    forbidden_materials: ["CuNi30"]
+  - question_id: q_exact_spaced_cuni30
+    question: "что со сплавами? с Cu Ni 30"
+    expected_material_ids: ["mat_cuni_30"]
+    expected_answer_contains: ["CuNi30", "84 HRC"]
+    forbidden_materials: ["Ni-30Cu"]
+  - question_id: q_family_nicu_temperature_not_material
+    question: "что со сплавами Ni-Cu 700 C 8 ч"
+    expected_material_ids: ["mat_cuni_30", "mat_nicu_30"]
+    expected_answer_contains: ["CuNi30", "Ni-30Cu"]

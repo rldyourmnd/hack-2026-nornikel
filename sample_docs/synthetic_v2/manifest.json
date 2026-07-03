@@ -1,0 +1,125 @@
+{
+  "seeded": {
+    "alias_pairs": [
+      [
+        "CuNi30",
+        "МН30"
+      ],
+      [
+        "Ni-30Cu",
+        "Ni30Cu"
+      ]
+    ],
+    "contradictory_direction_conflict": [
+      "v2_cuni30_annealing_el",
+      "v2_cuni30_annealing_el_b"
+    ],
+    "decisions": [
+      "2024-11-12",
+      "2025-01-30",
+      "2025-03-10"
+    ],
+    "gaps": [
+      "no conductivity after aging (any material)",
+      "no corrosion rate for Ni-Cr-Mo"
+    ],
+    "method_mismatch_conflict": [
+      "v2_nicu30_aging_hv",
+      "v2_nicu30_aging_hrc"
+    ],
+    "prompt_injection_sources": [
+      "v2_protocol_02_aging.docx"
+    ]
+  },
+  "source_count": 17,
+  "sources": {
+    "v2_measurements_cuni.csv": {
+      "experiments": [
+        "v2_cuni30_annealing_el",
+        "v2_cuni30_annealing_el_b"
+      ],
+      "kind": "csv"
+    },
+    "v2_measurements_nicrmo.csv": {
+      "experiments": [
+        "v2_nicrmo_rolling_ts"
+      ],
+      "kind": "csv"
+    },
+    "v2_measurements_nicu.csv": {
+      "experiments": [
+        "v2_nicu30_aging_hv",
+        "v2_nicu30_aging_hrc"
+      ],
+      "kind": "csv"
+    },
+    "v2_measurements_solution.csv": {
+      "experiments": [
+        "v2_nicu30_solution_gs"
+      ],
+      "kind": "csv"
+    },
+    "v2_note_corrosion.md": {
+      "kind": "markdown"
+    },
+    "v2_note_decisions.md": {
+      "kind": "markdown"
+    },
+    "v2_note_qualitative.md": {
+      "kind": "markdown"
+    },
+    "v2_online_resource.html": {
+      "kind": "html",
+      "note": "served/imported through /sources/import-url in tests and demos"
+    },
+    "v2_protocol_01_aging.docx": {
+      "alias_used": "Ni30Cu",
+      "experiment": "v2_nicu30_aging_hv",
+      "has_injection": false,
+      "kind": "docx"
+    },
+    "v2_protocol_02_aging.docx": {
+      "alias_used": "Ni-30Cu",
+      "experiment": "v2_nicu30_aging_hrc",
+      "has_injection": true,
+      "kind": "docx"
+    },
+    "v2_protocol_03_annealing.docx": {
+      "alias_used": "МН30",
+      "experiment": "v2_cuni30_annealing_el",
+      "has_injection": false,
+      "kind": "docx"
+    },
+    "v2_protocol_04_annealing.docx": {
+      "alias_used": "CuNi30",
+      "experiment": "v2_cuni30_annealing_el_b",
+      "has_injection": false,
+      "kind": "docx"
+    },
+    "v2_protocol_05_cold_rolling.docx": {
+      "alias_used": "NiCrMo-D",
+      "experiment": "v2_nicrmo_rolling_ts",
+      "has_injection": false,
+      "kind": "docx"
+    },
+    "v2_protocol_06_solution_treatment.docx": {
+      "alias_used": "Ni-30Cu",
+      "experiment": "v2_nicu30_solution_gs",
+      "has_injection": false,
+      "kind": "docx"
+    },
+    "v2_report_nicrmo_rolling_en.pdf": {
+      "kind": "pdf",
+      "language": "en"
+    },
+    "v2_report_nicu_aging_en.pdf": {
+      "kind": "pdf",
+      "language": "en"
+    },
+    "v2_scan_no_text_layer.pdf": {
+      "expected_status": "quarantined",
+      "kind": "pdf"
+    }
+  },
+  "version": 2
+}

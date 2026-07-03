@@ -1,0 +1,2 @@
+experiment_id,material,regime,temperature_c,duration_h,atmosphere,property,method,baseline_value,treated_value,unit,effect
+v2_nicu30_solution_gs,Ni-30Cu,solution_treatment,980,1,vacuum,Grain size,ASTM E112,45,12,um,decrease
