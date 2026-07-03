@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+import zipfile
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -122,3 +124,32 @@ def test_empty_ledger_ask_returns_grounded_empty(client: TestClient) -> None:
     assert payload["experiments"] == []
     assert payload["evidence"] == []
     assert payload["confidence"] == "low"
+
+
+def test_upload_archive_ingests_members(client: TestClient) -> None:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("reports/water.csv", "Показатель,Значение,Ед.изм\nСульфаты,250,мг/л\n")
+        archive.writestr("notes/summary.md", "Обеднение шлака изучено детально.\n")
+
+    response = client.post(
+        "/sources/upload-archive",
+        files={"file": ("corpus.zip", buffer.getvalue(), "application/zip")},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["ingested_count"] == 2
+    assert {member["status"] for member in payload["members"]} == {"ingested"}
+    member_paths = {member["member_path"] for member in payload["members"]}
+    assert any("water.csv" in path for path in member_paths)
+    assert any("summary.md" in path for path in member_paths)
+
+
+def test_upload_archive_rejects_non_archive(client: TestClient) -> None:
+    response = client.post(
+        "/sources/upload-archive",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert "archive" in response.json()["detail"].lower()
