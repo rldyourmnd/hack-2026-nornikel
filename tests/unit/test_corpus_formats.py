@@ -128,3 +128,32 @@ def test_docm_routes_through_document_parser(tmp_path: Path) -> None:
     assert stub.filenames == ["paper.docm"]
     assert response.source.status in {"completed", "running"}
     assert response.evidence_count >= 1
+
+
+def test_cp1251_csv_is_accepted(tmp_path: Path) -> None:
+    """A Windows-1251 CSV with the experiment schema ingests, not a hard 400."""
+    header = (
+        "experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
+        "property,method,baseline_value,treated_value,unit,effect\n"
+    )
+    row = "exp_cp,Никель,отжиг,700,8,воздух,твердость,HV10,200,230,HV,increase\n"
+    content = (header + row).encode("cp1251")
+    repo = DuckDBLedgerRepository(tmp_path / "cp1251.duckdb")
+    repo.migrate()
+    packet = repo.ingest_source_bytes(filename="cp1251.csv", content=content)
+    assert packet is not None
+    spans = repo.list_evidence_spans()
+    assert any("Никель" in span.visible_text for span in spans)
+
+
+def test_xlsx_caps_are_env_configurable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nornikel_kg.adapters.spreadsheet.parser import (
+        _DEFAULT_MAX_ROWS_PER_SHEET,
+        _cap,
+    )
+
+    assert _cap("INGEST_XLSX_MAX_ROWS", _DEFAULT_MAX_ROWS_PER_SHEET) == _DEFAULT_MAX_ROWS_PER_SHEET
+    monkeypatch.setenv("INGEST_XLSX_MAX_ROWS", "99999")
+    assert _cap("INGEST_XLSX_MAX_ROWS", _DEFAULT_MAX_ROWS_PER_SHEET) == 99999

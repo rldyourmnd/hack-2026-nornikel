@@ -14,6 +14,7 @@ from typing import Any, cast
 import duckdb
 from nornikel_kg.adapters.duckdb.dictionary_loader import load_dictionaries
 from nornikel_kg.domain.analysis import ConflictDetector
+from nornikel_kg.domain.encoding import decode_text_bytes
 from nornikel_kg.domain.evidence import EvidenceSpanFactory
 from nornikel_kg.domain.ids import claim_id, fact_id, source_id_from_bytes, stable_hash
 from nornikel_kg.domain.ledger import EvidenceLedgerPacket
@@ -1281,10 +1282,7 @@ class DuckDBLedgerRepository:
         )
 
     def _parse_csv_rows(self, content: bytes) -> list[dict[str, str]]:
-        try:
-            text = content.decode("utf-8-sig")
-        except UnicodeDecodeError as exc:
-            raise SourceIngestError("CSV source must be UTF-8 encoded.") from exc
+        text, _encoding = decode_text_bytes(content)
         reader = csv.DictReader(io.StringIO(text))
         if not reader.fieldnames:
             raise SourceIngestError("CSV source has no header row.")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,11 +18,23 @@ logger = logging.getLogger(__name__)
 
 _SUPPORTED_EXTENSIONS = {".xlsx", ".xls"}
 
-# Data workbooks in the real corpus carry thousands of rows; the ledger wants
-# evidence, not a data-lake dump — capped honestly and reported in metadata.
-MAX_SHEETS = 20
-MAX_ROWS_PER_SHEET = 300
-MAX_COLUMNS = 30
+# Caps keep the ledger from swallowing a whole data-lake, but the previous
+# 20/300/30 defaults gutted real reference workbooks. Defaults are raised and
+# every cap is env-overridable (batch ingest can lift them further).
+_DEFAULT_MAX_SHEETS = 50
+_DEFAULT_MAX_ROWS_PER_SHEET = 5000
+_DEFAULT_MAX_COLUMNS = 60
+
+
+def _cap(env_name: str, default: int) -> int:
+    raw = os.getenv(env_name)
+    if raw is None:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
 
 
 class SpreadsheetDocumentParser:
@@ -42,16 +55,19 @@ class SpreadsheetDocumentParser:
         except Exception as error:
             raise ParserError(f"Spreadsheet parse failed for {filename}: {error}") from error
 
+        max_sheets = _cap("INGEST_XLSX_MAX_SHEETS", _DEFAULT_MAX_SHEETS)
+        max_rows = _cap("INGEST_XLSX_MAX_ROWS", _DEFAULT_MAX_ROWS_PER_SHEET)
+        max_columns = _cap("INGEST_XLSX_MAX_COLUMNS", _DEFAULT_MAX_COLUMNS)
         tables: list[ParsedTable] = []
         truncated_rows = 0
         for table_index, (sheet_name, frame) in enumerate(sheets.items(), start=1):
-            if table_index > MAX_SHEETS:
+            if table_index > max_sheets:
                 break
             frame = frame.fillna("")
             rows: list[ParsedTableRow] = []
             for row_index, row in enumerate(frame.itertuples(index=False), start=1):
-                if row_index > MAX_ROWS_PER_SHEET:
-                    truncated_rows += len(frame) - MAX_ROWS_PER_SHEET
+                if row_index > max_rows:
+                    truncated_rows += len(frame) - max_rows
                     break
                 cells = [
                     ParsedTableCell(
@@ -59,7 +75,7 @@ class SpreadsheetDocumentParser:
                         row_index=row_index,
                         col_index=col_index,
                     )
-                    for col_index, value in enumerate(row[:MAX_COLUMNS], start=1)
+                    for col_index, value in enumerate(row[:max_columns], start=1)
                 ]
                 if any(cell.text for cell in cells):
                     rows.append(ParsedTableRow(cells=cells, row_index=row_index))
