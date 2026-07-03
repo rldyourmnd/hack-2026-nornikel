@@ -1851,3 +1851,39 @@ a {
     font-size: 32px;
   }
 }
+
+/* Collapsible filters under the question (question-first layout) */
+.filters-details {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 14px;
+}
+
+.filters-details > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-brand-strong);
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.filters-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.filters-details > summary::before {
+  content: "▸";
+  transition: transform 0.15s;
+}
+
+.filters-details[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.filters-details .qa-filters {
+  margin-top: 14px;
+}

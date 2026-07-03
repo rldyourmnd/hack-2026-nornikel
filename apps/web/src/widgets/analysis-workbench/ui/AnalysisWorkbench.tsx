@@ -196,9 +196,17 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
     <div className="workbench-grid">
       <div className="stack">
         <Panel title="Вопрос исследователя">
-          <div className="qa-filters">
-            <div className="filter-group">
-              <label>Фильтр по источникам</label>
+          <QuestionForm
+            disabled={loading}
+            onQuestionChange={setQuestion}
+            onSubmit={handleSubmit}
+            question={question}
+          />
+          <details className="filters-details">
+            <summary>Фильтры: материал, процесс, условия, география, годы</summary>
+            <div className="qa-filters">
+              <div className="filter-group">
+                <label>Фильтр по источникам</label>
               <div className="filter-source-list">
                 {sources.map((source) => {
                   const checked = selectedSourceIds.has(source.source_id);
@@ -311,13 +319,8 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
                 Сбросить фильтры
               </button>
             </div>
-          </div>
-          <QuestionForm
-            disabled={loading}
-            onQuestionChange={setQuestion}
-            onSubmit={handleSubmit}
-            question={question}
-          />
+            </div>
+          </details>
         </Panel>
 
         <Panel title="Сводка по доказательствам">
