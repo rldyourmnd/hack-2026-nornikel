@@ -69,6 +69,9 @@ class DuckDBLedgerRepository:
         self.migrations_dir = migrations_dir or Path(__file__).resolve().parent / "migrations"
         self.evidence_factory = EvidenceSpanFactory()
         self._migrated = False
+        # Bumped on every write that changes the QA packet content; the
+        # QA service caches the packet keyed by this counter.
+        self._data_version = 0
         self._connection: duckdb.DuckDBPyConnection | None = None
 
     @contextmanager
@@ -84,6 +87,10 @@ class DuckDBLedgerRepository:
             if self._connection is None:
                 self._connection = duckdb.connect(str(self.db_path))
             yield self._connection
+
+    @property
+    def data_version(self) -> int:
+        return self._data_version
 
     def migrate(self) -> None:
         if self._migrated:
@@ -103,6 +110,7 @@ class DuckDBLedgerRepository:
         self._migrated = True
 
     def seed_synthetic_fixture(self, sample_dir: Path) -> EvidenceLedgerPacket:
+        self._data_version += 1
         self.migrate()
         csv_path = sample_dir / "mechanical_properties.csv"
         report_path = sample_dir / "nicu_aging_report.md"
@@ -157,6 +165,7 @@ class DuckDBLedgerRepository:
         content: bytes,
         title: str | None = None,
     ) -> SourceIngestResponse:
+        self._data_version += 1
         self.migrate()
         source_id = source_id_from_bytes(content)
         raw_sha256 = hashlib.sha256(content).hexdigest()
@@ -227,6 +236,7 @@ class DuckDBLedgerRepository:
 
         Returns (text_span_count, table_span_count).
         """
+        self._data_version += 1
         self.migrate()
         text_spans = 0
         table_spans = 0
@@ -645,6 +655,7 @@ class DuckDBLedgerRepository:
     def set_source_metadata(
         self, source_id: str, *, year: int | None, geography: str | None
     ) -> None:
+        self._data_version += 1
         self.migrate()
         with self._connect() as connection:
             connection.execute(
@@ -702,6 +713,69 @@ class DuckDBLedgerRepository:
                     json.dumps(verification, ensure_ascii=False, sort_keys=True),
                 ],
             )
+
+    def corpus_stats(self) -> dict[str, Any]:
+        """Aggregate corpus/graph counters for the UI overview."""
+        self.migrate()
+        with self._connect() as connection:
+            scalars = {
+                "sources": "SELECT COUNT(*) FROM sources",
+                "evidence_spans": "SELECT COUNT(*) FROM evidence_spans",
+                "measurements": "SELECT COUNT(*) FROM property_measurements",
+                "relations": "SELECT COUNT(*) FROM relations",
+                "answer_runs": "SELECT COUNT(*) FROM answer_runs",
+            }
+            stats: dict[str, Any] = {
+                name: int(connection.execute(query).fetchone()[0])  # type: ignore[index]
+                for name, query in scalars.items()
+            }
+            stats["entities_by_type"] = {
+                str(row[0]): int(row[1])
+                for row in connection.execute(
+                    "SELECT entity_type, COUNT(*) FROM entities "
+                    "GROUP BY entity_type ORDER BY COUNT(*) DESC"
+                ).fetchall()
+            }
+            stats["relations_by_type"] = {
+                str(row[0]): int(row[1])
+                for row in connection.execute(
+                    "SELECT relation_type, COUNT(*) FROM relations "
+                    "GROUP BY relation_type ORDER BY COUNT(*) DESC"
+                ).fetchall()
+            }
+            stats["security_labels"] = {
+                str(row[0]): int(row[1])
+                for row in connection.execute(
+                    "SELECT security_label, COUNT(*) FROM sources "
+                    "GROUP BY security_label ORDER BY COUNT(*) DESC"
+                ).fetchall()
+            }
+        return stats
+
+    def list_answer_runs(self, limit: int = 20) -> list[dict[str, Any]]:
+        """Most recent answer runs (audit trail for the security page)."""
+        self.migrate()
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT run_id, question, model_id, latency_ms, verification_json, created_at
+                FROM answer_runs
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                [limit],
+            ).fetchall()
+        return [
+            {
+                "run_id": str(row[0]),
+                "question": str(row[1]),
+                "answer_mode": row[2],
+                "latency_ms": row[3],
+                "verification": json.loads(str(row[4] or "{}")),
+                "created_at": str(row[5]),
+            }
+            for row in rows
+        ]
 
     def get_answer_run(self, run_id: str) -> dict[str, Any] | None:
         self.migrate()
@@ -1015,6 +1089,7 @@ class DuckDBLedgerRepository:
         )
 
     def delete_source(self, source_id: str) -> bool:
+        self._data_version += 1
         self.migrate()
         with self._connect() as connection:
             source = self._find_source(connection, source_id)

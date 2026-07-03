@@ -112,6 +112,7 @@ class DemoQAService:
         self.retrieval_service = retrieval_service
         self.answer_composer = answer_composer
         self.run_recorder = run_recorder
+        self._packet_cache: tuple[int, EvidenceLedgerPacket] | None = None
 
     def ask(self, request: AskRequest) -> AskResponse:
         started = time.perf_counter()
@@ -301,9 +302,21 @@ class DemoQAService:
         return selected_evidence + extras
 
     def _load_packet(self) -> EvidenceLedgerPacket:
-        if self.ledger_repository is not None:
-            return self.ledger_repository.load_demo_packet()
-        return self._fallback_packet()
+        if self.ledger_repository is None:
+            return self._fallback_packet()
+        # Loading 12k+ spans from DuckDB per question dominated ask latency;
+        # the packet is cached and invalidated by the ledger's data version.
+        version = getattr(self.ledger_repository, "data_version", None)
+        if (
+            version is not None
+            and self._packet_cache is not None
+            and self._packet_cache[0] == version
+        ):
+            return self._packet_cache[1]
+        packet = self.ledger_repository.load_demo_packet()
+        if version is not None:
+            self._packet_cache = (version, packet)
+        return packet
 
     def _fallback_packet(self) -> EvidenceLedgerPacket:
         evidence = self._demo_evidence()

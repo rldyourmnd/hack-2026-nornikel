@@ -77,8 +77,17 @@ class RetrievalService:
             if span.visible_text.strip()
         ]
         try:
-            self.index.delete_source_units(EVIDENCE_COLLECTION, source_id)
+            # Incremental: unchanged spans are hash-skipped inside index_units
+            # (never deleted first — a failed re-embed must not lose vectors);
+            # stale points from a re-parse are pruned afterwards.
             count = self.index.index_units(EVIDENCE_COLLECTION, units)
+            prune = getattr(self.index, "prune_source_units", None)
+            if prune is not None:
+                prune(
+                    EVIDENCE_COLLECTION,
+                    source_id,
+                    {unit.unit_id for unit in units},
+                )
             if include_entities:
                 count += self._index_entities()
             return count
@@ -97,6 +106,9 @@ class RetrievalService:
             total += self._index_entities()
         except Exception:
             logger.warning("Entity indexing failed; resolution fallback degraded", exc_info=True)
+        # Ops marker: deploy tooling greps for this exact line to know the
+        # rebuild finished (points-count heuristics fire false positives).
+        logger.info("Reindex complete: %d units", total)
         return total
 
     def _index_entities(self) -> int:

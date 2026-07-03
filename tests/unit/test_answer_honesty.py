@@ -155,3 +155,13 @@ def test_delete_source_cascades_graph_references(tmp_path: Path) -> None:
         card = repo.get_entity(entity["entity_id"])
         assert card is not None
         assert not set(card["evidence_span_ids"]) & deleted_span_ids
+
+
+def test_packet_cache_invalidated_by_data_version(
+    repository: DuckDBLedgerRepository,
+) -> None:
+    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    first = service._load_packet()
+    assert service._load_packet() is first  # cached while version unchanged
+    repository.ingest_source_bytes(filename="bump.md", content=b"new note about slag")
+    assert service._load_packet() is not first  # write invalidated the cache

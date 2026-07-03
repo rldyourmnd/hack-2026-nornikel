@@ -45,3 +45,17 @@ def test_sparse_stays_local_flat_query_weights(backend: YandexEmbeddingBackend) 
     pytest.importorskip("fastembed")
     [query] = backend.embed_sparse_query(["шлак штейн"])
     assert all(value == 1.0 for value in query.values)
+
+
+def test_query_embedding_cache_hits(backend: YandexEmbeddingBackend) -> None:
+    calls: list[str] = []
+
+    def fake_embed_many(texts: list[str], model_uri: str) -> list[list[float]]:
+        calls.extend(texts)
+        return [[1.0] for _ in texts]
+
+    backend._embed_many = fake_embed_many  # type: ignore[method-assign]
+    backend._query_cache.clear()
+    backend.embed_dense_query(["повторный вопрос"])
+    backend.embed_dense_query(["повторный вопрос"])
+    assert calls == ["повторный вопрос"]  # second call served from cache
