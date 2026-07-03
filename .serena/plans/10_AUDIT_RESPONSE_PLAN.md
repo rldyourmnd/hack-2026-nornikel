@@ -232,3 +232,49 @@ subsystem with little demo payoff:
 
 Do NOT start Tier 1 implementation until this plan is approved — deliverable is
 the plan, per the request.
+
+---
+
+## Implementation status (2026-07-04, approved and executed)
+
+Shipped (atomic commits, gated ruff+mypy+pytest, deployed + verified live):
+- **T1.1** — synthetic seeding defaults OFF; eval/tests opt in; stand cleaned
+  (seeded source + 16 `synthetic_v2` fixtures deleted → 49 real sources,
+  measurements 0, Ni-Cu no longer answers). Also surfaced+fixed that the
+  source-delete cascade left the packet cache stale until data_version bump.
+- **T1.7** — archive extraction preserves inner paths, collision-safe.
+- **T1.8** — CSV encoding cascade (utf-8-sig→utf-8→cp1251→charset-normalizer);
+  Excel caps raised + env-configurable.
+- **T1.2** — table headers preserved end-to-end (spreadsheet+docling);
+  `domain/table_facts` subject-tagged numeric-fact extraction.
+- **T1.3** — `parse_parameter_constraints` subject-bound; QA drops
+  constraint-violating evidence (honest recall).
+- **T1.4** — entity/relation vocab extended; graph rebuilt on stand — live:
+  process 317 / facility 54 / organization 83 / location 67 /
+  economic_indicator 47 / expert 79; USES_MATERIAL 269 / OPERATES_AT_CONDITION
+  225 / HAS_ECONOMIC_INDICATOR 43.
+- **T1.5** — per-sentence clickable citations + `locator` in the UI.
+- **T1.6** — `run_realcase_eval.py` (make eval-realcase); live run on the four
+  track questions: status ok, citation 1.0, 0 fabrication, 0 synthetic leak.
+- **T2.1** — machine-readable quarantine reason codes + Data-page display.
+- **T2.3** — SSRF guard on URL import (blocks private/loopback/metadata).
+- **T2.4** — /health reports active models; sidebar renders the real model.
+- **T2.7** — geography from country/affiliation signals, not language.
+- **T3** — removed the orphaned `/graph/demo-path`.
+
+Deliberately deferred (documented, low value or eval-locked):
+- **T2.5** strict question-time scope — the permissive rule is locked by
+  `q_year_phrase_is_not_a_filter` and is the correct honest-recall choice;
+  revisit only with a real-corpus gold set.
+- **T2.6** semantic/NLI support check — adds per-answer LLM latency; the
+  literal-number + citation gates already block fabrication.
+- **T2.8** LLM settings rename — cosmetic; stand `.env` already correct.
+- **T2.2** archive upload via API — batch path covers it.
+- **T3** dead `_fallback_packet` / confidence constants / label param /
+  reindex job status — harmless and test-coupled.
+
+Applies-to-new-ingestion note: table headers (T1.2) and geography (T2.7) are
+set at parse time, so they take effect for newly ingested sources; existing
+stand sources keep their prior values until re-ingested (re-enrichment does not
+re-parse). Not a regression — constraint matching degrades to honest recall on
+unheadered legacy spans.
