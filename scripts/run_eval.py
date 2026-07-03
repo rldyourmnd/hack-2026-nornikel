@@ -167,8 +167,12 @@ EVAL_QUESTIONS = [
 
 def main() -> None:
     original_db_path = os.environ.get("DUCKDB_PATH", "data/catalog.duckdb")
+    original_seed = os.environ.get("SEED_SYNTHETIC_FIXTURE")
     with tempfile.TemporaryDirectory() as temp_dir:
         os.environ["DUCKDB_PATH"] = str(Path(temp_dir) / "catalog.duckdb")
+        # The synthetic safety suite runs against the synthetic fixture, which
+        # seeding now defaults OFF — opt in explicitly for this eval process.
+        os.environ["SEED_SYNTHETIC_FIXTURE"] = "true"
         get_ledger_repository.cache_clear()
         get_qa_service.cache_clear()
         service = get_qa_service()
@@ -283,6 +287,12 @@ def main() -> None:
         if "--store" in sys.argv:
             # Persist per-question metrics into the RUNTIME ledger (not the temp
             # eval DB) so /eval/summary serves real numbers from the last run.
+            # Restore the seed flag FIRST so reopening the runtime ledger never
+            # seeds synthetic Ni-Cu into the real corpus.
+            if original_seed is None:
+                os.environ.pop("SEED_SYNTHETIC_FIXTURE", None)
+            else:
+                os.environ["SEED_SYNTHETIC_FIXTURE"] = original_seed
             os.environ["DUCKDB_PATH"] = original_db_path
             get_ledger_repository.cache_clear()
             get_qa_service.cache_clear()

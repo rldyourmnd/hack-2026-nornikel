@@ -14,6 +14,9 @@ def _client(tmp_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
     monkeypatch.setenv("SYNC_ENRICHMENT", "true")
     monkeypatch.setenv("GLINER_ENABLED", "false")
+    # Analytics tests assert against the seeded synthetic fixture; opt in
+    # explicitly now that seeding defaults OFF.
+    monkeypatch.setenv("SEED_SYNTHETIC_FIXTURE", "true")
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
     runtime.get_ingestion_service.cache_clear()

@@ -13,6 +13,9 @@ from services.api.main import create_app
 def client_with_tmp_ledger(tmp_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "catalog.duckdb"))
     monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
+    # These QA tests assert against the synthetic Ni-Cu fixture, which seeding
+    # now defaults OFF — opt in explicitly (the production default is false).
+    monkeypatch.setenv("SEED_SYNTHETIC_FIXTURE", "true")
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
     runtime.get_ingestion_service.cache_clear()
@@ -463,3 +466,19 @@ def test_qa_endpoint_source_filter_empty_result(
     payload = response.json()
     assert payload["experiments"] == []
     assert payload["answer_summary"] == []
+
+
+def test_clean_ledger_has_no_synthetic_source(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    """With seeding defaulted OFF, a fresh ledger holds no synthetic Ni-Cu."""
+    monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "catalog.duckdb"))
+    monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
+    monkeypatch.delenv("SEED_SYNTHETIC_FIXTURE", raising=False)
+    runtime.get_ledger_repository.cache_clear()
+    runtime.get_qa_service.cache_clear()
+    runtime.get_ingestion_service.cache_clear()
+    client = TestClient(create_app())
+    sources = client.get("/sources").json()["sources"]
+    assert sources == []
+    answer = client.post("/qa/ask", json={"question": "Что известно по Ni-30Cu?"}).json()
+    assert answer["experiments"] == []
+    assert not any("Synthetic" in str(s.get("title", "")) for s in sources)

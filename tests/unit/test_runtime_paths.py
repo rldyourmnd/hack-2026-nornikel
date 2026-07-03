@@ -25,6 +25,8 @@ def test_ledger_repository_first_build_is_thread_safe(
     sample_dir = Path("sample_docs/synthetic").resolve()
     monkeypatch.setenv("DUCKDB_PATH", str(db_path))
     monkeypatch.setenv("SYNTHETIC_SAMPLE_DIR", str(sample_dir))
+    # This test asserts the seeded fixture is present; seeding now defaults OFF.
+    monkeypatch.setenv("SEED_SYNTHETIC_FIXTURE", "true")
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
 
