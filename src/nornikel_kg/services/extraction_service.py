@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from pydantic import ValidationError
 
@@ -174,18 +175,34 @@ class ExtractionService:
     def process_source(self, source_id: str) -> dict[str, int]:
         """Run extraction over every text/table span of a source."""
         spans = self.repository.list_evidence_spans(source_id)
+        processable = [
+            span for span in spans if span.span_type in {"text", "text_block", "table_row"}
+        ]
+        # The budgeted per-source LLM calls dominate wall-clock for large sources
+        # and were serial (one in flight per batch worker -> only ~half the 16
+        # provider slots used). Run them CONCURRENTLY — they are I/O-bound and the
+        # gateway semaphore caps real provider concurrency — to saturate the slots.
+        llm_spans = (
+            [span for span in processable if len(span.visible_text) > 80]
+            if self.llm is not None
+            else []
+        )[: self.MAX_LLM_SPANS_PER_SOURCE]
+        llm_results: dict[str, tuple[list[EntityMention], list[ExtractedRelation]]] = {}
+        if llm_spans:
+            with ThreadPoolExecutor(max_workers=len(llm_spans)) as pool:
+                futures = {
+                    pool.submit(self._llm_extract, source_id, span): span.span_id
+                    for span in llm_spans
+                }
+                for future in as_completed(futures):
+                    llm_results[futures[future]] = future.result()
+
         entities_touched = 0
         relations_written = 0
-        llm_budget = self.MAX_LLM_SPANS_PER_SOURCE
         mentioned_entity_ids: set[str] = set()
-        for span in spans:
-            if span.span_type not in {"text", "text_block", "table_row"}:
-                continue
-            use_llm = self.llm is not None and llm_budget > 0 and len(span.visible_text) > 80
-            if use_llm:
-                llm_budget -= 1
+        for span in processable:
             entity_count, relation_count, span_entities = self._process_span(
-                source_id, span, use_llm=use_llm
+                source_id, span, llm_result=llm_results.get(span.span_id)
             )
             entities_touched += entity_count
             relations_written += relation_count
@@ -256,9 +273,13 @@ class ExtractionService:
         return relations
 
     def _process_span(
-        self, source_id: str, span: EvidenceSpan, *, use_llm: bool = True
+        self,
+        source_id: str,
+        span: EvidenceSpan,
+        *,
+        llm_result: tuple[list[EntityMention], list[ExtractedRelation]] | None = None,
     ) -> tuple[int, int, set[str]]:
-        mentions, llm_relations = self._extract_mentions(source_id, span, use_llm=use_llm)
+        mentions, llm_relations = self._extract_mentions(source_id, span, llm_result=llm_result)
         deduped: dict[tuple[str, str], EntityMention] = {}
         for mention in mentions:
             dedup_key = (mention.entity_type, canonical_key(mention.text))
@@ -329,7 +350,11 @@ class ExtractionService:
         return written
 
     def _extract_mentions(
-        self, source_id: str, span: EvidenceSpan, *, use_llm: bool = True
+        self,
+        source_id: str,
+        span: EvidenceSpan,
+        *,
+        llm_result: tuple[list[EntityMention], list[ExtractedRelation]] | None = None,
     ) -> tuple[list[EntityMention], list[ExtractedRelation]]:
         text = span.visible_text[: self.MAX_SPAN_CHARS]
         mentions = self._dictionary_mentions(text)
@@ -342,8 +367,8 @@ class ExtractionService:
             except Exception:
                 logger.warning("GLiNER extraction failed for %s", span.span_id, exc_info=True)
 
-        if self.llm is not None and use_llm:
-            llm_mentions, llm_relations = self._llm_extract(source_id, span)
+        if llm_result is not None:
+            llm_mentions, llm_relations = llm_result
             mentions.extend(llm_mentions)
             relations.extend(llm_relations)
         return mentions, relations
