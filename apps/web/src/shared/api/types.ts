@@ -212,7 +212,6 @@ export type HealthStatus = {
   status: string;
   version: string;
   llm_enabled: boolean;
-  answer_model: string;
-  extraction_model: string;
+  llm_configured: boolean;
   embedding_backend: string;
 };

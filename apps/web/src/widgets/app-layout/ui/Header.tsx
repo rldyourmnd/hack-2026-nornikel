@@ -15,11 +15,11 @@ export function Header() {
       .catch(() => setHealth(null));
   }, []);
 
-  const modelLabel = health
-    ? health.llm_enabled
-      ? health.answer_model
+  const runtimeLabel = health
+    ? health.llm_enabled && health.llm_configured
+      ? "LLM-профиль включён"
       : "детерминированный режим"
-    : "Yandex AI Studio";
+    : "статус недоступен";
 
   return (
     <header className="site-header">
@@ -28,9 +28,7 @@ export function Header() {
           <img alt="Научный клубок" className="brand-logo" src="/brand/logo.png" />
           <span className="brand-name">Научный клубок</span>
         </Link>
-        <span className="team-badge">
-          Команда: Попугайчики <span aria-hidden>🦜</span>
-        </span>
+        <span className="team-badge">R&D Knowledge Graph</span>
 
         <nav className={`site-nav ${open ? "open" : ""}`} aria-label="Разделы">
           {NAV_ITEMS.map(({ to, label, Icon }) => (
@@ -47,7 +45,7 @@ export function Header() {
         </nav>
 
         <div className="header-right">
-          <span className="hackathon-badge" title={`Модель ответов: ${modelLabel}`}>
+          <span className="hackathon-badge" title={`Runtime: ${runtimeLabel}`}>
             Норникель Hackathon
           </span>
           <button

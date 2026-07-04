@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 97407f4
+Last commit: 4e4a038
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
