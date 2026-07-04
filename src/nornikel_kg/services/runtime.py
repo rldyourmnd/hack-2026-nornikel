@@ -81,7 +81,7 @@ def get_qa_service() -> EvidenceQAService:
 def get_retrieval_service() -> RetrievalService:
     backend_kind = os.getenv("EMBEDDING_BACKEND", "off").lower()
     index = None
-    if backend_kind in {"local", "fake", "yandex"}:
+    if backend_kind in {"local", "fake", "yandex", "openai"}:
         from nornikel_kg.adapters.qdrant_index import QdrantVectorIndex
 
         if backend_kind == "local":
@@ -92,6 +92,10 @@ def get_retrieval_service() -> RetrievalService:
             from nornikel_kg.adapters.embeddings import YandexEmbeddingBackend
 
             embeddings = YandexEmbeddingBackend()
+        elif backend_kind == "openai":
+            from nornikel_kg.adapters.embeddings import OpenAIEmbeddingBackend
+
+            embeddings = OpenAIEmbeddingBackend()
         else:
             from nornikel_kg.adapters.embeddings import FakeEmbeddingBackend
 
