@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 import json
+import os
 import re
 import threading
 from collections.abc import Iterator
@@ -269,8 +270,17 @@ class DuckDBLedgerRepository:
                     )
                     self._insert_evidence_span(connection, span)
                     text_spans += 1
+                # Cap table rows per source: a 1000+-row data-table xls otherwise
+                # emits 1000+ spans, each embedded + indexed + fact-extracted, which
+                # dominates the batch (measured: Ag_Tabs 1211 rows ~464s). Headers +
+                # lead rows carry the entities; MAX_TABLE_ROWS_PER_SOURCE bounds it.
+                max_table_rows = int(os.getenv("MAX_TABLE_ROWS_PER_SOURCE", "400"))
                 for table in parsed.tables:
+                    if max_table_rows and table_spans >= max_table_rows:
+                        break
                     for row in table.rows:
+                        if max_table_rows and table_spans >= max_table_rows:
+                            break
                         # Spreadsheets carry the worksheet name in the locator so
                         # Excel provenance reads sheet:Summary:table_001:row_003;
                         # PDF/DOCX tables keep the flat table_{i}:row_{j} form.
