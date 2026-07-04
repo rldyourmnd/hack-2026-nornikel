@@ -95,6 +95,36 @@ def test_gateway_parses_json_and_charges_budget(monkeypatch: pytest.MonkeyPatch)
     assert "extraction" in captured["metadata"]["tags"]
 
 
+def test_gateway_sends_yandex_project_header(monkeypatch: pytest.MonkeyPatch) -> None:
+    gateway = LiteLLMGateway(
+        _settings(
+            llm_api_base="https://ai.api.cloud.yandex.net/v1",
+            llm_api_key="ya-key",
+            llm_extraction_model="openai/gpt://folder/model",
+        )
+    )
+    monkeypatch.setenv("YANDEX_FOLDER_ID", "folder")
+    captured: dict[str, Any] = {}
+
+    def stub_completion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _completion_response(json.dumps({"ok": True}))
+
+    import litellm
+
+    monkeypatch.setattr(litellm, "completion", stub_completion)
+    gateway.generate_json(
+        task="extraction",
+        system_prompt="system",
+        user_prompt="user",
+        json_schema=SCHEMA,
+    )
+
+    assert captured["api_base"] == "https://ai.api.cloud.yandex.net/v1"
+    assert captured["api_key"] == "ya-key"
+    assert captured["extra_headers"] == {"OpenAI-Project": "folder"}
+
+
 def test_gateway_rejects_unrepairable_output(monkeypatch: pytest.MonkeyPatch) -> None:
     gateway = LiteLLMGateway(_settings())
     import litellm
