@@ -18,6 +18,13 @@ Owner workflow: rldyour plugins/skills.
   Plans amend `.serena/newproj/nornikel-kg-search/18_IMPLEMENTATION_SPEC.md`.
 
 ## LLM Constraints (hackathon rules)
+- **2026-07-04 REALITY: the organizer Yandex key is DENIED (403 for both LLM and
+  embeddings).** Working stand stack = **dataeyes** LLM (`openai/gpt-5.4-mini`
+  extraction + `openai/gpt-5.5` answers) + **`EMBEDDING_BACKEND=openai`** (dense via
+  dataeyes `/embeddings`, `text-embedding-3-small` 1536-dim, `QDRANT_COLLECTION=evidence_oai`).
+  The gateway is dual-provider with failover on any error. Set `JURY_ALLOWED_LABELS`
+  on the stand (visibility floor). Yandex block below is the intended-but-currently-blocked
+  config; see `.serena/memories/hackathon-llm-constraints` + `docs/deployment/full-ingest-runbook.md`.
 - **Primary provider (2026-07-03): Yandex AI Studio, organizer-provided** (API key +
   folder, no spend limits) — OpenAI-compatible base `https://ai.api.cloud.yandex.net/v1`
   through the LiteLLM SDK. Stand models (2026-07-04): `deepseek-v4-flash` for

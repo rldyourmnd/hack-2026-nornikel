@@ -40,7 +40,7 @@ def test_openai_embedding_requires_creds(monkeypatch: pytest.MonkeyPatch) -> Non
         OpenAIEmbeddingBackend(api_key="k", model="m")
 
 
-def test_openai_embedding_rejects_short_or_misaligned_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_openai_embedding_rejects_short_batch(monkeypatch: pytest.MonkeyPatch) -> None:
     """A 200 with fewer/misaligned items must raise (retried, then loud) — never
     silently return a short vector list that unindexes or misaligns a source."""
     backend = OpenAIEmbeddingBackend(api_base="https://x/v1", api_key="k", model="m")

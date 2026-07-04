@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from nornikel_kg.domain.evidence import EvidenceSpanFactory
 from nornikel_kg.domain.models import AskRequest
 from nornikel_kg.domain.security import SourceLabelPolicy
@@ -49,3 +51,15 @@ def test_ask_request_labels_only_narrow_deployment_policy() -> None:
         AskRequest(question="q", allowed_labels=["public", "internal", "confidential"])
     )
     assert widened.allowed_labels == frozenset({"public", "internal"})
+
+
+def test_coerce_source_label_validates_and_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nornikel_kg.domain.security import coerce_source_label
+
+    assert coerce_source_label("public") == "public"
+    assert coerce_source_label("  Internal ") == "internal"
+    assert coerce_source_label(None) == "internal"  # env default
+    monkeypatch.setenv("DEFAULT_SOURCE_LABEL", "confidential")
+    assert coerce_source_label(None) == "confidential"
+    with pytest.raises(ValueError):
+        coerce_source_label("bogus")
