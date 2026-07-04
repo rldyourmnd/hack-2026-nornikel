@@ -24,11 +24,13 @@ export function Header() {
   return (
     <header className="site-header">
       <div className="site-header-inner">
-        <Link className="brand" to="/" onClick={() => setOpen(false)}>
-          <img alt="Научный клубок" className="brand-logo" src="/brand/logo.png" />
-          <span className="brand-name">Научный клубок</span>
-        </Link>
-        <span className="team-badge">R&D Knowledge Graph</span>
+        <div className="header-brand-group">
+          <Link className="brand" to="/" onClick={() => setOpen(false)}>
+            <img alt="Научный клубок" className="brand-logo" src="/brand/logo.png" />
+            <span className="brand-name">Научный клубок</span>
+          </Link>
+          <span className="team-badge">R&D Knowledge Graph</span>
+        </div>
 
         <nav className={`site-nav ${open ? "open" : ""}`} aria-label="Разделы">
           {NAV_ITEMS.map(({ to, label, Icon }) => (
