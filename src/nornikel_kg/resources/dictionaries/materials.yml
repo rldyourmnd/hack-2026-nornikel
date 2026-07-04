@@ -1,23 +1,4 @@
 materials:
-  - material_id: mat_nicu_30
-    canonical_name: Ni-30Cu
-    alloy_family: Ni-Cu
-    aliases: ["Ni30Cu", "Ni-Cu 30", "никель-медь 30", "сплав Ni-30Cu"]
-    composition:
-      - element: Ni
-        amount: 70
-        unit: wt%
-      - element: Cu
-        amount: 30
-        unit: wt%
-  - material_id: mat_cuni_30
-    canonical_name: CuNi30
-    alloy_family: Cu-Ni
-    aliases: ["Cu-30Ni", "МН30", "copper-nickel 30"]
-  - material_id: mat_nicrmo_demo
-    canonical_name: Ni-Cr-Mo demo alloy
-    alloy_family: Ni-Cr-Mo
-    aliases: ["NiCrMo-D", "никель-хром-молибденовый сплав"]
   - material_id: mat_slag
     canonical_name: Шлак
     alloy_family: pyrometallurgy

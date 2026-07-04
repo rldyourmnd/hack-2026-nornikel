@@ -17,25 +17,11 @@ class EvidenceLedgerPacket:
 
     @property
     def measurement(self) -> PropertyMeasurement:
-        return next(
-            (
-                measurement
-                for measurement in self.measurements
-                if measurement.experiment_id == "exp_nicu_aging_700c_8h"
-            ),
-            self.measurements[0],
-        )
+        return self.measurements[0]
 
     @property
     def effect(self) -> EffectClaim:
-        return next(
-            (
-                effect
-                for effect in self.effects
-                if effect.experiment_id == "exp_nicu_aging_700c_8h"
-            ),
-            self.effects[0],
-        )
+        return self.effects[0]
 
     @property
     def source_title(self) -> str:
