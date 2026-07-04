@@ -642,3 +642,20 @@ Response to an owner-agent backend review; all 11 items closed, gates green
   containment >=0.6 + negation-parity) -> `AnswerVerification.semantic_unsupported_count`, and its
   numeric check now validates fact-backed sentences against ledger fact numbers instead of skipping.
 - **Migrations are now `001`..`004`** (glob-runner, each idempotent, re-executed every process start).
+
+
+## Part 2 — UI integration of the hardening wave (2026-07-04, PR #2 `f9bfb09`)
+
+Merged to `main` and deployed (deploy.yml success; verified live on the stand).
+- **Gap relevance-gating** (`qa_service._gaps_for_question` + new `_gap_is_relevant`): gaps are
+  filtered by prefix-overlap relevance to the question, so an off-topic question no longer surfaces
+  an unrelated packet gap (an earlier live check saw a slag question pull the synthetic Ni-Cu
+  conductivity gap). Gold `q_gap_nicu_conductivity` still surfaces its gap (eval verified).
+- **Frontend integration** (`apps/web`): `EvaluationDashboard` shows `numeric_mismatch_count` +
+  the new `semantic_unsupported_count` (`AskResponse.verification` type extended);
+  `uploadArchive()` client + the Data-page upload routes `.zip/.rar/.zip.NNN` to
+  `POST /sources/upload-archive` (reports ingested-member count); `AnalysisWorkbench` has an
+  «Внешний режим (жюри)» toggle that sends `allowed_labels=[public,internal]` (narrow-only) on the ask.
+- Already-integrated before Part 2 (no change): sheet-provenance display (`EvidenceList` renders
+  `locator.sheet`), real-case eval (`scripts/run_realcase_eval.py`).
+- Gates: `make ci` green (pytest 190 passed + frontend build), `make eval` status=ok 17/17.
