@@ -54,6 +54,10 @@ def main() -> None:
     parser.add_argument("--limit", type=int, default=0, help="Max files to ingest (0 = all)")
     parser.add_argument("--max-mb", type=float, default=20.0, help="Per-file size cap")
     parser.add_argument(
+        "--sample", type=int, default=0,
+        help="Ingest a random N-file sample of the corpus (0 = all); seeded, reproducible",
+    )
+    parser.add_argument(
         "--workers", type=int, default=1,
         help="Concurrent ingest workers — overlaps LLM/embedding I/O across files "
         "(Docling parsing is serialized internally for thread-safety)",
@@ -110,6 +114,13 @@ def main() -> None:
                 print(f"TOO_LARGE ({size_mb:.0f}MB) {path.name[:70]}")
                 continue
             to_ingest.append(path)
+
+        if args.sample and len(to_ingest) > args.sample:
+            import random
+
+            # Seeded so a re-run picks the SAME sample (idempotent dedup resumes it).
+            to_ingest = sorted(random.Random(1234).sample(to_ingest, args.sample))
+            print(f"Sampled {len(to_ingest)} of {len(files)} files seen (seed=1234)")
 
         total = len(to_ingest)
         stats_lock = threading.Lock()
