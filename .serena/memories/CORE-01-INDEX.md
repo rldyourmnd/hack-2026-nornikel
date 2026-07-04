@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 0f693aa fix(web): eager load landing illustrations
+Last commit: 3a3b13e feat(web): polish full graph workbench UI
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -59,6 +59,11 @@ knowledge-graph submission.
 - QA answer synthesis retries transient LLM provider failures once before
   deterministic fallback, preserving the no-500 guarantee while avoiding empty
   answers from one-off provider empty completions.
+- The web workbench now exposes the full graph through professional jury-facing
+  pages: Search uses the mine-water literature-review jury question with
+  loading/evidence/source-color UI; Graph renders an optimized neighborhood
+  instead of the entire graph; Data, Analytics, Compare, Experts, and Quality
+  read live API stats/entities/runs from the deployed graph.
 
 ## Invariants
 

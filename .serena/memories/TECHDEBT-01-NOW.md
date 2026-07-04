@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 00d092a fix(qa): retry transient answer synthesis failures
+Last commit: 3a3b13e feat(web): polish full graph workbench UI
 Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; scripts/run_realcase_eval.py; src/nornikel_kg/
 Area: TECHDEBT
 -->
