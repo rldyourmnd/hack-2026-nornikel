@@ -115,6 +115,30 @@ def test_spreadsheet_parser_produces_table_rows(tmp_path: Path) -> None:
     assert spans[0].locator.get("sheet") == "Sheet"
 
 
+def test_spreadsheet_skips_title_row_for_header(tmp_path: Path) -> None:
+    """A single-cell title row above the table must not become the header."""
+    openpyxl = pytest.importorskip("openpyxl")
+    pytest.importorskip("pandas")
+    from nornikel_kg.adapters.spreadsheet import SpreadsheetDocumentParser
+
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.append(["Отчёт по извлечению 2023"])  # single-cell title row
+    sheet.append(["Материал", "Извлечение", "Единица"])  # the real header
+    sheet.append(["штейн", "95.2", "%"])
+    target = tmp_path / "titled.xlsx"
+    workbook.save(target)
+
+    parsed = SpreadsheetDocumentParser().parse(
+        content=target.read_bytes(), filename="titled.xlsx"
+    )
+    assert parsed.tables
+    assert parsed.tables[0].header[:3] == ["Материал", "Извлечение", "Единица"]
+    # the header is attached to the data cells, not the title
+    row_texts = [row.text for table in parsed.tables for row in table.rows]
+    assert any("штейн" in text and "Извлечение" in text for text in row_texts)
+
+
 def test_legacy_doc_without_text_raises_parser_error() -> None:
     with pytest.raises(ParserError):
         LegacyDocParser().parse(content=b"\xd0\xcf\x11\xe0 garbage", filename="old.doc")

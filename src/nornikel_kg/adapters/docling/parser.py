@@ -116,9 +116,28 @@ class DoclingDocumentParser:
         grid = getattr(getattr(table_item, "data", None), "grid", None)
         if not grid:
             return [], []
-        header = [str(getattr(cell, "text", "") or "").strip() for cell in grid[0]] if grid else []
+        # Header = first grid row with >=2 non-empty cells (skip title/blank rows).
+        header_idx = next(
+            (
+                i
+                for i, r in enumerate(grid)
+                if sum(bool(str(getattr(c, "text", "") or "").strip()) for c in r) >= 2
+            ),
+            next(
+                (
+                    i
+                    for i, r in enumerate(grid)
+                    if any(str(getattr(c, "text", "") or "").strip() for c in r)
+                ),
+                0,
+            ),
+        )
+        header = (
+            [str(getattr(cell, "text", "") or "").strip() for cell in grid[header_idx]]
+            if grid else []
+        )
         rows: list[ParsedTableRow] = []
-        for row_index, grid_row in enumerate(grid[1:], start=2):
+        for row_index, grid_row in enumerate(grid[header_idx + 1 :], start=header_idx + 2):
             cells = [
                 ParsedTableCell(
                     text=str(getattr(cell, "text", "") or "").strip(),
