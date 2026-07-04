@@ -54,6 +54,7 @@ class ParsedTable:
     table_index: int
     page: int | None = None
     header: list[str] = field(default_factory=list)
+    sheet_name: str | None = None
 
 
 @dataclass(frozen=True)

@@ -86,7 +86,13 @@ class SpreadsheetDocumentParser:
                     rows.append(ParsedTableRow(cells=cells, row_index=row_index, headers=header))
             if rows:
                 tables.append(
-                    ParsedTable(rows=rows, table_index=table_index, page=None, header=header)
+                    ParsedTable(
+                        rows=rows,
+                        table_index=table_index,
+                        page=None,
+                        header=header,
+                        sheet_name=str(sheet_name),
+                    )
                 )
                 logger.debug("Sheet %s: %d rows", sheet_name, len(rows))
         metadata: dict[str, Any] = {"sheet_count": len(sheets)}

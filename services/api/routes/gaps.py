@@ -24,7 +24,7 @@ def analyze_gaps() -> dict[str, object]:
     materials = dictionary_entities("material")
     regimes = dictionary_entities("regime")
     properties = dictionary_entities("property")
-    packet = repository.load_demo_packet()
+    packet = repository.load_evidence_packet()
     return GapAnalyzer().coverage(
         materials=materials,
         regimes=regimes,

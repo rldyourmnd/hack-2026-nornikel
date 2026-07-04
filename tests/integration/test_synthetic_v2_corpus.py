@@ -45,7 +45,7 @@ def test_csv_and_markdown_corpus_ingests_offline(service: IngestionService) -> N
     assert ingested == 7  # 4 csv + 3 md
 
     # Seeded conflicts must be detected from the ingested measurements alone.
-    packet = service.repository.load_demo_packet()
+    packet = service.repository.load_evidence_packet()
     conflict_types = {str(conflict.get("type")) for conflict in packet.conflicts}
     assert "method_mismatch" in conflict_types
     assert "contradictory_direction" in conflict_types

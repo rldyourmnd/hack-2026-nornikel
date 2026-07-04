@@ -8,7 +8,7 @@ from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository
 from nornikel_kg.domain.analysis import ConflictDetector
 from nornikel_kg.domain.answer_claims import sentence_numbers_supported
 from nornikel_kg.domain.models import AskRequest, ExperimentRow
-from nornikel_kg.services.qa_service import DemoQAService
+from nornikel_kg.services.qa_service import EvidenceQAService
 
 _CSV = (
     b"experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
@@ -30,7 +30,7 @@ def test_irrelevant_question_returns_honest_empty(
     repository: DuckDBLedgerRepository,
 ) -> None:
     """No arbitrary experiments[:5] with confidence=high (audit C1)."""
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     response = service.ask(
         AskRequest(question="Какие меры безопасности при работе с печью?")
     )
@@ -42,7 +42,7 @@ def test_chemical_formula_is_not_a_material_token(
     repository: DuckDBLedgerRepository,
 ) -> None:
     """«CO2» must not become an unknown material blanking the answer (audit C4)."""
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     assert service._requested_material_tokens("Как CO2 влияет на процесс?") == set()
     assert service._requested_material_tokens("выход Al2O3 при обжиге") == set()
     assert service._requested_material_tokens("твердость Ni-30Cu") == {"ni30cu"}
@@ -51,7 +51,7 @@ def test_chemical_formula_is_not_a_material_token(
 def test_alias_material_token_resolves_ru_designation(
     repository: DuckDBLedgerRepository,
 ) -> None:
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     response = service.ask(AskRequest(question="Что известно по МН30?"))
     assert any("CuNi30" in e.material_name for e in response.experiments)
 
@@ -160,7 +160,7 @@ def test_delete_source_cascades_graph_references(tmp_path: Path) -> None:
 def test_packet_cache_invalidated_by_data_version(
     repository: DuckDBLedgerRepository,
 ) -> None:
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     first = service._load_packet()
     assert service._load_packet() is first  # cached while version unchanged
     repository.ingest_source_bytes(filename="bump.md", content=b"new note about slag")
@@ -172,7 +172,7 @@ def test_question_time_scope_keeps_unknown_year_sources(
 ) -> None:
     """«за последние 5 лет» from question text must not blank sources whose
     year is unknown; an explicit UI year filter stays strict."""
-    service = DemoQAService(ledger_repository=repository, run_recorder=repository)
+    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     derived = service.ask(
         AskRequest(question="Что известно по Ni-30Cu за последние 5 лет?")
     )

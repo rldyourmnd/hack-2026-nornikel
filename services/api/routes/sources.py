@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import os
+import re
+import tempfile
 from pathlib import Path
 from typing import Annotated
 
@@ -11,6 +13,7 @@ from pydantic import BaseModel, HttpUrl
 from nornikel_kg.adapters.duckdb.repositories import SourceIngestError
 from nornikel_kg.domain.models import EvidenceSpan, SourceIngestResponse, SourceSummary
 from nornikel_kg.ports.parser import ParserError
+from nornikel_kg.services.archive_expansion import expand_archives
 from nornikel_kg.services.retrieval_service import EVIDENCE_COLLECTION
 from nornikel_kg.services.runtime import (
     get_ingestion_service,
@@ -170,8 +173,8 @@ async def upload_source(file: Annotated[UploadFile, File(...)]) -> SourceIngestR
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
-                f"Unsupported MIME type '{content_type}'. "
-                "Allowed: text/csv, text/plain, text/markdown, text/x-markdown."
+                f"Unsupported MIME type '{content_type}' for {extension}. "
+                f"Allowed: {', '.join(sorted(allowed_mime_types))}."
             ),
         )
 
@@ -193,6 +196,112 @@ async def upload_source(file: Annotated[UploadFile, File(...)]) -> SourceIngestR
         )
     except SourceIngestError as error:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+
+
+_ARCHIVE_SUFFIXES = (".zip", ".rar")
+_MULTIPART_ARCHIVE_RE = re.compile(r"\.zip\.\d{3}$", re.IGNORECASE)
+
+
+def _is_archive_filename(filename: str) -> bool:
+    lowered = filename.lower()
+    return lowered.endswith(_ARCHIVE_SUFFIXES) or bool(_MULTIPART_ARCHIVE_RE.search(lowered))
+
+
+class ArchiveMemberResult(BaseModel):
+    member_path: str
+    status: str  # ingested | skipped | failed
+    reason_code: str | None = None
+    source_id: str | None = None
+
+
+class ArchiveUploadResponse(BaseModel):
+    archive: str
+    member_count: int
+    ingested_count: int
+    members: list[ArchiveMemberResult]
+    expansion_stats: dict[str, int]
+
+
+@router.post("/upload-archive")
+async def upload_archive(file: Annotated[UploadFile, File(...)]) -> ArchiveUploadResponse:
+    """Ingest every supported file inside a .zip / .rar / multipart .zip.NNN archive.
+
+    Reuses the batch expand_archives (zip-slip guard, multipart reassembly) and
+    returns a per-member manifest. Each extracted member is held to the same
+    per-file size cap as a direct upload, so a decompression bomb cannot exceed
+    the configured limit per file.
+    """
+    filename = _validated_upload_filename(file.filename)
+    if not _is_archive_filename(filename):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported archive type. Allowed: .zip, .rar, .zip.NNN",
+        )
+    max_upload_bytes = _max_upload_bytes()
+    if file.size is not None and file.size > max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Archive is too large. Maximum allowed size is {max_upload_bytes} bytes.",
+        )
+    content = await file.read(max_upload_bytes + 1)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded archive is empty.",
+        )
+    if len(content) > max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Archive is too large. Maximum allowed size is {max_upload_bytes} bytes.",
+        )
+
+    ingestion = get_ingestion_service()
+    members: list[ArchiveMemberResult] = []
+    ingested = 0
+    with tempfile.TemporaryDirectory(prefix="upload_archive_") as work_dir_name:
+        work_dir = Path(work_dir_name)
+        archive_path = work_dir / Path(filename).name
+        archive_path.write_bytes(content)
+        extracted, stats = expand_archives([archive_path], work_dir)
+        for member in sorted(extracted):
+            member_path = str(member.relative_to(work_dir))
+            member_bytes = member.read_bytes()
+            if len(member_bytes) > max_upload_bytes:
+                members.append(
+                    ArchiveMemberResult(
+                        member_path=member_path,
+                        status="skipped",
+                        reason_code="member_too_large",
+                    )
+                )
+                continue
+            try:
+                response = ingestion.ingest_upload(filename=member.name, content=member_bytes)
+            except (SourceIngestError, ParserError) as error:
+                members.append(
+                    ArchiveMemberResult(
+                        member_path=member_path,
+                        status="failed",
+                        reason_code=str(error)[:160],
+                    )
+                )
+                continue
+            members.append(
+                ArchiveMemberResult(
+                    member_path=member_path,
+                    status="ingested",
+                    source_id=response.source.source_id,
+                )
+            )
+            ingested += 1
+
+    return ArchiveUploadResponse(
+        archive=Path(filename).name,
+        member_count=len(members),
+        ingested_count=ingested,
+        members=members,
+        expansion_stats={key: int(value) for key, value in stats.items()},
+    )
 
 
 class ImportUrlRequest(BaseModel):

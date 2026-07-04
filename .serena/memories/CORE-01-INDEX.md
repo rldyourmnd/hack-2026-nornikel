@@ -131,7 +131,7 @@ resilience/perf/UI follow-on, all verified against the working tree at `327f47c`
   `RetrievalService.index_source` uses this contract and `reindex_all()` logs the completion
   marker above. `DuckDBLedgerRepository` gained a `_data_version` counter (bumped on
   ingest/delete/`set_source_metadata` writes) and a public `data_version` property;
-  `DemoQAService._load_packet` caches the loaded `EvidenceLedgerPacket` keyed by that version
+  `EvidenceQAService._load_packet` caches the loaded `EvidenceLedgerPacket` keyed by that version
   (a full ~12k-span scan per `ask` previously dominated latency).
 
 - **Quota-aware LLM gateway + shared rate limiter** (`6feff7a`): new `src/nornikel_kg/adapters/ratelimit.py`
@@ -148,7 +148,7 @@ resilience/perf/UI follow-on, all verified against the working tree at `327f47c`
   Manager does not cover AI Studio — raising the 10 RPS embeddings quota needs a support ticket
   from the cloud owner (organizers).
 - **Honest "medium" confidence for verified answers without a structured match** (`ef812af`):
-  `services/qa_service.py:DemoQAService._confidence_level` gained `summary`/`selected_evidence`
+  `services/qa_service.py:EvidenceQAService._confidence_level` gained `summary`/`selected_evidence`
   parameters; a citation-verified answer with no structured-experiment match now returns
   `"medium"` (previously `"low"`, indistinguishable from "nothing found").
 - **Answer prompt demands synthesis over table references** (`24282f1`):
@@ -202,7 +202,7 @@ deployed to anymore" banner (all four files verified read at `HEAD` in this sync
 
 One further commit, `4ede8c5` ("feat(qa): natural-language time scopes from question text",
 current `HEAD`), added `domain.dates.parse_time_scope` and wired it into
-`DemoQAService._effective_filters`/`_apply_scope_to_evidence` so a question's own temporal
+`EvidenceQAService._effective_filters`/`_apply_scope_to_evidence` so a question's own temporal
 phrasing (e.g. «за последние 5 лет») now gates the evidence packet as well as the experiment
 table, permissively for derived scopes and strictly for explicit UI filters — see
 `mem:ARCH-01-EVIDENCE-MVP` and `mem:TECHDEBT-01-NOW` for the verified detail. `uv run pytest`
@@ -373,3 +373,14 @@ Update this index whenever a new durable memory is added, renamed, split, or del
   up from 154 passed / 5 skipped).
 - `uv run ruff check .` / `uv run mypy`: both clean at `ee84a6b` (live-run verified, ruff "All
   checks passed!", mypy "Success: no issues found in 79 source files").
+
+
+## Wave 11 backend hardening (2026-07-04, `feat/backend-hardening`)
+
+- New API route `POST /sources/upload-archive` (`services/api/routes/sources.py`): ingests every
+  supported member of a `.zip`/`.rar`/multipart `.zip.NNN` archive (reuses `expand_archives`,
+  per-member size cap) and returns a manifest.
+- DuckDB migrations are now `001_init` / `002_graph` / `003_numeric_facts` / `004_graph_indexes`
+  (all idempotent, glob-run per process start).
+- Renames: `DemoQAService` -> `EvidenceQAService`, `load_demo_packet` -> `load_evidence_packet`
+  (updated throughout these memories). See `mem:ARCH-01-EVIDENCE-MVP` "Backend Hardening" for full detail.

@@ -16,7 +16,7 @@ and the archive/legacy-format ingestion wave (E).
 ## Source Of Truth
 
 - `scripts/run_eval.py`: hardcoded `EVAL_QUESTIONS` list, now **17** question dicts (verified via
-  `grep -c '"question_id":'`), run against the live `DemoQAService` and a temp-copy DuckDB
+  `grep -c '"question_id":'`), run against the live `EvidenceQAService` and a temp-copy DuckDB
   ledger, covering only the synthetic corpus.
 - `eval/gold_questions.yml`, `eval/adversarial_questions.yml`, `eval/expected_spans.yml`: legacy
   YAML fixtures kept in the repo but not referenced by any code path.
@@ -76,7 +76,7 @@ Test modules added the prior sync (unchanged this sync):
   requirement, doc/query model-URI split, `embed_dense` order preservation, sparse-stays-local
   flat query weights (`pytest.importorskip("fastembed")`-gated), query-embedding cache hits.
 - `tests/unit/test_answer_honesty.py` gained one function,
-  `test_packet_cache_invalidated_by_data_version`: verifies `DemoQAService._load_packet()` caches
+  `test_packet_cache_invalidated_by_data_version`: verifies `EvidenceQAService._load_packet()` caches
   while `data_version` is unchanged and invalidates after a ledger-mutating write.
 - `tests/integration/test_analytics_api.py` gained two functions, `test_stats_overview_counters`
   and `test_answer_runs_audit_trail`: route-level coverage for the new
@@ -166,3 +166,19 @@ change.
 - `make eval-realcase`: `scripts/run_realcase_eval.py` — 4 track-question honesty check against
   a live API; not part of CI (needs a running stand).
 - `docker compose config`: Compose validation.
+
+
+## Wave 11 backend-hardening tests (2026-07-04)
+
+New tests (all green; `make ci` exit 0, `make eval` status=ok 17/17, pytest 189 passed):
+- `tests/integration/test_duckdb_ledger.py::test_arbitrary_csv_ingests_as_generic_table_with_facts`
+  (generic CSV -> table-row spans + persisted `numeric_facts`).
+- `tests/unit/test_corpus_formats.py` — sheet-provenance locator assertion (needs the `ingest`
+  extra / `pytest.importorskip`) + `test_cp1251_markdown_decodes_cyrillic`.
+- `tests/integration/test_ingest_api.py::test_upload_archive_ingests_members` /
+  `::test_upload_archive_rejects_non_archive`.
+- `tests/unit/test_source_label_policy.py::test_ask_request_labels_only_narrow_deployment_policy`
+  (narrow-only invariant).
+- `tests/unit/test_claim_verifier.py` — negation-flip flagged + semantically-supported accepted.
+Eval `numeric_mismatch_count` stays 0 after the verifier stopped blanket-skipping fact-backed
+sentences (validated against ledger fact numbers).

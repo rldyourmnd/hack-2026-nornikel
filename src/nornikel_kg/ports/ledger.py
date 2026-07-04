@@ -7,7 +7,7 @@ from nornikel_kg.domain.models import EvidenceSpan, SourceIngestResponse, Source
 
 
 class EvidenceLedgerPort(Protocol):
-    def load_demo_packet(self) -> EvidenceLedgerPacket:
+    def load_evidence_packet(self) -> EvidenceLedgerPacket:
         """Return the currently indexed evidence packet."""
 
     def list_sources(self) -> list[SourceSummary]:

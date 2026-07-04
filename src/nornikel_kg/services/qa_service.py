@@ -8,19 +8,16 @@ from typing import Any, Literal, Protocol
 
 from nornikel_kg.domain.answer_claims import ClaimVerifier
 from nornikel_kg.domain.dates import parse_time_scope
-from nornikel_kg.domain.evidence import EvidenceSpanFactory
-from nornikel_kg.domain.ids import claim_id, fact_id, source_id_from_bytes, stable_hash
+from nornikel_kg.domain.ids import stable_hash
 from nornikel_kg.domain.ledger import EvidenceLedgerPacket
 from nornikel_kg.domain.models import (
     AnswerSentence,
     AskFilters,
     AskRequest,
     AskResponse,
-    EffectClaim,
     EvidenceSpan,
     ExperimentRow,
     GraphPath,
-    PropertyMeasurement,
 )
 from nornikel_kg.domain.quantities import (
     facts_satisfy_constraints,
@@ -98,13 +95,12 @@ class RunRecorderProtocol(Protocol):
         """source_id -> {year, geography} for scope filters."""
 
 
-class DemoQAService:
+class EvidenceQAService:
     """Deterministic evidence-led QA over the current DuckDB ledger packet."""
 
     def __init__(
         self,
         *,
-        evidence_factory: EvidenceSpanFactory | None = None,
         claim_verifier: ClaimVerifier | None = None,
         source_label_policy: SourceLabelPolicy | None = None,
         ledger_repository: EvidenceLedgerPort | None = None,
@@ -112,7 +108,6 @@ class DemoQAService:
         answer_composer: AnswerComposerProtocol | None = None,
         run_recorder: RunRecorderProtocol | None = None,
     ) -> None:
-        self.evidence_factory = evidence_factory or EvidenceSpanFactory()
         self.claim_verifier = claim_verifier or ClaimVerifier()
         self.source_label_policy = source_label_policy or SourceLabelPolicy()
         self.ledger_repository = ledger_repository
@@ -121,17 +116,27 @@ class DemoQAService:
         self.run_recorder = run_recorder
         self._packet_cache: tuple[int, EvidenceLedgerPacket] | None = None
 
+    def _effective_label_policy(self, request: AskRequest) -> SourceLabelPolicy:
+        """Per-request label policy: a narrow-only intersection with the
+        deployment policy (a request can never widen visibility)."""
+        if request.allowed_labels is None:
+            return self.source_label_policy
+        requested = frozenset(request.allowed_labels)
+        narrowed = frozenset(self.source_label_policy.allowed_labels & requested)
+        return SourceLabelPolicy(allowed_labels=narrowed)
+
     def ask(self, request: AskRequest) -> AskResponse:
         started = time.perf_counter()
         packet = self._load_packet()
         filters = self._effective_filters(request)
+        label_policy = self._effective_label_policy(request)
         # Explicit UI year filters are strict; a scope derived from question
         # text keeps unknown-year sources (not knowing the year is not the
         # same as being out of range).
         strict_years = request.filters is not None and (
             request.filters.year_from is not None or request.filters.year_to is not None
         )
-        allowed_evidence = self.source_label_policy.filter_spans(packet.evidence)
+        allowed_evidence = label_policy.filter_spans(packet.evidence)
         allowed_span_ids = {span.span_id for span in allowed_evidence}
         unmatched_material_tokens = self._unmatched_material_tokens(
             question=request.question,
@@ -158,6 +163,7 @@ class DemoQAService:
             request=request,
             allowed_evidence=allowed_evidence,
             selected_evidence=selected_evidence,
+            label_policy=label_policy,
         )
         selected_evidence = self._apply_scope_to_evidence(
             selected_evidence, filters, keep_unknown_year=not strict_years
@@ -184,10 +190,20 @@ class DemoQAService:
                 run_id=run_id,
                 source_context=self._source_context(packet, selected_evidence),
             )
+        fact_number_text = " ".join(
+            part
+            for experiment in selected_experiments
+            for part in (
+                str(experiment.measurement.get("value", "")),
+                str(experiment.measurement.get("delta_value", "")),
+                experiment.regime_summary,
+            )
+        )
         verification = self.claim_verifier.verify(
             answer_summary=summary,
             evidence_spans=selected_evidence,
-            source_label_policy=self.source_label_policy,
+            source_label_policy=label_policy,
+            fact_number_text=fact_number_text,
         )
         conflicts = self._conflicts_for_question(
             request.question, packet.conflicts, selected_experiments
@@ -337,19 +353,41 @@ class DemoQAService:
         constraints = parse_parameter_constraints(question)
         if not constraints:
             return evidence
+        # Prefer persisted numeric facts (SQL) over re-parsing span text on every
+        # query; spans predating the fact layer fall back to span parsing.
+        facts_by_span = self._numeric_facts_by_span([span.span_id for span in evidence])
         kept: list[EvidenceSpan] = []
         for span in evidence:
-            facts: list[tuple[str, float, str]] = []
-            for fact in parse_labeled_span_facts(span.visible_text):
-                # The constrained subject may be the row subject (tall tables)
-                # or the column property (wide tables) — match either.
-                facts.append((fact.subject, fact.value, fact.unit))
-                if fact.prop and fact.prop != fact.subject:
-                    facts.append((fact.prop, fact.value, fact.unit))
+            facts = facts_by_span.get(span.span_id)
+            if facts is None:
+                facts = []
+                for fact in parse_labeled_span_facts(span.visible_text):
+                    # The constrained subject may be the row subject (tall tables)
+                    # or the column property (wide tables) — match either.
+                    facts.append((fact.subject, fact.value, fact.unit))
+                    if fact.prop and fact.prop != fact.subject:
+                        facts.append((fact.prop, fact.value, fact.unit))
             if not facts or facts_satisfy_constraints(facts, constraints):
                 kept.append(span)
         # Never blank the packet on constraint filtering alone.
         return kept or evidence
+
+    def _numeric_facts_by_span(
+        self, span_ids: list[str]
+    ) -> dict[str, list[tuple[str, float, str]]]:
+        """Persisted numeric facts keyed by span, via the ledger repository.
+
+        Optional capability: a repository without the fact layer (or with no
+        facts for these spans) yields nothing and the caller re-parses span text.
+        """
+        getter = getattr(self.ledger_repository, "list_numeric_facts_for_spans", None)
+        if getter is None or not span_ids:
+            return {}
+        try:
+            result = getter(span_ids)
+        except Exception:  # fact lookup is an optimization, never breaks answers
+            return {}
+        return result if isinstance(result, dict) else {}
 
     def _apply_numeric_constraints(
         self,
@@ -381,6 +419,7 @@ class DemoQAService:
         request: AskRequest,
         allowed_evidence: list[EvidenceSpan],
         selected_evidence: list[EvidenceSpan],
+        label_policy: SourceLabelPolicy,
     ) -> list[EvidenceSpan]:
         if self.retrieval_service is None:
             return selected_evidence
@@ -395,7 +434,7 @@ class DemoQAService:
         try:
             retrieved_ids = self.retrieval_service.retrieve_span_ids(
                 question=request.question,
-                allowed_labels=sorted(self.source_label_policy.allowed_labels),
+                allowed_labels=sorted(label_policy.allowed_labels),
                 source_ids=source_ids,
             )
         except Exception:  # retrieval degradation is silent by contract
@@ -410,7 +449,17 @@ class DemoQAService:
 
     def _load_packet(self) -> EvidenceLedgerPacket:
         if self.ledger_repository is None:
-            return self._fallback_packet()
+            # No repository configured: return an empty packet, not synthetic
+            # demo data. ask() degrades to an honest low-confidence empty answer.
+            return EvidenceLedgerPacket(
+                evidence=[],
+                measurements=[],
+                effects=[],
+                experiments=[],
+                source_titles={},
+                conflicts=[],
+                gaps=[],
+            )
         # Loading 12k+ spans from DuckDB per question dominated ask latency;
         # the packet is cached and invalidated by the ledger's data version.
         version = getattr(self.ledger_repository, "data_version", None)
@@ -420,141 +469,10 @@ class DemoQAService:
             and self._packet_cache[0] == version
         ):
             return self._packet_cache[1]
-        packet = self.ledger_repository.load_demo_packet()
+        packet = self.ledger_repository.load_evidence_packet()
         if version is not None:
             self._packet_cache = (version, packet)
         return packet
-
-    def _fallback_packet(self) -> EvidenceLedgerPacket:
-        evidence = self._demo_evidence()
-        primary_span = evidence[0]
-        measurement_id = fact_id(
-            "measurement",
-            {
-                "experiment_id": "exp_nicu_aging_700c_8h",
-                "property": "vickers_hardness",
-                "value": 245,
-                "unit": "HV",
-            },
-        )
-        measurement = PropertyMeasurement(
-            measurement_id=measurement_id,
-            experiment_id="exp_nicu_aging_700c_8h",
-            property_id="prop_vickers_hardness",
-            property_name="Твердость по Виккерсу",
-            value=245,
-            unit="HV",
-            original_value="245 HV",
-            method="Vickers HV10",
-            supporting_span_ids=[primary_span.span_id],
-        )
-        effect = EffectClaim(
-            effect_id=claim_id(
-                {
-                    "experiment_id": measurement.experiment_id,
-                    "direction": "increase",
-                    "supporting_span_ids": measurement.supporting_span_ids,
-                }
-            ),
-            experiment_id=measurement.experiment_id,
-            material_id="mat_nicu_30",
-            regime_id="reg_aging_700c_8h_air",
-            property_id=measurement.property_id,
-            direction="increase",
-            baseline_measurement_id="meas_nicu_baseline_hv",
-            treated_measurement_id=measurement.measurement_id,
-            delta_value=35,
-            delta_unit="HV",
-            qualitative_summary="Старение при 700 C в течение 8 ч повысило твердость Ni-30Cu.",
-            supporting_span_ids=[primary_span.span_id],
-        )
-        experiment = ExperimentRow(
-            source_id=primary_span.source_id,
-            experiment_id=measurement.experiment_id,
-            material_id=effect.material_id,
-            material_name="Ni-30Cu",
-            regime_id=effect.regime_id,
-            regime_summary="Старение, 700 C, 8 ч, воздух",
-            property_id=measurement.property_id,
-            property_name=measurement.property_name,
-            measurement={
-                "value": measurement.value,
-                "unit": measurement.unit,
-                "delta_value": effect.delta_value,
-                "delta_unit": effect.delta_unit,
-                "effect_direction": effect.direction,
-            },
-            evidence_ids=[primary_span.span_id],
-            validation_status=measurement.validation_status,
-        )
-        return EvidenceLedgerPacket(
-            evidence=evidence,
-            measurements=[measurement],
-            effects=[effect],
-            experiments=[experiment],
-            source_titles={primary_span.source_id: "Synthetic Ni-Cu aging report"},
-            conflicts=[
-                {
-                    "conflict_group_id": "conf_nicu_hardness_method",
-                    "type": "method_mismatch",
-                    "summary": (
-                        "Похожий режим в соседнем источнике измерен другим методом, "
-                        "поэтому не сравнивается напрямую с HV."
-                    ),
-                    "supporting_span_ids": [evidence[1].span_id],
-                }
-            ],
-            gaps=[
-                {
-                    "gap_id": "gap_nicu_conductivity_aging_700c",
-                    "type": "missing_measurement",
-                    "description": (
-                        "Для Ni-Cu после старения 700 C / 8 ч нет валидированного "
-                        "измерения электропроводности в доступном ledger."
-                    ),
-                    "near_miss_evidence_span_ids": [primary_span.span_id],
-                }
-            ],
-        )
-
-    def _demo_evidence(self) -> list[EvidenceSpan]:
-        source_id = source_id_from_bytes(b"synthetic_nicu_aging_report_v1")
-        table_text = (
-            "Sample Ni-30Cu-A | Aging 700 C | 8 h | air | Vickers hardness HV10 | "
-            "baseline 210 HV | aged 245 HV"
-        )
-        conflict_text = (
-            "A neighboring Cu-Ni trial used Rockwell hardness after 700 C aging; "
-            "method mismatch prevents direct numeric comparison."
-        )
-        return [
-            self.evidence_factory.create(
-                source_id=source_id,
-                artifact_type="table",
-                parser_profile="synthetic_fixture_v1",
-                artifact_locator="tables/mechanical_properties.csv",
-                span_type="table_row",
-                visible_text=table_text,
-                page=2,
-                stable_locator="table_001:row_003",
-                validation_status="validated_rule",
-                evidence_confidence=1.0,
-                security_label="internal",
-            ),
-            self.evidence_factory.create(
-                source_id=source_id,
-                artifact_type="text",
-                parser_profile="synthetic_fixture_v1",
-                artifact_locator="reports/nicu_aging_report.md",
-                span_type="text",
-                visible_text=conflict_text,
-                page=3,
-                stable_locator="section:discussion:block_002",
-                validation_status="validated_rule",
-                evidence_confidence=0.98,
-                security_label="internal",
-            ),
-        ]
 
     def _select_experiments(
         self,
@@ -564,7 +482,7 @@ class DemoQAService:
         request_filters: AskFilters | None = None,
     ) -> list[ExperimentRow]:
         normalized_question = self._normalize(question)
-        requested_property = self._requested_property(question)
+        requested_property = self._requested_property(question, experiments)
         has_request_filters = self._has_filter_constraints(request_filters)
         requested_material_tokens = self._requested_material_tokens(question)
         known_material_tokens = self._known_material_tokens(experiments)
@@ -600,7 +518,7 @@ class DemoQAService:
                 continue
             if requested_property and not self._property_matches(requested_property, experiment):
                 continue
-            score = self._score_experiment(question, experiment)
+            score = self._score_experiment(question, experiment, requested_property)
             if score > 0:
                 scored.append((score, experiment))
         if not scored and not requested_property:
@@ -710,30 +628,30 @@ class DemoQAService:
         normalized_value = self._normalize(value)
         return any(candidate in normalized_value for candidate in candidates)
 
-    def _score_experiment(self, question: str, experiment: ExperimentRow) -> int:
+    def _score_experiment(
+        self, question: str, experiment: ExperimentRow, requested_property: str | None
+    ) -> int:
         normalized_question = self._normalize(question)
         score = 0
         material = self._normalize_material_token(experiment.material_name)
         if material and material in normalized_question:
             score += 6
-        elif self._mentions_nicu_family(normalized_question) and self._is_nicu_family(experiment):
+        elif self._shared_material_element_count(normalized_question, experiment) >= 2:
+            # Same alloy system (e.g. a «Ni-Cu» question vs a Ni-30Cu row) even
+            # when the exact alloy code was not spelled out.
             score += 4
-        if self._property_matches("hardness", experiment) and (
-            "hardness" in normalized_question or "тверд" in normalized_question
-        ):
+        if requested_property and self._property_matches(requested_property, experiment):
             score += 5
         if self._regime_matches(normalized_question, experiment):
             score += 4
-        if "700" in normalized_question and "700" in experiment.regime_summary:
-            score += 1
-        if (
-            "8" in normalized_question or "8h" in normalized_question
-        ) and "8" in experiment.regime_summary:
-            score += 1
+        score += self._shared_numeric_bonus(normalized_question, experiment.regime_summary)
         return score
 
-    def _requested_property(self, question: str) -> str | None:
+    def _requested_property(
+        self, question: str, experiments: list[ExperimentRow] | None = None
+    ) -> str | None:
         normalized_question = self._normalize(question)
+        # Canonical property families recognised by surface synonyms.
         if "электропровод" in normalized_question or "conductivity" in normalized_question:
             return "conductivity"
         if "vickers" in normalized_question or "виккер" in normalized_question:
@@ -742,6 +660,12 @@ class DemoQAService:
             return "rockwell_hardness"
         if "hardness" in normalized_question or "тверд" in normalized_question:
             return "hardness"
+        # Generic: any property actually present in the corpus whose name
+        # appears in the question (no domain hardcode beyond the synonyms).
+        for experiment in experiments or []:
+            property_name = self._normalize(experiment.property_name)
+            if property_name and property_name in normalized_question:
+                return experiment.property_id.lower()
         return None
 
     def _property_matches(self, requested_property: str, experiment: ExperimentRow) -> bool:
@@ -755,13 +679,18 @@ class DemoQAService:
 
     def _regime_matches(self, normalized_question: str, experiment: ExperimentRow) -> bool:
         regime = self._normalize(experiment.regime_summary)
+        # Canonical regime families by synonym.
         if ("старен" in normalized_question or "aging" in normalized_question) and (
             "старен" in regime or "aging" in regime
         ):
             return True
-        return ("отжиг" in normalized_question or "anneal" in normalized_question) and (
+        if ("отжиг" in normalized_question or "anneal" in normalized_question) and (
             "отжиг" in regime or "anneal" in regime
-        )
+        ):
+            return True
+        # Generic: a specific content word shared between the question and the
+        # regime summary (any process, not only aging/annealing).
+        return bool(self._shared_content_tokens(normalized_question, regime))
 
     def _evidence_for_experiments(
         self,
@@ -873,7 +802,7 @@ class DemoQAService:
             matched_material = requested_tokens.intersection(
                 self._known_material_tokens(selected_experiments)
             )
-            if matched_material or self._requested_property(question):
+            if matched_material or self._requested_property(question, selected_experiments):
                 return "high"
             return "medium"
         if summary and selected_evidence:
@@ -924,7 +853,7 @@ class DemoQAService:
     ) -> list[dict[str, object]]:
         if unmatched_material_tokens:
             return []
-        requested_property = self._requested_property(question)
+        requested_property = self._requested_property(question, selected_experiments)
         if not selected_experiments or requested_property == "conductivity":
             return packet_gaps
         return []
@@ -944,10 +873,7 @@ class DemoQAService:
                     experiments=experiments,
                 )
             ]
-        return [
-            "Показать режимы старения Ni-Cu с измеренной электропроводностью",
-            "Сравнить Ni-30Cu и CuNi30 по твердости после отжига",
-        ]
+        return self._corpus_follow_ups(question, experiments)
 
     def _normalize(self, value: str) -> str:
         return value.lower().replace("ё", "е").replace("-", "")
@@ -1037,11 +963,48 @@ class DemoQAService:
         value_text = f"{value:g}" if isinstance(value, int | float) else str(value)
         return f"{value_text} {unit}".strip()
 
-    def _mentions_nicu_family(self, normalized_question: str) -> bool:
-        return "nicu" in normalized_question or "cuni" in normalized_question or (
-            "ni" in normalized_question and "cu" in normalized_question
-        )
+    _NUMERIC_TOKEN_RE = re.compile(r"\d+")
+    _CONTENT_TOKEN_RE = re.compile(r"[a-zа-я]{5,}")
 
-    def _is_nicu_family(self, experiment: ExperimentRow) -> bool:
+    def _shared_material_element_count(
+        self, normalized_question: str, experiment: ExperimentRow
+    ) -> int:
+        """How many alloy elements the question and the material share.
+
+        Generic replacement for the old Ni-Cu-family literals: two shared
+        elements mark the same alloy system for any material in the ontology.
+        """
         material = self._normalize_material_token(experiment.material_name)
-        return "ni" in material and "cu" in material
+        material_elements = {element for element in MATERIAL_ELEMENTS if element in material}
+        question_elements = {
+            element for element in MATERIAL_ELEMENTS if element in normalized_question
+        }
+        return len(material_elements & question_elements)
+
+    def _shared_numeric_bonus(self, normalized_question: str, regime_summary: str) -> int:
+        """Bonus for regime numbers (temperature, duration, …) the question
+        repeats — corpus-generic, replacing the literal 700/8 checks."""
+        regime = self._normalize(regime_summary)
+        question_numbers = set(self._NUMERIC_TOKEN_RE.findall(normalized_question))
+        regime_numbers = set(self._NUMERIC_TOKEN_RE.findall(regime))
+        return min(len(question_numbers & regime_numbers), 2)
+
+    def _shared_content_tokens(self, normalized_question: str, normalized_text: str) -> set[str]:
+        question_tokens = set(self._CONTENT_TOKEN_RE.findall(normalized_question))
+        text_tokens = set(self._CONTENT_TOKEN_RE.findall(normalized_text))
+        return question_tokens & text_tokens
+
+    def _corpus_follow_ups(self, question: str, experiments: list[ExperimentRow]) -> list[str]:
+        """Follow-ups derived from corpus materials not named in the question
+        (replaces the hardcoded Ni-Cu follow-up templates)."""
+        normalized_question = self._normalize(question)
+        suggestions: list[str] = []
+        for material in sorted({experiment.material_name.strip() for experiment in experiments}):
+            if not material:
+                continue
+            token = self._normalize_material_token(material)
+            if token and token not in normalized_question:
+                suggestions.append(f"Что было с {material}?")
+            if len(suggestions) >= 2:
+                break
+        return suggestions

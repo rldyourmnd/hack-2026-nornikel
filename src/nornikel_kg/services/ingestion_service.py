@@ -8,6 +8,7 @@ from typing import Protocol
 
 from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository, SourceIngestError
 from nornikel_kg.domain.dates import extract_year, extract_year_from_filename
+from nornikel_kg.domain.encoding import decode_text_bytes
 from nornikel_kg.domain.geography import detect_geography
 from nornikel_kg.domain.ids import source_id_from_bytes, stable_hash
 from nornikel_kg.domain.models import SourceIngestResponse
@@ -113,7 +114,7 @@ class IngestionService:
             self._set_year_geography(
                 response.source.source_id,
                 filename,
-                content.decode("utf-8", errors="ignore")[:3000],
+                decode_text_bytes(content)[0][:3000],
             )
             extraction_counters = self._run_extraction(response.source.source_id)
             self._record_run(

@@ -86,12 +86,12 @@ accuracy/SOTA overhaul (waves A-D) and archive/legacy-format ingestion (wave E).
 - `DuckDBLedgerRepository.set_source_metadata(source_id, *, year, geography)`: unchanged
   `COALESCE` update contract from the prior sync.
 - `DuckDBLedgerRepository.source_metadata() -> dict[str, dict[str, Any]]`: unchanged; consumed
-  by `DemoQAService._apply_source_scope` via the `RunRecorderProtocol` contract.
+  by `EvidenceQAService._apply_source_scope` via the `RunRecorderProtocol` contract.
 - `DuckDBLedgerRepository._connect()`: still a persistent-connection `@contextmanager` behind a
   class `_db_lock` (`threading.RLock`), unchanged from `f40ab72` — the process holding this
   repository instance holds the DuckDB file lock for its lifetime.
-- `DuckDBLedgerRepository.load_demo_packet`: returns the full evidence/graph packet used by
-  `DemoQAService`; returns an empty `EvidenceLedgerPacket` when the ledger is empty.
+- `DuckDBLedgerRepository.load_evidence_packet`: returns the full evidence/graph packet used by
+  `EvidenceQAService`; returns an empty `EvidenceLedgerPacket` when the ledger is empty.
 - `load_dictionaries(connection, dictionaries_dir=None)` / `resolve_alias(connection, mention)`:
   dictionary seeding/lookup helpers.
 - Entity/relation repository methods: `find_entity`, `get_entity`, `create_entity`,
@@ -265,7 +265,7 @@ parser/indexing code that writes new fact types.
   doc/query model-URI split, embed-order preservation, sparse-stays-local flat query weights,
   query-embedding cache hits.
 - `tests/unit/test_answer_honesty.py` gained `test_packet_cache_invalidated_by_data_version`:
-  verifies `DemoQAService._load_packet()` returns the same cached object while `data_version` is
+  verifies `EvidenceQAService._load_packet()` returns the same cached object while `data_version` is
   unchanged and a fresh one after a ledger-mutating write.
 - `make eval`: `scripts/run_eval.py` — 17 hardcoded questions against the synthetic corpus only.
 - `tests/unit/test_dictionary_loader.py`, `tests/unit/test_scope_and_constraints.py`: dictionary
@@ -286,3 +286,19 @@ parser/indexing code that writes new fact types.
 - `tests/integration/test_graph_api.py`, `tests/integration/test_ingest_api.py`,
   `tests/integration/test_analytics_api.py` (new, 7 test functions: `/gaps`, `/graph/timeline`,
   `/sources/{id}/enrich`, `/sources/reindex-all`): API-level coverage.
+
+
+## Persisted numeric-fact layer + generic CSV (wave 11, 2026-07-04, `c458d9e`)
+
+- Migration `003_numeric_facts.sql` adds table `numeric_facts(fact_id PK, source_id, span_id,
+  subject, subject_label, prop, value DOUBLE, unit, qualifier, confidence, validation_status,
+  created_at)` + indexes on source_id/span_id/subject/prop. Facts are extracted from every headered
+  table row at ingest (`_insert_numeric_facts`, called from `ingest_parsed_document` and the generic
+  CSV path); `_delete_source_records` cascades `numeric_facts`. `list_numeric_facts_for_spans(span_ids)`
+  returns `{span_id: [(subject-or-prop, value, unit), ...]}` for QA constraint filtering, replacing
+  per-query span-text re-parsing (span-parse kept as a fallback for pre-migration corpora).
+- Arbitrary CSVs lacking `CSV_REQUIRED_COLUMNS` now ingest as generic header-labeled table-row spans
+  instead of raising; the strict experiment CSV path (`property_measurements`/`effect_claims`) is
+  unchanged. Migrations are now `001_init` / `002_graph` / `003_numeric_facts` / `004_graph_indexes`.
+- `DuckDBLedgerRepository.graph_neighborhood(entity_id, depth, limit)` (wave 11, `623176a`) is the
+  new depth-limited SQL neighborhood used by `GraphService` (indexes from `004`).

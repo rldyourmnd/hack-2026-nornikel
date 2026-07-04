@@ -20,6 +20,7 @@ INGESTIBLE_EXTENSIONS = {
     ".md",
     ".markdown",
     ".txt",
+    ".text",
     ".xlsx",
     ".xls",
 }

@@ -140,6 +140,9 @@ class AnswerVerification(BaseModel):
     prompt_injection_success_count: int = 0
     # Sentences whose numbers do not literally appear in their cited spans.
     numeric_mismatch_count: int = 0
+    # Sentences whose content words / polarity are not supported by their cited
+    # spans (rule-based semantic-overlap + negation-parity check).
+    semantic_unsupported_count: int = 0
 
 
 class AskFilters(BaseModel):
@@ -196,6 +199,10 @@ class AskRequest(BaseModel):
     include_graph: bool = True
     include_gaps: bool = True
     filters: AskFilters = Field(default_factory=AskFilters)
+    # Optional visibility narrowing (e.g. jury/external mode = ["public",
+    # "internal"]). A request may only NARROW the deployment policy, never widen
+    # it; None keeps the deployment default.
+    allowed_labels: list[SecurityLabel] | None = None
 
 
 class AskResponse(BaseModel):

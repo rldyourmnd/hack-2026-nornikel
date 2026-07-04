@@ -29,6 +29,7 @@ from nornikel_kg.domain.models import (
     SourceSummary,
 )
 from nornikel_kg.domain.normalization import canonical_key
+from nornikel_kg.domain.table_facts import extract_facts_from_row
 from nornikel_kg.ports.parser import ParsedDocument
 
 
@@ -157,7 +158,7 @@ class DuckDBLedgerRepository:
                 connection.execute("ROLLBACK")
                 raise
 
-        return self.load_demo_packet()
+        return self.load_evidence_packet()
 
     def ingest_source_bytes(
         self,
@@ -186,20 +187,34 @@ class DuckDBLedgerRepository:
                     security_label="internal",
                 )
                 if document_type == "table":
-                    rows = self._parse_csv_rows(content)
-                    self._insert_csv_rows(
-                        connection,
-                        source_id=source_id,
-                        rows=rows,
-                        artifact_locator=filename,
-                        parser_profile="csv_table_v1",
-                        first_row_ordinal=1,
-                    )
+                    headers, data_rows = self._read_csv_table(content)
+                    if self._csv_is_experiment_schema(headers):
+                        rows = self._parse_csv_rows(content)
+                        self._insert_csv_rows(
+                            connection,
+                            source_id=source_id,
+                            rows=rows,
+                            artifact_locator=filename,
+                            parser_profile="csv_table_v1",
+                            first_row_ordinal=1,
+                        )
+                    else:
+                        # Arbitrary CSV (no experiment schema): keep it as a
+                        # generic headered table — row spans + numeric facts —
+                        # instead of rejecting it.
+                        self._insert_generic_csv_table(
+                            connection,
+                            source_id=source_id,
+                            headers=headers,
+                            data_rows=data_rows,
+                            artifact_locator=filename,
+                            parser_profile="csv_generic_v1",
+                        )
                 else:
                     evidence_count = self._insert_markdown_evidence(
                         connection,
                         source_id=source_id,
-                        text=content.decode("utf-8", errors="replace"),
+                        text=decode_text_bytes(content)[0],
                         artifact_locator=filename,
                         parser_profile="markdown_text_v1",
                         selected_lines=(),
@@ -287,7 +302,22 @@ class DuckDBLedgerRepository:
                     text_spans += 1
                 for table in parsed.tables:
                     for row in table.rows:
-                        row_locator = f"table_{table.table_index}:row_{row.row_index}"
+                        # Spreadsheets carry the worksheet name in the locator so
+                        # Excel provenance reads sheet:Summary:table_001:row_003;
+                        # PDF/DOCX tables keep the flat table_{i}:row_{j} form.
+                        if table.sheet_name:
+                            row_locator = (
+                                f"sheet:{table.sheet_name}:"
+                                f"table_{table.table_index:03d}:row_{row.row_index:03d}"
+                            )
+                            locator_extra: dict[str, object] | None = {
+                                "sheet": table.sheet_name,
+                                "row": row.row_index,
+                                "headers": list(table.header),
+                            }
+                        else:
+                            row_locator = f"table_{table.table_index}:row_{row.row_index}"
+                            locator_extra = None
                         row_span = self.evidence_factory.create(
                             source_id=source_id,
                             artifact_type="table",
@@ -300,8 +330,16 @@ class DuckDBLedgerRepository:
                             validation_status="validated_rule",
                             evidence_confidence=0.97,
                             security_label=security_label,
+                            locator_extra=locator_extra,
                         )
                         self._insert_evidence_span(connection, row_span)
+                        self._insert_numeric_facts(
+                            connection,
+                            source_id=source_id,
+                            span_id=row_span.span_id,
+                            headers=[cell.header for cell in row.cells],
+                            values=[cell.text for cell in row.cells],
+                        )
                         table_spans += 1
                 connection.execute("COMMIT")
             except Exception:
@@ -894,6 +932,90 @@ class DuckDBLedgerRepository:
             for row in rows
         ]
 
+    def graph_neighborhood(
+        self, entity_id: str, *, depth: int, limit: int
+    ) -> dict[str, Any] | None:
+        """Bounded k-hop neighborhood via indexed per-hop SQL.
+
+        Replaces full-graph NetworkX materialization: the frontier is expanded
+        one hop at a time over the indexed relations table (both edge
+        directions), stopping at `depth` hops or once `limit` nodes are reached.
+        Returns the reached node data + induced edges, or None if the focus
+        entity is unknown. Ranking/trimming to `limit` stays in GraphService so
+        the response shape and ordering are unchanged.
+        """
+        self.migrate()
+        depth = max(1, min(depth, 2))
+        with self._connect() as connection:
+            focus = connection.execute(
+                "SELECT 1 FROM entities WHERE entity_id = ?", [entity_id]
+            ).fetchone()
+            if focus is None:
+                return None
+            reached: set[str] = {entity_id}
+            frontier: set[str] = {entity_id}
+            for _hop in range(depth):
+                if not frontier:
+                    break
+                placeholders = ", ".join("?" for _ in frontier)
+                neighbor_rows = connection.execute(
+                    f"""
+                    SELECT dst_entity_id AS neighbor FROM relations
+                    WHERE src_entity_id IN ({placeholders})
+                    UNION
+                    SELECT src_entity_id AS neighbor FROM relations
+                    WHERE dst_entity_id IN ({placeholders})
+                    """,
+                    list(frontier) + list(frontier),
+                ).fetchall()
+                neighbors = {str(row[0]) for row in neighbor_rows}
+                frontier = neighbors - reached
+                reached |= neighbors
+                if len(reached) >= limit:
+                    break
+            node_placeholders = ", ".join("?" for _ in reached)
+            node_rows = connection.execute(
+                f"""
+                SELECT entity_id, entity_type, canonical_name, evidence_span_ids_json
+                FROM entities WHERE entity_id IN ({node_placeholders})
+                """,
+                list(reached),
+            ).fetchall()
+            real_ids = [str(row[0]) for row in node_rows]
+            edge_rows: list[Any] = []
+            if real_ids:
+                edge_placeholders = ", ".join("?" for _ in real_ids)
+                edge_rows = connection.execute(
+                    f"""
+                    SELECT relation_id, src_entity_id, relation_type, dst_entity_id,
+                           evidence_span_ids_json
+                    FROM relations
+                    WHERE src_entity_id IN ({edge_placeholders})
+                      AND dst_entity_id IN ({edge_placeholders})
+                    """,
+                    real_ids + real_ids,
+                ).fetchall()
+        nodes = [
+            {
+                "entity_id": str(row[0]),
+                "entity_type": str(row[1]),
+                "canonical_name": str(row[2]),
+                "evidence_count": len(json.loads(str(row[3] or "[]"))),
+            }
+            for row in node_rows
+        ]
+        edges = [
+            {
+                "relation_id": str(row[0]),
+                "src_entity_id": str(row[1]),
+                "relation_type": str(row[2]),
+                "dst_entity_id": str(row[3]),
+                "evidence_count": len(json.loads(str(row[4] or "[]"))),
+            }
+            for row in edge_rows
+        ]
+        return {"nodes": nodes, "edges": edges}
+
     def list_entities_by_type(
         self, entity_types: list[str], limit: int = 24
     ) -> list[dict[str, Any]]:
@@ -954,7 +1076,7 @@ class DuckDBLedgerRepository:
             for row in rows
         ]
 
-    def load_demo_packet(self) -> EvidenceLedgerPacket:
+    def load_evidence_packet(self) -> EvidenceLedgerPacket:
         self.migrate()
         with self._connect() as connection:
             source_rows = connection.execute(
@@ -1243,6 +1365,7 @@ class DuckDBLedgerRepository:
                 "SELECT span_id FROM evidence_spans WHERE source_id = ?", [source_id]
             ).fetchall()
         }
+        connection.execute("DELETE FROM numeric_facts WHERE source_id = ?", [source_id])
         connection.execute("DELETE FROM property_measurements WHERE source_id = ?", [source_id])
         connection.execute("DELETE FROM effect_claims WHERE source_id = ?", [source_id])
         connection.execute("DELETE FROM evidence_spans WHERE source_id = ?", [source_id])
@@ -1357,6 +1480,129 @@ class DuckDBLedgerRepository:
         if not rows:
             raise SourceIngestError("CSV source has no data rows.")
         return rows
+
+    def _read_csv_table(self, content: bytes) -> tuple[list[str], list[list[str]]]:
+        """Decode a CSV into (header, data rows) with the shared cascade decoder."""
+        text, _encoding = decode_text_bytes(content)
+        all_rows = list(csv.reader(io.StringIO(text)))
+        if not all_rows:
+            raise SourceIngestError("CSV source has no header row.")
+        headers = [str(header).strip() for header in all_rows[0]]
+        data_rows = [row for row in all_rows[1:] if any(str(cell).strip() for cell in row)]
+        return headers, data_rows
+
+    def _csv_is_experiment_schema(self, headers: list[str]) -> bool:
+        return CSV_REQUIRED_COLUMNS.issubset({header.strip() for header in headers})
+
+    def _insert_generic_csv_table(
+        self,
+        connection: duckdb.DuckDBPyConnection,
+        *,
+        source_id: str,
+        headers: list[str],
+        data_rows: list[list[str]],
+        artifact_locator: str,
+        parser_profile: str,
+    ) -> int:
+        """Ingest an arbitrary CSV as header-labeled table-row spans + facts."""
+        clean_headers = [header.strip() for header in headers]
+        inserted = 0
+        for ordinal, values in enumerate(data_rows, start=1):
+            labeled = " | ".join(
+                f"{header}: {str(value).strip()}"
+                for header, value in zip(clean_headers, values, strict=False)
+                if header and str(value).strip()
+            )
+            if not labeled:
+                continue
+            span = self.evidence_factory.create(
+                source_id=source_id,
+                artifact_type="table",
+                parser_profile=parser_profile,
+                artifact_locator=artifact_locator,
+                span_type="table_row",
+                visible_text=labeled,
+                page=None,
+                stable_locator=f"table_001:row_{ordinal:03d}",
+                validation_status="validated_rule",
+                evidence_confidence=0.95,
+                security_label="internal",
+            )
+            self._insert_evidence_span(connection, span)
+            self._insert_numeric_facts(
+                connection,
+                source_id=source_id,
+                span_id=span.span_id,
+                headers=clean_headers,
+                values=[str(value) for value in values],
+            )
+            inserted += 1
+        if inserted == 0:
+            raise SourceIngestError("CSV source has no extractable rows.")
+        return inserted
+
+    def _insert_numeric_facts(
+        self,
+        connection: duckdb.DuckDBPyConnection,
+        *,
+        source_id: str,
+        span_id: str,
+        headers: list[str],
+        values: list[str],
+    ) -> int:
+        """Persist subject-tagged numeric facts extracted from one table row."""
+        facts = extract_facts_from_row(list(headers), [str(value) for value in values])
+        for fact in facts:
+            identifier = "nf_" + stable_hash(
+                [span_id, fact.subject, fact.prop, repr(fact.value), fact.unit], 20
+            )
+            connection.execute(
+                """
+                INSERT INTO numeric_facts
+                    (fact_id, source_id, span_id, subject, subject_label, prop, value,
+                     unit, qualifier, confidence, validation_status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (fact_id) DO NOTHING
+                """,
+                [
+                    identifier,
+                    source_id,
+                    span_id,
+                    fact.subject,
+                    fact.subject_label,
+                    fact.prop,
+                    fact.value,
+                    fact.unit,
+                    "",
+                    1.0,
+                    "candidate",
+                ],
+            )
+        return len(facts)
+
+    def list_numeric_facts_for_spans(
+        self, span_ids: list[str]
+    ) -> dict[str, list[tuple[str, float, str]]]:
+        """span_id -> [(subject-or-property, value, unit), ...] for QA constraints."""
+        if not span_ids:
+            return {}
+        self.migrate()
+        placeholders = ", ".join("?" for _ in span_ids)
+        result: dict[str, list[tuple[str, float, str]]] = {}
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT span_id, subject, prop, value, unit FROM numeric_facts
+                WHERE span_id IN ({placeholders})
+                """,
+                list(span_ids),
+            ).fetchall()
+        for span_id, subject, prop, value, unit in rows:
+            entries = result.setdefault(str(span_id), [])
+            entries.append((str(subject), float(value), str(unit or "")))
+            if prop and str(prop) != str(subject):
+                entries.append((str(prop), float(value), str(unit or "")))
+        return result
 
     def _insert_csv_rows(
         self,

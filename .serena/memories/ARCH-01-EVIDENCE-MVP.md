@@ -151,7 +151,7 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   generations). This makes the gateway no longer provider-agnostic-and-unchanged: the retry/pacing
   logic is generic (any provider raising `litellm.RateLimitError` benefits), but it is new code,
   not just an env-level provider switch.
-- `src/nornikel_kg/services/qa_service.py`: `DemoQAService.ask` (commit `4ede8c5`) now calls
+- `src/nornikel_kg/services/qa_service.py`: `EvidenceQAService.ask` (commit `4ede8c5`) now calls
   `_effective_filters(request)` first: explicit `request.filters.year_from`/`year_to` win, but
   when they are unset, `domain.dates.parse_time_scope(request.question, now_year=date.today()
   .year)` fills them in from the question text (e.g. «за последние 5 лет»), via
@@ -163,7 +163,7 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   predicate `_scope_predicate(filters, metadata, *, keep_unknown_year)` (new) implements this
   once and is used by both `_apply_source_scope` (experiment table, extended with a
   `keep_unknown_year` kwarg) and the new `_apply_scope_to_evidence(evidence, filters, *,
-  keep_unknown_year)` — the latter means `DemoQAService.ask` now also filters the evidence
+  keep_unknown_year)` — the latter means `EvidenceQAService.ask` now also filters the evidence
   packet passed to answer synthesis by year/geography scope, not only the experiment table
   (previously an out-of-scope evidence span could still leak into the LLM packet even though
   its experiment was filtered out). `_confidence_level`/run-recording now read the
@@ -309,9 +309,9 @@ after the accuracy/SOTA overhaul (waves A-D) and the archive/legacy-format inges
   `_data_version` int counter (incremented in `ingest_source_bytes`/`ingest_parsed_document`/
   `_delete_source_records`/`set_source_metadata`, i.e. every ledger-mutating write path) and a
   public `data_version` property.
-- `src/nornikel_kg/services/qa_service.py`: `DemoQAService._load_packet` caches the loaded
+- `src/nornikel_kg/services/qa_service.py`: `EvidenceQAService._load_packet` caches the loaded
   `EvidenceLedgerPacket` as `self._packet_cache: tuple[int, EvidenceLedgerPacket] | None`, keyed
-  by `ledger_repository.data_version`; a cache hit skips `load_demo_packet()` (a full
+  by `ledger_repository.data_version`; a cache hit skips `load_evidence_packet()` (a full
   evidence/experiment scan that previously dominated `ask` latency), invalidated automatically
   whenever any write bumps `_data_version`.
 - `src/nornikel_kg/services/ingestion_service.py`: `IngestionService._schedule_enrichment`'s
@@ -380,7 +380,7 @@ alongside the existing filter fields (unchanged from the prior sync).
 
 Concrete P0 domain services: `EvidenceSpanFactory`, normalization helpers in
 `domain/normalization.py`, `domain/quantities.py`, `domain/dates.py`, `ConflictDetector`,
-`GapAnalyzer`, `ClaimVerifier`, and `DemoQAService` as the answer assembler.
+`GapAnalyzer`, `ClaimVerifier`, and `EvidenceQAService` as the answer assembler.
 
 ## Invariants
 
@@ -436,7 +436,7 @@ verified against the working tree at `HEAD`:
   constraint when no subject is resolvable; `facts_satisfy_constraints(constraints, facts)`
   matches a subject-bound constraint only against same-subject same-unit facts, a subjectless
   one against unit-only.
-- `src/nornikel_kg/services/qa_service.py`: `DemoQAService._drop_constraint_violating_evidence`
+- `src/nornikel_kg/services/qa_service.py`: `EvidenceQAService._drop_constraint_violating_evidence`
   (new, called from `ask`) removes evidence spans whose own extracted facts violate a bound
   numeric constraint, so a multi-analyte question (e.g. sulfates/chlorides/Ca/Mg/Na ranges)
   gets an honest, constraint-consistent evidence set instead of citing out-of-range spans.
@@ -605,3 +605,40 @@ the "Mockup-fidelity wave" subsection below). Verified against the working tree 
 - Gates after the wave: `tsc --noEmit`, `npm run build`, `uv run mypy`, `uv run ruff check .`,
   `uv run pytest` all clean; landing/demo/data/search/graph/experts/compare browser-verified on the
   live stand.
+
+
+## Backend Hardening (wave 11, 2026-07-04, branch `feat/backend-hardening` `404a5c3`..`dd23e7e`)
+
+Response to an owner-agent backend review; all 11 items closed, gates green
+(`make ci` exit 0, `make eval` status=ok 17/17, pytest 189 passed). Plan:
+`.serena/plans/11_BACKEND_HARDENING_PLAN.md`.
+
+- **QA service de-demo'd** (`404a5c3`, `52230ca`): `qa_service.DemoQAService` -> `EvidenceQAService`;
+  dead `_fallback_packet`/`_demo_evidence` removed (the `ledger_repository is None` branch returns
+  an empty `EvidenceLedgerPacket`); `EvidenceLedgerPort.load_demo_packet` -> `load_evidence_packet`.
+  Scoring de-hardcoded from Ni-Cu literals to corpus/element-generic signals
+  (`_shared_material_element_count`, generic `_requested_property`/`_regime_matches`,
+  `_shared_numeric_bonus`, `_corpus_follow_ups`); the 17 gold questions still pass.
+- **Persisted numeric-fact layer** (`c458d9e`): migration `003_numeric_facts.sql` (table
+  `numeric_facts` + indexes on source/span/subject/prop). Facts are extracted from every headered
+  table row at ingest (`repositories._insert_numeric_facts`) and SQL-queried by QA constraint
+  filtering (`list_numeric_facts_for_spans`, `qa_service._numeric_facts_by_span`), falling back to
+  `parse_labeled_span_facts` for pre-migration corpora. Arbitrary CSVs without the fixed experiment
+  schema now ingest as generic header-labeled table-row spans (`_read_csv_table`/
+  `_csv_is_experiment_schema`/`_insert_generic_csv_table`) instead of raising.
+- **Sheet provenance + unified decode** (`ab7d2b4`): `ParsedTable.sheet_name` propagated by the
+  spreadsheet parser; spreadsheet rows get locator `sheet:<name>:table_NNN:row_NNN` + `{sheet,row,
+  headers}` in `locator_json` (`EvidenceSpanFactory.create(locator_extra=...)`); PDF/DOCX keep
+  `table_i:row_j`. The two remaining decode bypasses (ingestion head-scan, markdown evidence) now
+  use `decode_text_bytes`.
+- **SQL graph neighborhood** (`623176a`): `GraphService.neighborhood()` uses
+  `DuckDBLedgerRepository.graph_neighborhood()` (depth-limited indexed per-hop SQL) instead of full
+  NetworkX materialization; ranking (type_boost + evidence_count) and response shape are
+  byte-identical. Migration `004_graph_indexes.sql` indexes `relations(src_entity_id)` /
+  `relations(dst_entity_id)`. `build_graph()` kept as a dev/analysis utility, off the request path.
+- **Request-scoped label narrowing + semantic verifier** (`dd23e7e`): `AskRequest.allowed_labels`
+  (narrow-only, intersected with the deployment `SourceLabelPolicy` via `_effective_label_policy`);
+  `ClaimVerifier` gained a rule-based `sentence_semantically_supported` check (content-word
+  containment >=0.6 + negation-parity) -> `AnswerVerification.semantic_unsupported_count`, and its
+  numeric check now validates fact-backed sentences against ledger fact numbers instead of skipping.
+- **Migrations are now `001`..`004`** (glob-runner, each idempotent, re-executed every process start).

@@ -8,7 +8,7 @@ from nornikel_kg.domain.quantities import (
     facts_satisfy_constraints,
     parse_parameter_constraints,
 )
-from nornikel_kg.services.qa_service import DemoQAService
+from nornikel_kg.services.qa_service import EvidenceQAService
 
 _MULTI = (
     "Какие методы обессоливания при сульфаты, хлориды, Ca, Mg, Na по 200-300 мг/л, "
@@ -47,7 +47,7 @@ def test_year_phrase_is_not_a_parameter_constraint() -> None:
 def test_qa_drops_evidence_that_violates_dry_residue(tmp_path: Path) -> None:
     repo = DuckDBLedgerRepository(tmp_path / "pc.duckdb")
     repo.migrate()
-    service = DemoQAService(ledger_repository=repo, run_recorder=repo)
+    service = EvidenceQAService(ledger_repository=repo, run_recorder=repo)
     good = EvidenceSpan(
         span_id="s_ok",
         source_id="src",
