@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 3a3b13e feat(web): polish full graph workbench UI
+Last commit: 67f08b0 fix(llm): map claude effort for dataeyes
 Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; scripts/run_realcase_eval.py; src/nornikel_kg/
 Area: TECHDEBT
 -->
@@ -25,6 +25,11 @@ historical issues.
 - **No real-corpus gold-answer set**: `scripts/run_realcase_eval.py` checks honesty properties on four live track questions, not expected answer text.
 - **CI does not install `--extra ingest`**: heavy Docling/GLiNER/spreadsheet/legacy paths are not fully exercised in CI.
 - **Qdrant client/server mismatch warning**: Python client 1.18.0 warns against server `qdrant/qdrant:v1.16.3`.
+- **Full-graph Qdrant parity needs a non-blocking audit**: the live full graph
+  reports 582,950 DuckDB evidence spans and the active Qdrant collection
+  reports 569,341 points. This may be expected if empty/non-indexable spans are
+  excluded, but confirm with a read-only/offline DuckDB parity query when the
+  API process is not holding the write lock.
 - **Shard load balancing is still ordinal, not weight-aware**:
   `scripts/ingest_corpus.py --shard-count/--shard-index` splits the selected
   file list by ordinal modulo. This removes the single-process DuckDB writer

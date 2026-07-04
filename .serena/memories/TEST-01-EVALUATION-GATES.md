@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 00d092a fix(qa): retry transient answer synthesis failures
+Last commit: 67f08b0 fix(llm): map claude effort for dataeyes
 Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
@@ -40,6 +40,9 @@ Provider-specific unit coverage includes:
   verifies `LLM_REASONING_EFFORT` is passed through LiteLLM, GPT-5-family model
   IDs use provider-compatible `temperature=1`, and extraction calls do not set
   output token caps that could truncate structured JSON.
+- `tests/unit/test_llm_gateway.py::test_gateway_uses_default_temperature_for_claude_effort`:
+  verifies DataEyes Claude/Sonnet answer calls use `temperature=1` and
+  Anthropic-style `output_config.effort`, not OpenAI-style `reasoning_effort`.
 - `tests/unit/test_yandex_embeddings.py`: verifies split doc/query embedding
   model URIs and the configured `dim` field in Yandex text-vectorization payloads.
 - `tests/unit/test_answer_composer.py::test_transient_llm_error_retries_before_fallback`:

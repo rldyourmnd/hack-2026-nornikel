@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 3a3b13e feat(web): polish full graph workbench UI
+Last commit: 67f08b0 fix(llm): map claude effort for dataeyes
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -59,6 +59,11 @@ knowledge-graph submission.
 - QA answer synthesis retries transient LLM provider failures once before
   deterministic fallback, preserving the no-500 guarantee while avoiding empty
   answers from one-off provider empty completions.
+- LiteLLM answer calls map reasoning controls by model family: GPT/OpenAI-style
+  models receive `reasoning_effort`, while Claude/Sonnet models routed through
+  DataEyes OpenAI-compatible chat receive Anthropic-style `output_config.effort`.
+  GPT-5-family and Claude/Sonnet answer calls use provider-default
+  `temperature=1`.
 - The web workbench now exposes the full graph through professional jury-facing
   pages: Search uses the mine-water literature-review jury question with
   loading/evidence/source-color UI; Graph renders an optimized neighborhood

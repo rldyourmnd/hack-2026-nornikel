@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 00d092a fix(qa): retry transient answer synthesis failures
+Last commit: 67f08b0 fix(llm): map claude effort for dataeyes
 Scope: scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/adapters/llm/gateway.py; src/nornikel_kg/adapters/embeddings/yandex.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
@@ -53,6 +53,12 @@ Capture the architecture contract for the evidence-first R&D workbench.
   model IDs it uses `temperature=1` because LiteLLM/OpenAI-compatible GPT-5
   chat completions reject `temperature=0`; older extraction models keep
   temperature zero.
+- DataEyes Claude/Sonnet answer models are exposed through an OpenAI-compatible
+  LiteLLM route, but their effort control is Anthropic-style:
+  `output_config={"effort": LLM_REASONING_EFFORT}`. Do not send
+  OpenAI-style `reasoning_effort` to Claude/Sonnet models; DataEyes rejects it.
+  `openai/claude-sonnet-5` with `LLM_REASONING_EFFORT=medium` was verified as
+  the fast answer-model path on the stand.
 - `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates. Answer synthesis retries one transient `LLMError` or raw provider exception, then degrades to deterministic/rule-only behavior on the second failure so `/qa/ask` does not 500.
 
 ## Contracts
