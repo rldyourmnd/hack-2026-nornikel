@@ -1,0 +1,57 @@
+properties:
+  - property_id: prop_vickers_hardness
+    canonical_name: Vickers hardness
+    aliases: ["HV", "hardness", "твердость", "твердость по Виккерсу"]
+    units: ["HV"]
+  - property_id: prop_tensile_strength
+    canonical_name: Tensile strength
+    aliases: ["UTS", "прочность", "предел прочности"]
+    units: ["MPa"]
+  - property_id: prop_elongation
+    canonical_name: Elongation
+    aliases: ["A5", "elongation", "относительное удлинение"]
+    units: ["%"]
+  - property_id: prop_conductivity
+    canonical_name: Electrical conductivity
+    aliases: ["conductivity", "электропроводность"]
+    units: ["MS/m", "%IACS"]
+  - property_id: prop_corrosion_rate
+    canonical_name: Corrosion rate
+    aliases: ["corrosion", "скорость коррозии"]
+    units: ["mm/year"]
+  - property_id: prop_grain_size
+    canonical_name: Grain size
+    aliases: ["grain size", "размер зерна"]
+    units: ["um"]
+  - property_id: prop_porosity
+    canonical_name: Porosity
+    aliases: ["porosity", "пористость"]
+    units: ["%"]
+  - property_id: prop_phase_fraction
+    canonical_name: Phase fraction
+    aliases: ["phase fraction", "доля фазы"]
+    units: ["%"]
+  - property_id: prop_concentration
+    canonical_name: Концентрация
+    aliases: ["concentration", "концентрации", "содержание", "content", "сухой остаток"]
+    units: ["мг/л", "г/л", "мг/дм3", "%"]
+  - property_id: prop_flow_rate
+    canonical_name: Скорость потока
+    aliases: ["flow rate", "скорость циркуляции", "расход", "скорость потока"]
+    units: ["м3/ч", "л/мин", "м/с"]
+  - property_id: prop_recovery
+    canonical_name: Извлечение
+    aliases: ["recovery", "извлечения", "выход металла", "степень извлечения"]
+    units: ["%"]
+  - property_id: prop_temperature
+    canonical_name: Температура
+    aliases: ["temperature", "температуры", "температурный режим"]
+    units: ["C", "K"]
+  - property_id: prop_coalescence
+    canonical_name: Коалесценция
+    aliases: ["coalescence", "коалесценции", "коалесценцию", "укрупнение частиц"]
+    units: []
+  - property_id: prop_metal_loss
+    canonical_name: Потери металлов
+    aliases: ["metal losses", "потерь металлов", "потери со шлаком", "потери металла"]
+    units: ["%"]

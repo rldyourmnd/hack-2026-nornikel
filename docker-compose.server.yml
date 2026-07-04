@@ -1,0 +1,59 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    env_file:
+      - .env
+    environment:
+      PROJECT_ROOT: /app
+      QDRANT_URL: http://qdrant:6333
+    volumes:
+      - ./data:/app/data
+      # Real corpus for the batch ingester (scripts/ingest_corpus.py --dir DATA_HACK).
+      # Present on the stand; an empty dir on a fresh server is harmless.
+      - ./DATA_HACK:/app/DATA_HACK:ro
+    restart: unless-stopped
+    networks:
+      - default
+      - lf-net
+    depends_on:
+      - qdrant
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      VITE_API_BASE_URL: /api
+      VIRTUAL_HOST: xn----jtbedbbojo8m.xn--p1ai,www.xn----jtbedbbojo8m.xn--p1ai,nornikel.nddev.asia
+      VIRTUAL_PORT: "80"
+      LETSENCRYPT_HOST: xn----jtbedbbojo8m.xn--p1ai,www.xn----jtbedbbojo8m.xn--p1ai,nornikel.nddev.asia
+      LETSENCRYPT_EMAIL: danilsilantyevwork@gmail.com
+    ports:
+      - "127.0.0.1:8080:80"
+    restart: unless-stopped
+    networks:
+      - default
+      - proxy
+    depends_on:
+      - api
+
+  qdrant:
+    image: qdrant/qdrant:v1.16.3
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+    networks:
+      - default
+
+volumes:
+  qdrant_storage:
+
+networks:
+  default:
+  lf-net:
+    external: true
+  proxy:
+    external: true
+    name: curestry_frontend
