@@ -659,3 +659,30 @@ Merged to `main` and deployed (deploy.yml success; verified live on the stand).
 - Already-integrated before Part 2 (no change): sheet-provenance display (`EvidenceList` renders
   `locator.sheet`), real-case eval (`scripts/run_realcase_eval.py`).
 - Gates: `make ci` green (pytest 190 passed + frontend build), `make eval` status=ok 17/17.
+
+
+## Review-hardening wave (2026-07-04, PR #4 merged + deployed)
+
+Second owner-review (22 items): 14 fixed, 2 already-done (#2 CI push+PR, #21 single-writer by design), 6 deferred.
+- **LLM config**: env renamed `DATAEYES_API_BASE/KEY` -> `LLM_API_BASE/LLM_API_KEY`
+  (`settings.py` fields `llm_api_base`/`llm_api_key` with `AliasChoices` so legacy
+  DATAEYES_* still resolve); default is the Yandex base
+  `https://ai.api.cloud.yandex.net/v1`; provider **Yandex AI Studio, model deepseek-4-flash**.
+- **Deploy reproducibility**: `docker-compose.server.yml` is now TRACKED in the repo
+  (was shipped out-of-band; `git archive HEAD` only ships tracked files). Pins
+  `qdrant/qdrant:v1.16.3`; `docker-compose.yml` pinned to match (was `:latest`).
+- Archive endpoint rejects multipart parts (`.zip.NNN`/`.partN.rar`) with 400; archive
+  members keep their archive-relative path in the ledger (`ingest_upload(filename=member_path)`).
+- Generic/experiment CSV first data row is physical row 2 (`start=2`).
+- `numeric_facts` surfaced in corpus stats (+by_unit/by_subject); XLSX year/geography derived
+  from table content; unit registry extended (economics/energy/depth); `idx_relations_type` added.
+- `JURY_ALLOWED_LABELS` server-side visibility floor (runtime); `CORS_ORIGINS` env allowlist.
+- Real-case eval (`run_realcase_eval.py`) also asserts semantic_unsupported + evidence-present.
+
+Deferred (P1/P2, tracked): #8 table header detection (blank/title-row skip), #14 batch
+skip-manifest persistence, #15 durable reindex jobs table, #17 optional LLM-as-judge strict
+semantic mode, #18 numeric_facts as answer rows, #22 experts/laboratories/topics dictionaries.
+
+Ingest blocker found: batch `_embed_many` (yandex.py) bursts `max_workers` concurrent embed
+calls -> exceeds the 10-RPS Yandex quota -> 429 -> 7-retry fail; full 4.9GB ingest ~66h. Needs
+serialized/paced batch embedding + the quota raised before a full corpus ingest.
