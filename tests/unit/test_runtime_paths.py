@@ -22,18 +22,16 @@ def test_ledger_repository_first_build_is_thread_safe(
     monkeypatch: MonkeyPatch,
 ) -> None:
     db_path = tmp_path / "catalog.duckdb"
-    sample_dir = Path("sample_docs/synthetic").resolve()
     monkeypatch.setenv("DUCKDB_PATH", str(db_path))
-    monkeypatch.setenv("SYNTHETIC_SAMPLE_DIR", str(sample_dir))
-    # This test asserts the seeded fixture is present; seeding now defaults OFF.
-    monkeypatch.setenv("SEED_SYNTHETIC_FIXTURE", "true")
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         repositories = list(executor.map(lambda _: runtime.get_ledger_repository(), range(2)))
 
-    assert all(repository.list_sources() for repository in repositories)
+    # concurrent first build must not corrupt the DB: both repositories are
+    # usable and agree on the (empty) source list, no half-migrated state.
+    assert all(repository.list_sources() == [] for repository in repositories)
 
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()

@@ -64,7 +64,7 @@ curl -fsS -X POST https://nornikel.nddev.asia/api/sources/reindex-all
 
 The api process holds one persistent DuckDB write connection for its whole
 lifetime. Anything that opens `data/catalog.duckdb` directly (batch ingester,
-`run_eval.py --store`, ad-hoc DuckDB shells) is mutually exclusive with a
+`ingest_corpus.py`, ad-hoc DuckDB shells) is mutually exclusive with a
 running api — stop the api container for that window:
 
 ```bash

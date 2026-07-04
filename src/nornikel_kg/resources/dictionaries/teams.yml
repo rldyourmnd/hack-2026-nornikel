@@ -1,10 +1,1 @@
-teams:
-  - team_id: team_metallurgy_demo
-    name: Synthetic metallurgy team
-    lab_id: lab_metallurgy
-  - team_id: team_corrosion_demo
-    name: Synthetic corrosion team
-    lab_id: lab_corrosion
-  - team_id: team_mechanical_demo
-    name: Synthetic mechanical testing team
-    lab_id: lab_mechanical
+teams: []

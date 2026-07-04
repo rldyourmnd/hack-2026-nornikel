@@ -1,2 +1,0 @@
-experiment_id,material,regime,temperature_c,duration_h,atmosphere,property,method,baseline_value,treated_value,unit,effect
-v2_nicrmo_rolling_ts,Ni-Cr-Mo demo alloy,cold_rolling,20,1,air,Tensile strength,ISO 6892,760,905,MPa,increase

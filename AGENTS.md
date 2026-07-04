@@ -73,8 +73,6 @@ Use installed rldyour plugins automatically when the task matches scope:
 
 ```bash
 make ci
-make eval
-python3 scripts/run_eval.py
 python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-flow/local/scripts/flow_post_task_state.py
 python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-flow/local/scripts/git_sync_audit.sh
 python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-serena-mcp/local/scripts/serena_memory_state.py
@@ -100,8 +98,8 @@ Run repository-local validation scripts when present.
   ingest with quarantine, trafilatura URL import, dictionary/GLiNER/LLM extraction with
   entity resolution, own DuckDB+NetworkX graph layer, Qdrant hybrid retrieval
   (USER-bge-m3 + BM25, RRF), LLM answer synthesis gated by the claim verifier with a
-  deterministic fallback, conflict detector, gaps matrix, and `sample_docs/synthetic_v2/`
-  corpus (17 sources + manifest).
+  deterministic fallback, conflict detector, gaps matrix, and recursive DATA_HACK
+  corpus ingestion (archives, PDFs, spreadsheets).
 - Remaining gaps: real-corpus gold eval set, geomechanics ontology coverage, CI without
   the `ingest` extra (GLiNER/Docling/spreadsheet paths untested there).
 - Implementation plan package (2026-07-02): `.serena/plans/00_PLAN_INDEX.md` (waves W0-W5)

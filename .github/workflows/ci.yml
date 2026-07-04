@@ -20,7 +20,6 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy
       - run: uv run pytest
-      - run: uv run python scripts/run_eval.py
 
   frontend:
     runs-on: ubuntu-latest

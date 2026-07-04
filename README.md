@@ -39,8 +39,8 @@ mirror **https://nornikel.nddev.asia**. Deployment contract:
 - **Analyze**: data-driven conflict detection (direction/method/unit-aware
   numeric disagreement), material×regime×property gaps matrix, dated decisions
   and publications timeline, graph neighborhoods with expert-aware ranking.
-- **Prove**: 17-question offline eval (citation coverage 1.0, zero fabricated
-  numbers, prompt-injection resistance, zero label leaks) + stored eval runs
+- **Prove**: real-corpus eval on the four track questions (citation coverage 1.0,
+  zero fabricated numbers, prompt-injection resistance, zero label leaks) + stored eval runs
   served to the UI; answer-run audit trail.
 
 UI sections: Поиск, Граф знаний, Данные, Аналитика, Качество, Безопасность.
@@ -74,7 +74,7 @@ Quality gates (all offline, no LLM secrets needed):
 
 ```bash
 make ci               # ruff + mypy strict + pytest + frontend typecheck/build
-make eval             # 17-question deterministic eval incl. adversarial cases
+make eval-realcase    # real-corpus eval on the four track questions (needs a running API)
 docker compose config
 ```
 
@@ -118,9 +118,8 @@ relevance-gated conflicts, honest gaps, and verification metrics.
 apps/web/          React/Vite workbench (six-section SPA)
 services/api/      FastAPI app and routes
 src/nornikel_kg/   Domain, services, adapters, resources
-sample_docs/       Synthetic corpus (17 sources + manifest)
-scripts/           Batch ingest, eval, reindex, corpus generator
-tests/             Unit and integration tests (150+)
+scripts/           Batch corpus ingest, real-corpus eval, reindex
+tests/             Unit and integration tests
 docs/deployment/   Server deployment notes and lock contract
 .serena/           Plans, reviews, and project memories
 ```

@@ -1,8 +1,0 @@
-spans:
-  - stable_locator: table_001:row_003
-    expected_type: table_row
-    expected_material: Ni-30Cu
-    expected_property: Vickers hardness
-  - stable_locator: section:discussion:block_002
-    expected_type: text
-    expected_conflict: method_mismatch

@@ -94,6 +94,23 @@ class DuckDBLedgerRepository:
     def data_version(self) -> int:
         return self._data_version
 
+    @contextmanager
+    def batch_transaction(self) -> Iterator[None]:
+        """Group a source's write burst into ONE DuckDB transaction/commit instead
+        of hundreds of per-statement autocommits. The batch ingester was bottlenecked
+        by commit + lock churn (all workers serialized on the single-writer lock);
+        wrapping a source's resolution + relation writes here drops it to one commit
+        per source. The lock is held for the block, so concurrent workers' write
+        phases don't interleave (parse + LLM already ran in parallel before this)."""
+        with self._connect() as connection:
+            connection.execute("BEGIN TRANSACTION")
+            try:
+                yield
+            except BaseException:
+                connection.execute("ROLLBACK")
+                raise
+            connection.execute("COMMIT")
+
     def migrate(self) -> None:
         if self._migrated:
             return
@@ -111,54 +128,6 @@ class DuckDBLedgerRepository:
             load_dictionaries(connection)
         self._migrated = True
 
-    def seed_synthetic_fixture(self, sample_dir: Path) -> EvidenceLedgerPacket:
-        self._data_version += 1
-        self.migrate()
-        csv_path = sample_dir / "mechanical_properties.csv"
-        report_path = sample_dir / "nicu_aging_report.md"
-        csv_bytes = csv_path.read_bytes()
-        report_bytes = report_path.read_bytes()
-        source_id = source_id_from_bytes(report_bytes + b"\n---\n" + csv_bytes)
-        raw_sha256 = hashlib.sha256(report_bytes + csv_bytes).hexdigest()
-        rows = self._parse_csv_rows(csv_bytes)
-
-        with self._connect() as connection:
-            try:
-                connection.execute("BEGIN")
-                self._delete_source_records(connection, source_id)
-                self._register_source(
-                    connection,
-                    source_id=source_id,
-                    title="Synthetic Ni-Cu aging report",
-                    document_type="report+table",
-                    raw_sha256=raw_sha256,
-                    security_label="internal",
-                )
-                self._insert_csv_rows(
-                    connection,
-                    source_id=source_id,
-                    rows=rows,
-                    artifact_locator=str(csv_path),
-                    parser_profile="synthetic_fixture_v1",
-                    first_row_ordinal=3,
-                )
-                self._insert_markdown_evidence(
-                    connection,
-                    source_id=source_id,
-                    text=report_path.read_text(encoding="utf-8"),
-                    artifact_locator=str(report_path),
-                    parser_profile="synthetic_fixture_v1",
-                    selected_lines=(
-                        "method mismatch prevents direct numeric comparison",
-                        "not measured",
-                    ),
-                )
-                connection.execute("COMMIT")
-            except (SourceIngestError, ValueError):
-                connection.execute("ROLLBACK")
-                raise
-
-        return self.load_evidence_packet()
 
     def ingest_source_bytes(
         self,
@@ -1196,11 +1165,8 @@ class DuckDBLedgerRepository:
             effects=effects,
             experiments=experiments,
             source_titles=source_titles,
-            conflicts=[
-                *self._build_conflicts(evidence),
-                *ConflictDetector().detect(experiments),
-            ],
-            gaps=self._build_gaps(evidence, experiments),
+            conflicts=ConflictDetector().detect(experiments),
+            gaps=[],
         )
 
     def list_sources(self) -> list[SourceSummary]:
@@ -1999,70 +1965,13 @@ class DuckDBLedgerRepository:
             validation_status=row[7],
         )
 
-    def _build_conflicts(self, evidence: list[EvidenceSpan]) -> list[dict[str, object]]:
-        conflicts: list[dict[str, object]] = []
-        method_spans = [
-            span
-            for span in evidence
-            if "method mismatch prevents direct numeric comparison" in span.visible_text
-        ]
-        if method_spans:
-            conflicts.append(
-                {
-                    "conflict_group_id": "conf_nicu_hardness_method",
-                    "type": "method_mismatch",
-                    "summary": (
-                        "Похожий режим в соседнем источнике измерен другим методом, "
-                        "поэтому не сравнивается напрямую с HV."
-                    ),
-                    "supporting_span_ids": [span.span_id for span in method_spans],
-                }
-            )
-        return conflicts
 
-    def _build_gaps(
-        self,
-        evidence: list[EvidenceSpan],
-        experiments: list[ExperimentRow],
-    ) -> list[dict[str, object]]:
-        has_conductivity = any(
-            "conductivity" in experiment.property_name.lower()
-            or "электропровод" in experiment.property_name.lower()
-            for experiment in experiments
-        )
-        near_miss_ids = [
-            span.span_id
-            for span in evidence
-            if "not measured" in span.visible_text.lower()
-            or "электропровод" in span.visible_text.lower()
-            or span.span_type == "table_row"
-        ]
-        if has_conductivity or not near_miss_ids:
-            return []
-        return [
-            {
-                "gap_id": "gap_nicu_conductivity_aging_700c",
-                "type": "missing_measurement",
-                "description": (
-                    "Для Ni-Cu после старения 700 C / 8 ч нет валидированного "
-                    "измерения электропроводности в доступном ledger."
-                ),
-                "near_miss_evidence_span_ids": near_miss_ids[:3],
-            }
-        ]
 
     def _document_type_from_filename(self, filename: str) -> str:
         return "table" if filename.lower().endswith(".csv") else "document"
 
     def _material_id(self, material_name: str) -> str:
-        normalized = material_name.lower().replace(" ", "")
-        known = {
-            "ni-30cu": "mat_nicu_30",
-            "nicu30": "mat_nicu_30",
-            "cuni30": "mat_cuni_30",
-            "cu-ni30": "mat_cuni_30",
-        }
-        return known.get(normalized, f"mat_{self._slug(material_name)}")
+        return f"mat_{self._slug(material_name)}"
 
     def _property_id(self, property_raw: str, method: str) -> str:
         lowered = f"{property_raw} {method}".lower()

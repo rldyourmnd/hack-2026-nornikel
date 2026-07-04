@@ -24,29 +24,33 @@ def test_exact_canonical_key_match_merges_evidence(
     service: EntityResolutionService, repository: DuckDBLedgerRepository
 ) -> None:
     result = service.resolve_or_create(
-        mention="Ni-30Cu", entity_type="material", span_ids=["evs_a"]
+        mention="Медный штейн", entity_type="material", span_ids=["evs_a"]
     )
     assert result.action == "matched_key"
-    assert result.entity_id == "mat_nicu_30"
-    entity = repository.get_entity("mat_nicu_30")
+    assert result.entity_id == "mat_matte_copper"
+    entity = repository.get_entity("mat_matte_copper")
     assert entity is not None and "evs_a" in entity["evidence_span_ids"]
 
 
 def test_dash_variant_matches_same_entity(service: EntityResolutionService) -> None:
-    result = service.resolve_or_create(
-        mention="Ni–30Cu",  # en dash
-        entity_type="material",
-        span_ids=["evs_b"],
+    # hyphen vs en-dash of the same created mention resolve to one entity
+    first = service.resolve_or_create(
+        mention="Ni-Cu опытный", entity_type="material", span_ids=["evs_b1"]
     )
-    assert result.entity_id == "mat_nicu_30"
+    second = service.resolve_or_create(
+        mention="Ni–Cu опытный", entity_type="material", span_ids=["evs_b2"]
+    )
+    assert first.entity_id == second.entity_id
 
 
 def test_alias_match_learns_evidence(
     service: EntityResolutionService, repository: DuckDBLedgerRepository
 ) -> None:
-    result = service.resolve_or_create(mention="МН30", entity_type="material", span_ids=["evs_c"])
+    result = service.resolve_or_create(
+        mention="катодный никель", entity_type="material", span_ids=["evs_c"]
+    )
     assert result.action == "matched_alias"
-    assert result.entity_id == "mat_cuni_30"
+    assert result.entity_id == "mat_nickel_cathode"
 
 
 def test_unknown_mention_creates_new_entity(

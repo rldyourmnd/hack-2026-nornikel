@@ -278,7 +278,7 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
                 <span>experiment_id</span>
                 <input
                   onChange={(event) => setExperimentFilter(event.target.value)}
-                  placeholder="exp_nicu_aging_700c_8h"
+                  placeholder="exp_matte_converting"
                   type="text"
                   value={experimentFilter}
                 />
@@ -287,7 +287,7 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
                 <span>regime_id</span>
                 <input
                   onChange={(event) => setRegimeIdFilter(event.target.value)}
-                  placeholder="reg_aging_700c_8h_air"
+                  placeholder="regime_converting"
                   type="text"
                   value={regimeIdFilter}
                 />

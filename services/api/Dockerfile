@@ -31,7 +31,6 @@ COPY src ./src
 COPY services ./services
 COPY eval ./eval
 COPY scripts ./scripts
-COPY sample_docs ./sample_docs
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra ingest

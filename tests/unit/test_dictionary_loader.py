@@ -37,12 +37,12 @@ def test_loader_seeds_all_entity_types(connection: duckdb.DuckDBPyConnection) ->
     assert counts["regime"] >= 5
     assert counts["property"] >= 5
     assert counts["equipment"] >= 3
-    assert counts["team"] >= 3
     entity_types = {
         row[0]
         for row in connection.execute("SELECT DISTINCT entity_type FROM entities").fetchall()
     }
-    assert entity_types == {"material", "regime", "property", "equipment", "team"}
+    # teams.yml is intentionally empty (no synthetic teams) -> no "team" entities
+    assert entity_types == {"material", "regime", "property", "equipment"}
 
 
 def test_loader_is_idempotent(connection: duckdb.DuckDBPyConnection) -> None:
@@ -56,16 +56,10 @@ def test_loader_is_idempotent(connection: duckdb.DuckDBPyConnection) -> None:
     assert aliases_first == aliases_second
 
 
-def test_mn30_alias_resolves_to_cuni30(connection: duckdb.DuckDBPyConnection) -> None:
-    load_dictionaries(connection)
-    assert resolve_alias(connection, "МН30") == "mat_cuni_30"
-    assert resolve_alias(connection, "мн30") == "mat_cuni_30"
-
-
 def test_canonical_and_russian_aliases_resolve(connection: duckdb.DuckDBPyConnection) -> None:
     load_dictionaries(connection)
-    assert resolve_alias(connection, "Ni-30Cu") == "mat_nicu_30"
-    assert resolve_alias(connection, "Ni–30Cu") == "mat_nicu_30"
+    assert resolve_alias(connection, "штейн медный") == "mat_matte_copper"
+    assert resolve_alias(connection, "файнштейн") == "mat_matte_nickel"
     assert resolve_alias(connection, "старение") == "regime_aging"
     assert resolve_alias(connection, "твердость по Виккерсу") == "prop_vickers_hardness"
     assert resolve_alias(connection, "неизвестный сплав") is None
