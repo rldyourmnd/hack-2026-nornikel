@@ -449,8 +449,8 @@ class EvidenceQAService:
 
     def _load_packet(self) -> EvidenceLedgerPacket:
         if self.ledger_repository is None:
-            # No repository configured: return an empty packet, not synthetic
-            # demo data. ask() degrades to an honest low-confidence empty answer.
+            # No repository configured: return an empty packet. ask() degrades
+            # to an honest low-confidence empty answer.
             return EvidenceLedgerPacket(
                 evidence=[],
                 measurements=[],

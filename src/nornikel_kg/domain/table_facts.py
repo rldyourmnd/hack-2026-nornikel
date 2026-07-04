@@ -8,8 +8,7 @@ from nornikel_kg.domain.quantities import normalize_unit
 
 # Generic structured-fact extraction from header-labeled table rows. Real
 # corpus tables (water chemistry, distribution coefficients, techno-economics)
-# encode a subject + a measured value + a unit; the demo pipeline only produced
-# facts from one fixed synthetic CSV schema. This turns any headered row into
+# encode a subject + a measured value + a unit; this turns any headered row into
 # subject-tagged numeric facts that answer/constraint matching can use, while
 # staying conservative: a fact is emitted only when a number is present.
 
