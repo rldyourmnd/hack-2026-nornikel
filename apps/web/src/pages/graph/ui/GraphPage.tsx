@@ -46,44 +46,67 @@ export function GraphPage() {
   }, []);
 
   return (
-    <div className="workbench-grid">
-      <div className="stack">
-        <GraphNeighborhoodPanel />
-      </div>
-      <div className="stack">
-        {stats ? (
-          <>
-            <Panel title="Сущности графа">
-              <div className="kv-list">
-                {Object.entries(stats.entities_by_type).map(([type, count]) => (
+    <div className="page-wrap graph-page">
+      {stats ? (
+        <section className="graph-kpi-strip">
+          <div>
+            <b>{Object.values(stats.entities_by_type).reduce((sum, value) => sum + value, 0).toLocaleString("ru-RU")}</b>
+            <span>сущностей</span>
+          </div>
+          <div>
+            <b>{stats.relations.toLocaleString("ru-RU")}</b>
+            <span>связей</span>
+          </div>
+          <div>
+            <b>{stats.evidence_spans.toLocaleString("ru-RU")}</b>
+            <span>evidence spans</span>
+          </div>
+          <div>
+            <b>{stats.numeric_facts.toLocaleString("ru-RU")}</b>
+            <span>числовых фактов</span>
+          </div>
+        </section>
+      ) : null}
+
+      <GraphNeighborhoodPanel />
+
+      <div className="workbench-grid">
+        <Panel title="Сущности графа">
+          {stats ? (
+            <div className="kv-list kv-list-rich">
+              {Object.entries(stats.entities_by_type)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 14)
+                .map(([type, count]) => (
                   <div className="kv-row" key={type}>
                     <span>{TYPE_LABELS[type] ?? type}</span>
-                    <span className="kv-value">{count}</span>
+                    <span className="kv-value">{count.toLocaleString("ru-RU")}</span>
                   </div>
                 ))}
-              </div>
-            </Panel>
-            <Panel title="Типы связей">
-              <div className="kv-list">
-                {Object.entries(stats.relations_by_type).map(([type, count]) => (
+            </div>
+          ) : (
+            <div className="status-pill">Загрузка статистики…</div>
+          )}
+        </Panel>
+        <Panel title="Связи и доказательства">
+          {stats ? (
+            <div className="kv-list kv-list-rich">
+              {Object.entries(stats.relations_by_type)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 14)
+                .map(([type, count]) => (
                   <div className="kv-row" key={type}>
                     <span>{type}</span>
-                    <span className="kv-value">{count}</span>
+                    <span className="kv-value">{count.toLocaleString("ru-RU")}</span>
                   </div>
                 ))}
-              </div>
-              <p className="page-caption">
-                Каждая связь хранит список EvidenceSpan — доказательства кликабельны до
-                конкретной строки документа. DESCRIBED_IN связывает сущности с
-                публикациями, AUTHORED_BY — публикации с экспертами.
-              </p>
-            </Panel>
-          </>
-        ) : (
-          <Panel title="Сущности графа">
-            <div className="status-pill">Загрузка статистики…</div>
-          </Panel>
-        )}
+            </div>
+          ) : null}
+          <p className="page-caption">
+            В браузере отображается не весь граф, а оптимизированный neighborhood. Полный граф
+            хранится в DuckDB; Qdrant используется только как retrieval-index для evidence spans.
+          </p>
+        </Panel>
       </div>
     </div>
   );

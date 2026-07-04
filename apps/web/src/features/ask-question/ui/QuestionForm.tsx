@@ -23,6 +23,7 @@ export function QuestionForm({
     >
       <textarea
         aria-label="Вопрос по материалу, режиму и свойству"
+        placeholder="Например: выполнить литературный обзор методов очистки шахтных вод цветной металлургии..."
         value={question}
         onChange={(event) => onQuestionChange(event.target.value)}
       />

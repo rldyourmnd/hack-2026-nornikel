@@ -7,6 +7,7 @@ type EvidenceListProps = {
   evidence: EvidenceSpan[];
   citationIndex?: Map<string, number>;
   highlightedSpanId?: string | null;
+  sourceColorMap?: Map<string, string>;
 };
 
 function locatorText(locator: Record<string, unknown> | undefined): string | null {
@@ -23,13 +24,19 @@ function locatorText(locator: Record<string, unknown> | undefined): string | nul
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-export function EvidenceList({ evidence, citationIndex, highlightedSpanId }: EvidenceListProps) {
+export function EvidenceList({
+  evidence,
+  citationIndex,
+  highlightedSpanId,
+  sourceColorMap,
+}: EvidenceListProps) {
   return (
     <Panel title="Evidence cards">
       <div className="evidence-list">
         {evidence.map((span) => {
           const number = citationIndex?.get(span.span_id);
           const locator = locatorText(span.locator);
+          const sourceColor = sourceColorMap?.get(span.source_id);
           return (
             <article
               className={
@@ -37,10 +44,18 @@ export function EvidenceList({ evidence, citationIndex, highlightedSpanId }: Evi
               }
               id={`evidence-${span.span_id}`}
               key={span.span_id}
+              style={sourceColor ? { borderColor: sourceColor } : undefined}
             >
               <div className="evidence-meta">
                 <span>
-                  {number != null ? <span className="citation-badge">{number}</span> : null}
+                  {number != null ? (
+                    <span
+                      className="citation-badge"
+                      style={sourceColor ? { background: sourceColor } : undefined}
+                    >
+                      {number}
+                    </span>
+                  ) : null}
                   {span.span_type === "table_row" ? <Table2 size={14} /> : <FileText size={14} />}{" "}
                   {span.span_id}
                 </span>
