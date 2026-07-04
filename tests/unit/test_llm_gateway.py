@@ -149,6 +149,7 @@ def test_gateway_forwards_reasoning_effort(monkeypatch: pytest.MonkeyPatch) -> N
     )
 
     assert captured["reasoning_effort"] == "low"
+    assert captured["allowed_openai_params"] == ["reasoning_effort"]
     assert captured["temperature"] == 1
     assert "max_tokens" not in captured
     assert "max_completion_tokens" not in captured

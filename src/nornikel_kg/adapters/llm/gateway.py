@@ -218,6 +218,13 @@ class LiteLLMGateway:
                     reasoning_effort = self.settings.llm_reasoning_effort.strip()
                     if reasoning_effort:
                         completion_kwargs["reasoning_effort"] = reasoning_effort
+                        # DataEyes is OpenAI-compatible but also exposes non-OpenAI
+                        # model IDs (for example Claude/Sonnet). LiteLLM otherwise
+                        # rejects reasoning_effort locally for openai/<non-gpt>
+                        # before the request reaches DataEyes.
+                        completion_kwargs["allowed_openai_params"] = [
+                            "reasoning_effort"
+                        ]
                     response = litellm.completion(**completion_kwargs)
                     break
                 except Exception as error:
