@@ -4,7 +4,6 @@ import {
   Gauge,
   GitCompareArrows,
   Network,
-  Presentation,
   Sparkles,
   Users,
   type LucideIcon,
@@ -26,7 +25,6 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/compare", label: "Сравнение", Icon: GitCompareArrows },
   { to: "/experts", label: "Эксперты", Icon: Users },
   { to: "/eval", label: "Качество", Icon: Gauge },
-  { to: "/demo", label: "Демо", Icon: Presentation },
 ];
 
 // Canonical entity-type → color (matches the graph nodes and CSS tokens).

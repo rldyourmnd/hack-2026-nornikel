@@ -90,10 +90,7 @@ export function LandingPage() {
             чтобы каждое решение опиралось на доказательства.
           </p>
           <div className="hero-actions">
-            <Link className="primary-button" to="/demo">
-              Смотреть демо <ArrowRight size={16} />
-            </Link>
-            <Link className="secondary-button" to="/search">
+            <Link className="primary-button" to="/search">
               Как это работает
             </Link>
           </div>

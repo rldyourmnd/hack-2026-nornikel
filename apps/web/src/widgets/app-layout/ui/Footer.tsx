@@ -14,8 +14,8 @@ export function Footer() {
             Снижаем риски. Ускоряем R&D. Создаём ценность на основе знаний.
           </div>
         </div>
-        <Link className="primary-button footer-cta-button" to="/demo">
-          Смотреть демо <ArrowRight size={16} />
+        <Link className="primary-button footer-cta-button" to="/search">
+          Открыть поиск <ArrowRight size={16} />
         </Link>
       </div>
       <div className="footer-meta">

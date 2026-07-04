@@ -3,7 +3,6 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-route
 import { AnalyticsPage } from "@/pages/analytics";
 import { ComparePage } from "@/pages/compare";
 import { DataPage } from "@/pages/data";
-import { DemoPage } from "@/pages/demo";
 import { EvalPage } from "@/pages/eval";
 import { ExpertsPage } from "@/pages/experts";
 import { GraphPage } from "@/pages/graph";
@@ -104,7 +103,6 @@ export function App() {
           <Route path="experts" element={<ExpertsPage />} />
           <Route path="eval" element={<EvalRoute />} />
           <Route path="security" element={<SecurityRoute />} />
-          <Route path="demo" element={<DemoPage />} />
           <Route path="*" element={<Navigate replace to="/" />} />
         </Route>
       </Routes>
