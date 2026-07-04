@@ -37,10 +37,18 @@ Measured on the stand against the same seeded 40-file DATA_HACK sample
 | Previous single-process DataEyes/MiniMax profile | 40/40 in 1439s, 0 failed |
 | Single-process `gpt-5.4-mini` + `text-embedding-3-small` | 40/40 in 790s, 0 failed, 4 provider retries |
 | Four-shard `gpt-5.4-mini` + `text-embedding-3-small` | 40/40 in 500s max shard wall time, 0 failed, 1 provider retry |
+| Eight-shard `gpt-5.4-mini` + `text-embedding-3-small` stress profile | 300/300 in 1341s max shard wall time, 297 completed, 3 quarantined, 0 failed, 0 provider retries |
 
 The four-shard benchmark produced a merged ledger with 40 sources, 16,102
 evidence spans, 1,067 entities, 23,672 numeric facts, and a shared Qdrant
 collection with 16,102 points.
+
+The eight-shard 300-file benchmark used `--sample 300`, `--workers 24` per
+shard, `LLM_MAX_CONCURRENCY=256`, `LLM_RPS=256`, `EMBEDDING_BATCH=512`, and
+`EMBEDDING_RPS=64`. It produced a merged ledger with 299 unique sources
+(one cross-shard content duplicate collapsed during merge), 92,118 evidence
+spans, 5,500 entities, 8,322 relations, 155,143 numeric facts, and a shared
+Qdrant collection with 92,118 points.
 
 Operational conclusion: DuckDB read replicas do not speed ingest. The useful
 pattern is write sharding: independent `DUCKDB_PATH` files per shard, then a
@@ -80,7 +88,7 @@ Notes:
 - All evidence spans are still stored and indexed; `MAX_EXTRACTION_SPANS` and
   `MAX_TABLE_ROWS_PER_SOURCE` bound graph extraction work for very large files.
 
-## Full Corpus Build
+## Sharded 300-File Build
 
 For maximum CPU/API utilization on a no-GPU stand, prefer the sharded build.
 Each shard writes to its own DuckDB file, avoiding the per-process single-writer
@@ -89,27 +97,27 @@ collections. Merge the shard ledgers before the final swap.
 
 ```bash
 cd /srv/nornikel-kg-search
-SHARDS=4
+SHARDS=8
 for i in $(seq 0 $((SHARDS - 1))); do
-  nohup docker compose -f docker-compose.server.yml run --rm --no-deps -T --name ingest-full-$i \
-    -e DUCKDB_PATH=/app/data/catalog_full_shard_${i}.duckdb \
-    -e QDRANT_COLLECTION=evidence_full \
-    -e QDRANT_ENTITY_COLLECTION=evidence_full_entities \
+  nohup docker compose -f docker-compose.server.yml run --rm --no-deps -T --name ingest-next-$i \
+    -e DUCKDB_PATH=/app/data/catalog_next_shard_${i}.duckdb \
+    -e QDRANT_COLLECTION=evidence_next \
+    -e QDRANT_ENTITY_COLLECTION=evidence_next_entities \
     -e LLM_EXTRACTION_MODE=source_packet \
     -e LLM_REASONING_EFFORT=low \
     -e LLM_TOKEN_BUDGET=500000000 \
-    -e LLM_MAX_CONCURRENCY=128 \
-    -e LLM_RPS=128 \
+    -e LLM_MAX_CONCURRENCY=256 \
+    -e LLM_RPS=256 \
     -e EMBEDDING_MODEL_ID=text-embedding-3-small \
-    -e EMBEDDING_BATCH=256 \
-    -e EMBEDDING_RPS=32 \
+    -e EMBEDDING_BATCH=512 \
+    -e EMBEDDING_RPS=64 \
     -e MAX_EXTRACTION_SPANS=400 \
     -e MAX_TABLE_ROWS_PER_SOURCE=400 \
     -e DOCLING_PARSE_WORKERS=1 \
     -e OMP_NUM_THREADS=1 \
-    api python scripts/ingest_corpus.py --dir DATA_HACK --workers 12 --max-mb 150 \
+    api python scripts/ingest_corpus.py --dir DATA_HACK --sample 300 --workers 24 --max-mb 150 \
       --shard-count $SHARDS --shard-index $i \
-    > ingest_full_shard_${i}.log 2>&1 < /dev/null &
+    > ingest_next_shard_${i}.log 2>&1 < /dev/null &
 done
 ```
 
@@ -117,11 +125,13 @@ After all shard containers exit successfully:
 
 ```bash
 python scripts/merge_duckdb_shards.py \
-  --output data/catalog_full.duckdb \
-  data/catalog_full_shard_*.duckdb
+  --output data/catalog_next.duckdb \
+  data/catalog_next_shard_*.duckdb
 ```
 
-Single-process fallback:
+## Full Corpus Build
+
+Single-process fallback for the full selected corpus:
 
 ```bash
 cd /srv/nornikel-kg-search
