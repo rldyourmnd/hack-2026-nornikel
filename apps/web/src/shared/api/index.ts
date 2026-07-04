@@ -14,10 +14,13 @@ export {
   listSources,
   reindexAll,
   searchEntities,
+  uploadArchive,
   uploadSource,
 } from "./client";
 export type {
   AnswerRunSummary,
+  ArchiveMemberResult,
+  ArchiveUploadResponse,
   AskResponse,
   EntitySearchResult,
   EvalSummary,

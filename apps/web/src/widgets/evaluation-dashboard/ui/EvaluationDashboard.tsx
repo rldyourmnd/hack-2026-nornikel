@@ -12,6 +12,8 @@ export function EvaluationDashboard({ answer }: EvaluationDashboardProps) {
     ["Citation coverage", `${Math.round(answer.verification.citation_coverage * 100)}%`],
     ["Unsupported claims", String(answer.verification.unsupported_claim_count)],
     ["Source-label leaks", String(answer.verification.source_label_leak_count)],
+    ["Numeric mismatches", String(answer.verification.numeric_mismatch_count)],
+    ["Semantic unsupported", String(answer.verification.semantic_unsupported_count)],
   ];
 
   return (

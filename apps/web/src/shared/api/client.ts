@@ -1,5 +1,6 @@
 import type {
   AnswerRunSummary,
+  ArchiveUploadResponse,
   AskFilters,
   AskResponse,
   EntitySearchResult,
@@ -77,13 +78,18 @@ function hasNonEmptyFilters(filters: AskFilters | undefined): filters is AskFilt
   );
 }
 
-export async function askQuestion(question: string, filters?: AskFilters): Promise<AskResponse> {
+export async function askQuestion(
+  question: string,
+  filters?: AskFilters,
+  allowedLabels?: string[],
+): Promise<AskResponse> {
   const body: {
     question: string;
     language: "ru" | "en";
     include_graph: boolean;
     include_gaps: boolean;
     filters?: AskFilters;
+    allowed_labels?: string[];
   } = {
     question,
     language: "ru",
@@ -93,6 +99,9 @@ export async function askQuestion(question: string, filters?: AskFilters): Promi
 
   if (hasNonEmptyFilters(filters)) {
     body.filters = filters;
+  }
+  if (allowedLabels && allowedLabels.length > 0) {
+    body.allowed_labels = allowedLabels;
   }
 
   const response = await fetch(`${API_BASE_URL}/qa/ask`, {
@@ -135,6 +144,22 @@ export async function uploadSource(file: File): Promise<SourceIngestResponse> {
   }
 
   return (await response.json()) as SourceIngestResponse;
+}
+
+export async function uploadArchive(file: File): Promise<ArchiveUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/sources/upload-archive`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Archive upload failed"));
+  }
+
+  return (await response.json()) as ArchiveUploadResponse;
 }
 
 export async function importUrl(url: string): Promise<SourceIngestResponse> {
