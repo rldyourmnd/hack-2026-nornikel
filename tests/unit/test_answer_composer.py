@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from nornikel_kg.adapters.llm import FakeLLM
 from nornikel_kg.domain.models import AnswerSentence, EvidenceSpan
+from nornikel_kg.ports.llm import LLMError, LLMResult
 from nornikel_kg.services.answer_composer import LLMAnswerComposer
 
 
@@ -115,6 +116,43 @@ def test_invalid_payload_falls_back_deterministically() -> None:
     )
     assert mode == "deterministic"
     assert summary == _fallback()
+
+
+class _TransientLLMErrorThenSuccess:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate_json(self, **kwargs: object) -> LLMResult:
+        self.calls += 1
+        if self.calls == 1:
+            raise LLMError("empty completion")
+        return LLMResult(
+            content={
+                "sentences": [
+                    {
+                        "sentence": "Твердость Ni-30Cu выросла до 245 HV.",
+                        "supporting_span_ids": ["evs_1"],
+                    }
+                ]
+            },
+            model_id="fake-retry",
+            latency_ms=0,
+        )
+
+
+def test_transient_llm_error_retries_before_fallback() -> None:
+    fake = _TransientLLMErrorThenSuccess()
+    composer = LLMAnswerComposer(fake)
+    summary, mode = composer.compose(
+        question="Что с твердостью?",
+        experiments=[],
+        evidence=[_span("evs_1")],
+        fallback_summary=_fallback(),
+        run_id="run_retry",
+    )
+    assert fake.calls == 2
+    assert mode == "llm"
+    assert summary[0].sentence.startswith("Твердость")
 
 
 class _RaisingLLM:

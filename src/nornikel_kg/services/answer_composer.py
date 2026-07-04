@@ -102,14 +102,18 @@ class LLMAnswerComposer:
                 )
             except LLMError:
                 logger.warning("LLM answer synthesis failed (attempt %s)", attempt, exc_info=True)
-                return fallback_summary, "deterministic"
+                if attempt == 2:
+                    return fallback_summary, "deterministic"
+                continue
             except Exception:  # a raw provider/transport error must never 500 /qa/ask
                 logger.warning(
                     "LLM answer synthesis errored (attempt %s); deterministic fallback",
                     attempt,
                     exc_info=True,
                 )
-                return fallback_summary, "deterministic"
+                if attempt == 2:
+                    return fallback_summary, "deterministic"
+                continue
             try:
                 parsed = _ComposedAnswer.model_validate(result.content)
             except ValidationError:
