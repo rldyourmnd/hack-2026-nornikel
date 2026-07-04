@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: bc1495a ui(web): refine responsive header navigation
+Last commit: d1c6fac ui(web): elevate landing page presentation
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
