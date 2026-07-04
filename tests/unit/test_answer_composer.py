@@ -115,3 +115,60 @@ def test_invalid_payload_falls_back_deterministically() -> None:
     )
     assert mode == "deterministic"
     assert summary == _fallback()
+
+
+class _RaisingLLM:
+    """An LLM adapter that raises a raw (non-LLMError) provider/transport error."""
+
+    def generate_json(self, **kwargs: object) -> object:
+        raise RuntimeError("raw provider/transport error")
+
+
+def test_compose_falls_back_on_raw_provider_exception() -> None:
+    """A raw provider exception (not LLMError) must yield the deterministic fallback,
+    never propagate — otherwise it would 500 /qa/ask."""
+    composer = LLMAnswerComposer(_RaisingLLM())  # type: ignore[arg-type]
+    summary, mode = composer.compose(
+        question="Вопрос",
+        experiments=[],
+        evidence=[_span("evs_1")],
+        fallback_summary=_fallback(),
+        run_id="run_raw",
+    )
+    assert mode == "deterministic"
+    assert summary == _fallback()
+
+
+def test_sentence_contradicts_cited_flags_direction_flip() -> None:
+    from nornikel_kg.domain.answer_claims import sentence_contradicts_cited
+
+    evidence = ["Продувка CO повышает потери никеля."]
+    # opposite direction verb -> contradiction
+    assert sentence_contradicts_cited("Продувка CO снижает потери никеля.", evidence) is True
+    # same direction -> fine
+    assert sentence_contradicts_cited("Продувка CO повышает потери никеля.", evidence) is False
+    # number-heavy evidence with no direction words must NOT be flagged (no false drop)
+    assert sentence_contradicts_cited("Твердость выросла до 245 HV.", ["Ni-30Cu 245 HV"]) is False
+
+
+def test_compose_drops_direction_inverted_sentence() -> None:
+    """An LLM sentence that inverts its cited evidence's direction is dropped, not
+    shipped with a citation — falls back to the deterministic summary."""
+    fake = FakeLLM()
+    inverted = {
+        "sentences": [
+            {"sentence": "Продувка CO снижает потери никеля.", "supporting_span_ids": ["evs_1"]}
+        ]
+    }
+    fake.queue_response(inverted)
+    fake.queue_response(inverted)  # regeneration also inverted -> deterministic fallback
+    composer = LLMAnswerComposer(fake)
+    summary, mode = composer.compose(
+        question="Вопрос",
+        experiments=[],
+        evidence=[_span("evs_1", text="Продувка CO повышает потери никеля.")],
+        fallback_summary=_fallback(),
+        run_id="run_dir",
+    )
+    assert mode == "deterministic"
+    assert summary == _fallback()

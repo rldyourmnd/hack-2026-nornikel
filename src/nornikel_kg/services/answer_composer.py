@@ -5,7 +5,10 @@ from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
 
-from nornikel_kg.domain.answer_claims import sentence_numbers_supported
+from nornikel_kg.domain.answer_claims import (
+    sentence_contradicts_cited,
+    sentence_numbers_supported,
+)
 from nornikel_kg.domain.models import AnswerSentence, EvidenceSpan, ExperimentRow
 from nornikel_kg.ports.llm import LLMError, LLMPort
 
@@ -100,6 +103,13 @@ class LLMAnswerComposer:
             except LLMError:
                 logger.warning("LLM answer synthesis failed (attempt %s)", attempt, exc_info=True)
                 return fallback_summary, "deterministic"
+            except Exception:  # a raw provider/transport error must never 500 /qa/ask
+                logger.warning(
+                    "LLM answer synthesis errored (attempt %s); deterministic fallback",
+                    attempt,
+                    exc_info=True,
+                )
+                return fallback_summary, "deterministic"
             try:
                 parsed = _ComposedAnswer.model_validate(result.content)
             except ValidationError:
@@ -118,10 +128,12 @@ class LLMAnswerComposer:
                     if span_id in allowed_span_ids
                 ]
                 text = sentence.sentence.strip()
-                numbers_ok = sentence_numbers_supported(
-                    text, [span_texts[span_id] for span_id in valid_ids]
-                )
-                if text and valid_ids and numbers_ok:
+                cited = [span_texts[span_id] for span_id in valid_ids]
+                numbers_ok = sentence_numbers_supported(text, cited)
+                # Drop only sentences that INVERT their evidence (negation/direction
+                # flip) — a precise contradiction gate, not the coarse coverage check.
+                contradicted = sentence_contradicts_cited(text, cited)
+                if text and valid_ids and numbers_ok and not contradicted:
                     kept.append(
                         AnswerSentence(
                             sentence=text,
@@ -130,7 +142,7 @@ class LLMAnswerComposer:
                         )
                     )
                 else:
-                    if text and valid_ids and not numbers_ok:
+                    if text and valid_ids and (not numbers_ok or contradicted):
                         logger.warning(
                             "Dropped sentence with unsupported numbers: %s", text[:120]
                         )

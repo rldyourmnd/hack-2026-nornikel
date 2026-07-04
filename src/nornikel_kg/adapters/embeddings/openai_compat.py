@@ -77,8 +77,15 @@ class OpenAIEmbeddingBackend:
                     raise RuntimeError(f"HTTP {response.status_code}: {response.text[:120]}")
                 response.raise_for_status()
                 data = response.json()["data"]
+                # A 200 with a short/misaligned batch would silently unindex a source
+                # (or pair units with the wrong vector) — validate the count + index set.
+                if len(data) != len(batch):
+                    raise RuntimeError(f"embedding count {len(data)} != inputs {len(batch)}")
+                indexes = sorted(int(item["index"]) for item in data)
+                if indexes != list(range(len(batch))):
+                    raise RuntimeError(f"embedding indexes not 0..n-1 for {len(batch)} inputs")
                 # Preserve input order — the API returns each item with its index.
-                ordered = sorted(data, key=lambda item: int(item.get("index", 0)))
+                ordered = sorted(data, key=lambda item: int(item["index"]))
                 return [[float(v) for v in item["embedding"]] for item in ordered]
             except Exception as error:  # noqa: BLE001 - bounded retry loop
                 last_error = error

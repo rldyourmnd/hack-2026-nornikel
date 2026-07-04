@@ -12,6 +12,12 @@ from nornikel_kg.ports.retrieval import (
 
 logger = logging.getLogger(__name__)
 
+class EmbeddingDimMismatch(RuntimeError):
+    """The Qdrant collection's dense dim != the embedding backend's dim — a
+    deployment/config error (wrong QDRANT_COLLECTION for the backend). Must fail
+    loud, never silently degrade retrieval."""
+
+
 _DENSE_NAME = "dense"
 _SPARSE_NAME = "sparse"
 # One giant upsert of ~1700 x 1536-float points serializes past Qdrant's
@@ -45,6 +51,13 @@ class QdrantVectorIndex:
         from qdrant_client import models
 
         if client.collection_exists(collection):
+            existing = client.get_collection(collection).config.params.vectors[_DENSE_NAME].size
+            if existing != dense_dim:
+                raise EmbeddingDimMismatch(
+                    f"Qdrant collection '{collection}' dense dim {existing} != embedding "
+                    f"backend dim {dense_dim}; point QDRANT_COLLECTION at a per-model "
+                    f"collection or reindex into a fresh one."
+                )
             return
         client.create_collection(
             collection_name=collection,

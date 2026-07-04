@@ -13,6 +13,7 @@ from nornikel_kg.adapters.llm.settings import LLMSettings
 from nornikel_kg.adapters.ratelimit import get_limiter
 from nornikel_kg.ports.llm import (
     LLMBudgetExceededError,
+    LLMError,
     LLMInvalidResponseError,
     LLMResult,
     LLMTask,
@@ -191,7 +192,10 @@ class LiteLLMGateway:
                     # (e.g. a revoked key) is covered by the secondary. Only give
                     # up once attempts are exhausted across providers.
                     if attempt == _RATE_LIMIT_RETRIES:
-                        raise
+                        raise LLMError(
+                            f"LLM call failed after {_RATE_LIMIT_RETRIES} attempts "
+                            f"for task '{task}': {error}"
+                        ) from error
                     logger.warning(
                         "LLM call on %s failed (%s); failover + retry in %.1fs",
                         model,

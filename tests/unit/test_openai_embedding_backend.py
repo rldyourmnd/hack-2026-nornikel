@@ -38,3 +38,24 @@ def test_openai_embedding_requires_creds(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.delenv("DATAEYES_API_BASE", raising=False)
     with pytest.raises(ValueError):
         OpenAIEmbeddingBackend(api_key="k", model="m")
+
+
+def test_openai_embedding_rejects_short_batch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 200 with fewer/misaligned items must raise (retried, then loud) — never
+    silently return a short vector list that unindexes or misaligns a source."""
+    backend = OpenAIEmbeddingBackend(api_base="https://x/v1", api_key="k", model="m")
+    import httpx
+
+    def short_post(url: str, json: Any, headers: Any, timeout: float) -> Any:
+        # two inputs requested, only one vector returned
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {"data": [{"index": 0, "embedding": [1.0]}]},
+            raise_for_status=lambda: None,
+            text="",
+        )
+
+    monkeypatch.setattr(httpx, "post", short_post)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    with pytest.raises(RuntimeError):
+        backend.embed_dense(["a", "b"])
