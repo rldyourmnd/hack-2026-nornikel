@@ -32,8 +32,8 @@ from nornikel_kg.ports.ledger import EvidenceLedgerPort
 MATERIAL_ELEMENTS = frozenset({"ni", "cu", "cr", "mo", "al", "fe", "co", "mn", "ti"})
 MATERIAL_TOKEN_RE = re.compile(r"\b[a-z]{1,8}\d{1,3}[a-z0-9]*\b", re.IGNORECASE)
 # Alloy codes are element-symbol sequences with digits; anything else («CO2»,
-# «Al2O3», «section3») is NOT a requested material (audit C4: such tokens
-# silently blanked whole answers).
+# «Al2O3», «section3») is not a requested material. Such tokens previously
+# blanked whole answers.
 _ALLOY_TOKEN_RE = re.compile(
     r"(?:(?:ni|cu|cr|mo|al|fe|co|mn|ti))+\d{1,3}(?:(?:ni|cu|cr|mo|al|fe|co|mn|ti)|\d)*"
 )
@@ -426,7 +426,7 @@ class EvidenceQAService:
         allowed_by_id = {span.span_id: span for span in allowed_evidence}
         source_ids: list[str] | None = None
         if request.filters:
-            # Both filter spellings are honored (audit H9: `source_id` scope
+            # Both filter spellings are honored (`source_id` scope
             # silently leaked other sources into the LLM packet).
             scoped = self._list_filter_values(request.filters, "source_ids", "source_id")
             if scoped:
@@ -487,7 +487,7 @@ class EvidenceQAService:
         requested_material_tokens = self._requested_material_tokens(question)
         known_material_tokens = self._known_material_tokens(experiments)
         matched_tokens = requested_material_tokens.intersection(known_material_tokens)
-        # Per-token honesty (audit M17/C4): unknown materials drop out, but a
+        # Per-token honesty: unknown materials drop out, but a
         # comparison question keeps its known half; all-unknown means an
         # honest empty answer (gaps/follow-ups explain why).
         if requested_material_tokens and not matched_tokens:
@@ -535,7 +535,7 @@ class EvidenceQAService:
                 # The user scoped explicitly — the scope itself is the query.
                 return filtered_experiments[:5]
             # No signal matched: an honest empty beats five arbitrary rows
-            # presented as an answer (audit C1).
+            # presented as an answer.
             return []
         scored.sort(key=lambda item: (-item[0], item[1].experiment_id))
         return [experiment for _, experiment in scored[:5]]
@@ -794,8 +794,8 @@ class EvidenceQAService:
         high — the question's material/property signal matched structured
         experiments; medium — a verified evidence-grounded answer without a
         structured match (the normal case on the real corpus); low — nothing
-        found (audit C1: the old binary «high if non-empty» presented
-        arbitrary rows as trustworthy).
+        found. The old binary «high if non-empty» behavior presented arbitrary
+        rows as trustworthy.
         """
         if selected_experiments:
             requested_tokens = self._requested_material_tokens(question)
@@ -820,7 +820,7 @@ class EvidenceQAService:
             return conflicts
         if "method" in normalized_question or "метод" in normalized_question:
             return conflicts
-        # Relevance gate (audit M1): a conflict is attached only when it
+        # Relevance gate: a conflict is attached only when it
         # shares a material/experiment/span with the selected evidence.
         selected_material_ids = {e.material_id for e in selected_experiments}
         selected_experiment_ids = {e.experiment_id for e in selected_experiments}

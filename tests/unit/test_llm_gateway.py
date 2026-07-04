@@ -167,8 +167,8 @@ def test_strictify_adds_additional_properties() -> None:
 
 
 def test_gateway_round_robins_across_two_providers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A 2nd provider (e.g. dataeyes gpt-5.5) makes consecutive calls alternate
-    endpoints so both share the batch-ingest load."""
+    """A second provider makes consecutive calls alternate endpoints so both
+    share the batch-ingest load."""
     gateway = LiteLLMGateway(
         _settings(
             llm_api_base="https://primary/v1",

@@ -20,7 +20,7 @@ def test_unit_equivalence_mg_dm3_is_mg_l() -> None:
 
 
 def test_year_phrases_do_not_become_constraints() -> None:
-    """«до 2020 года» must never filter measurement values (audit H3)."""
+    """«до 2020 года» must never filter measurement values."""
     assert parse_numeric_constraints("покажите работы до 2020 года") == []
     assert parse_numeric_constraints("за последние 5 лет по МПГ") == []
 

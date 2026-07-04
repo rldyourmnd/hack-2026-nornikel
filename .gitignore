@@ -39,8 +39,6 @@ qdrant_storage/
 .serena/cache/
 # Ephemeral review outputs stay ignored; durable plan reviews are tracked explicitly.
 .serena/reviews/*
-!.serena/reviews/01_PLAN_CRITICAL_REVIEW.md
-!.serena/reviews/02_RESEARCH_EVIDENCE_REGISTER.md
 .serena/diagnostics/
 .serena/project.local.yml
 .serena/.onboarding

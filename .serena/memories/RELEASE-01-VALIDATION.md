@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Last commit: 97407f4
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docker-compose.server.yml; services/api/Dockerfile; apps/web/nginx.conf; docs/deployment/nornikel-nddev.md; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/run_realcase_eval.py
 Area: RELEASE
 -->
@@ -19,7 +19,7 @@ Capture validation, deployment, compose, and batch-ingest rollout contracts.
 - `docker-compose.yml` / `docker-compose.server.yml`: local/server topology.
 - `services/api/Dockerfile`: API image dependencies.
 - `apps/web/nginx.conf`: web proxy limits/timeouts.
-- `docs/deployment/full-ingest-runbook.md`: current DATA_HACK ingest/swap runbook.
+- `docs/deployment/full-ingest-runbook.md`: DATA_HACK ingest/swap runbook.
 - `scripts/ingest_corpus.py`: direct batch ingest command.
 
 ## Entry Points
@@ -28,22 +28,23 @@ Capture validation, deployment, compose, and batch-ingest rollout contracts.
 - `make eval-realcase`: live API real-corpus honesty check.
 - `docker compose config`: compose syntax validation.
 - `scripts/ingest_corpus.py --dir DATA_HACK --sample N --workers N --max-mb N`: batch ingest.
-- `scripts/reindex.py`: rebuild current configured Qdrant collections from DuckDB.
+- `scripts/reindex.py`: rebuild configured Qdrant collections from DuckDB.
 
 ## Current Behavior
 
 - Pushes to `main` auto-deploy through GitHub Actions.
-- The live working provider profile is dataeyes + OpenAI-compatible embeddings. `docs/deployment/full-ingest-runbook.md` documents zero-downtime builds into separate `DUCKDB_PATH` and Qdrant collections, then an atomic swap.
-- The no-GPU production path uses pypdfium2 PDF text extraction, remote dense embeddings, and optional Docling workers only for formats still handled by Docling.
-- `qdrant/qdrant:v1.16.3` is pinned in compose. The Python client is currently 1.18.0 and emits a compatibility warning against server 1.16.3.
+- The production profile is provider-neutral in git: runtime `.env` supplies the OpenAI-compatible LLM and embedding endpoints.
+- Zero-downtime graph builds use separate `DUCKDB_PATH`, `QDRANT_COLLECTION`, and `QDRANT_ENTITY_COLLECTION`, then an atomic swap.
+- The no-GPU production path uses pypdfium2 PDF text extraction, remote dense embeddings when configured, and Docling only where still needed.
+- `qdrant/qdrant:v1.16.3` is pinned in compose.
 - `make eval` no longer exists; use `make eval-realcase`.
 
-## Contracts And Data
+## Contracts
 
 - `MAX_SOURCE_UPLOAD_BYTES` must stay at or below active Nginx `client_max_body_size`.
 - The API process holds one persistent DuckDB connection; direct file access batch tools need a separate DB path or an API-stop window.
 - Runtime secrets stay server-side in `.env`, never in git.
-- For zero-downtime graph builds, use separate `DUCKDB_PATH`, `QDRANT_COLLECTION`, and `QDRANT_ENTITY_COLLECTION`.
+- Use a new Qdrant collection when vector dimension or embedding backend changes.
 
 ## Verification
 

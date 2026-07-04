@@ -802,7 +802,7 @@ class DuckDBLedgerRepository:
         return stats
 
     def list_answer_runs(self, limit: int = 20) -> list[dict[str, Any]]:
-        """Most recent answer runs (audit trail for the security page)."""
+        """Most recent answer runs (verification trail for the security page)."""
         self.migrate()
         with self._connect() as connection:
             rows = connection.execute(

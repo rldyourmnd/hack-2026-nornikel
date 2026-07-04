@@ -63,8 +63,7 @@ _EXTRACTION_SYSTEM_PROMPT = (
 _AUTHOR_RU_RE = re.compile(r"\b([А-ЯЁ][а-яё]{2,20}\s+[А-ЯЁ]\.\s?[А-ЯЁ]\.)")
 _AUTHOR_RU_REVERSED_RE = re.compile(r"\b([А-ЯЁ]\.\s?[А-ЯЁ]\.\s?[А-ЯЁ][а-яё]{2,20})\b")
 _AUTHOR_EN_RE = re.compile(r"\b([A-Z]\.\s?(?:[A-Z]\.\s?)?[A-Z][a-z]{2,20})\b")
-# Initial pairs that look like "I.O. Surname" but are common abbreviations
-# (audit H8: "P.O. Box" and "U.S. Geological" became person entities).
+# Initial pairs that look like "I.O. Surname" but are common abbreviations.
 _EN_INITIALS_BLACKLIST = {"po", "us", "uk", "eu", "un", "eg", "ie", "ps", "nb", "vs"}
 # Author extraction runs only when the head shows affiliation signals —
 # otherwise a bibliography section fabricates a dozen fake experts.
@@ -114,8 +113,8 @@ def _document_order_key(span: EvidenceSpan) -> tuple[int, int, int]:
 
     Text blocks carry `block_<ordinal>` locators (Docling emits them in
     reading order); table rows sort after text of the same page. Falls back
-    to page order for legacy spans (audit H8: hash-ordered span_ids made
-    `spans[:3]` pseudo-random).
+    to page order for legacy spans (hash-ordered span_ids made `spans[:3]`
+    pseudo-random).
     """
     locator = str(span.locator.get("stable_locator", ""))
     block = _LOCATOR_BLOCK_RE.search(locator)
@@ -492,7 +491,7 @@ class ExtractionService:
     def _compiled_alias_patterns(self) -> list[tuple[re.Pattern[str], str, str]]:
         """Word-boundary alias patterns, compiled once per service instance.
 
-        Contract (audit C2): matches must start at a word boundary. Pure
+        Contract: matches must start at a word boundary. Pure
         Cyrillic aliases longer than 4 chars are stemmed by one char with a
         bounded morphological tail («руда» matches «руды»/«рудой» but never
         «обо-руд-ование»); aliases carrying digits/Latin (alloy codes,

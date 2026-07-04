@@ -1,128 +1,131 @@
-# Научный клубок — R&D Knowledge Graph (Nornikel Hackathon 2026)
+# Научный клубок - Evidence-Led R&D Knowledge Graph
 
-Evidence-first knowledge graph and QA system for mining-and-metallurgy R&D.
+Evidence-first question answering and knowledge-graph workbench for a Russian
+mining-and-metallurgy R&D corpus.
 
-The product promise:
+The product invariant is simple:
 
-> For every answer sentence, show the exact document/span/table row that supports
-> it — and never let a number into an answer that does not literally exist in the
-> cited evidence.
+> Every answer sentence must cite the exact source span that supports it. Numeric
+> claims are allowed only when the cited evidence contains the same value.
 
-Live stand: **https://изи-никель.рф** (primary; punycode `xn----jtbedbbojo8m.xn--p1ai`),
-mirror **https://nornikel.nddev.asia**. Deployment contract:
-`docs/deployment/nornikel-nddev.md`. Every push to `main` auto-deploys via
-`.github/workflows/deploy.yml`.
+Live stand: **https://изи-никель.рф** (primary; punycode
+`xn----jtbedbbojo8m.xn--p1ai`), mirror **https://nornikel.nddev.asia**.
+Deployment details live in `docs/deployment/nornikel-nddev.md`.
 
-## What the system does
+## Capabilities
 
-- **Ingest**: PDF/DOCX/DOCM (Docling, text layer only — scans quarantine honestly,
-  no OCR), legacy DOC (antiword/catdoc), XLSX/XLS (sheet rows with provenance),
-  CSV/Markdown/TXT, web pages (trafilatura), and archives in the batch ingester
-  (.zip, multipart .zip.001/.002, .rar via bsdtar). Year + geography metadata per
-  source, background enrichment with recoverable run lifecycle.
-- **Extract**: word-boundary dictionary scan over a metallurgy ontology,
-  GLiNER zero-shot NER (`urchade/gliner_multi-v2.1`, sentence-boundary overlap
-  chunking), LLM guided-JSON extraction with typed relations; entity resolution
-  ladder exact → alias → semantic (cosine ≥ 0.90 with a digit veto) → create.
-  Every source becomes a `publication` node with extracted date and
-  `AUTHORED_BY`/`DESCRIBED_IN` edges.
-- **Retrieve**: Qdrant hybrid (dense 1536-dim Yandex `text-embeddings` + local
-  Russian BM25, RRF fusion), incremental hash-skip indexing, targeted DuckDB
-  rejoin — the vector index is never authoritative.
-- **Answer**: LLM synthesis (`aliceai-llm` via organizer-provided Yandex AI
-  Studio) gated by claim verification: every sentence must cite packet span ids
-  AND carry only numbers that literally exist in the cited spans; failed
-  synthesis degrades to a deterministic summary, never to unverified text.
-  Scoped filters: geography (отечественная/зарубежная), year ranges, and
-  unit-canonical numeric constraints («не более 300 мг/л», «от 100 до 300»,
-  мг/дм³ ≡ мг/л).
-- **Analyze**: data-driven conflict detection (direction/method/unit-aware
-  numeric disagreement), material×regime×property gaps matrix, dated decisions
-  and publications timeline, graph neighborhoods with expert-aware ranking.
-- **Prove**: real-corpus eval on the four track questions (citation coverage 1.0,
-  zero fabricated numbers, prompt-injection resistance, zero label leaks) + stored eval runs
-  served to the UI; answer-run audit trail.
+- **Ingest real technical corpora**: PDF, DOCX/DOCM, legacy DOC, XLSX/XLS,
+  CSV/Markdown/TXT, web pages, and recursive archives. PDF text-layer parsing
+  uses a no-GPU pypdfium2 fast path by default; scanned PDFs are quarantined
+  honestly instead of being guessed.
+- **Build a typed evidence ledger**: source documents, spans, table rows,
+  numeric facts, entities, relations, ingestion runs, and answer runs are stored
+  in DuckDB with stable identifiers and provenance.
+- **Retrieve with hybrid search**: Qdrant stores dense vectors plus sparse BM25
+  signals, then results are rejoined to DuckDB before they can be trusted.
+- **Extract graph facts**: dictionaries, optional NER, and a configurable
+  LiteLLM gateway produce typed entities and relations. The production profile
+  is selected by environment variables, so provider and model IDs are not
+  hardcoded into the domain layer.
+- **Answer with verification**: answer synthesis is gated by citation coverage,
+  numeric support, source-label filtering, prompt-injection resistance, and
+  contradiction checks. Provider failures degrade to deterministic summaries,
+  not unverified text.
+- **Analyze the corpus**: graph neighborhoods, material/regime/property gaps,
+  conflict signals, source statistics, answer-run verification metrics, and
+  real-case evaluation are available through the API and UI.
 
-UI sections: Поиск, Граф знаний, Данные, Аналитика, Качество, Безопасность.
+UI sections: Search, Knowledge Graph, Data, Analytics, Quality, and Security.
 
-## Providers and models (organizer-approved)
+## Architecture
 
-- **LLM**: Yandex AI Studio (OpenAI-compatible `https://ai.api.cloud.yandex.net/v1`)
-  through a single LiteLLM gateway adapter. Stand model `aliceai-llm` for both
-  extraction (native strict-JSON, ~2.4s) and answers (~6-11s) — selected by a live
-  bench against qwen3-235b / gpt-oss-120b / deepseek-v4-flash / yandexgpt-5-pro.
-- **Embeddings**: Yandex `text-embeddings` (1536-dim) via `EMBEDDING_BACKEND=yandex`;
-  sparse BM25 stays local so hybrid retrieval keeps an offline lexical leg.
-- **Quota discipline**: process-wide client-side queues pace requests under the
-  documented quotas (10 RPS embeddings, 10 concurrent generations) with
-  429-aware backoff — see `src/nornikel_kg/adapters/ratelimit.py`.
-- `LLM_ENABLED=false` + `EMBEDDING_BACKEND=fake|local` keep every pipeline
-  deterministic and offline — the default for CI and the demo safety net.
-  The previous provider config (dataeyes.ai) is preserved server-side as backup.
+```text
+apps/web/          React/Vite workbench
+services/api/      FastAPI app and routes
+src/nornikel_kg/   Domain, services, ports, adapters, resources
+scripts/           Batch ingest, reindex, real-case evaluation
+tests/             Unit and integration tests
+docs/deployment/   Stand deployment and ingest runbooks
+.serena/           Maintainer memory
+```
+
+Key boundaries:
+
+- DuckDB is the authoritative ledger. Qdrant is a retrieval accelerator only.
+- Domain and services depend on ports; vendor clients live in adapters.
+- Only `src/nornikel_kg/adapters/llm/gateway.py` imports LiteLLM.
+- Runtime secrets stay in `.env` on the host. `.env.example` contains placeholders
+  only.
+- Production ingest must not require a local GPU or graphical runtime. Remote
+  LLM/embedding APIs and text-layer parsers are the supported fast path.
 
 ## Quick Start
 
-Requirements: Python 3.12, uv, Node 24, Docker Compose (optional).
+Requirements: Python 3.12, uv, Node 24, Docker Compose.
 
 ```bash
-make install          # backend + frontend deps
-make api              # FastAPI on :8000 port
+make install
+make api
 cd apps/web && VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-Quality gates (all offline, no LLM secrets needed):
+Quality gates:
 
 ```bash
-make ci               # ruff + mypy strict + pytest + frontend typecheck/build
-make eval-realcase    # real-corpus eval on the four track questions (needs a running API)
+make ci
+make eval-realcase    # requires a running API
 docker compose config
 ```
 
-## Upload hardening
+`make ci` is offline and deterministic: it does not require provider secrets or
+network LLM calls.
 
-- `POST /sources/upload` accepts `.csv .md .markdown .txt .text .pdf .docx .docm
-  .doc .xlsx .xls` with filename/MIME/size validation
-  (`MAX_SOURCE_UPLOAD_BYTES`, default 5 MiB, 25 MiB on the stand).
-- The bundled web Nginx allows `client_max_body_size 32m` and 300s `/api/`
-  proxy timeouts (first Docling runs download models).
-- PDFs without a text layer are quarantined with a visible reason — never a 500.
+## Configuration
 
-## Demo scenario
+Copy `.env.example` to `.env` and set provider credentials on the runtime host.
+The main knobs are:
 
-Track-derived questions that showcase the pipeline on the real corpus:
+- `LLM_ENABLED`, `LLM_API_BASE`, `LLM_API_KEY`, `LLM_EXTRACTION_MODEL`,
+  `LLM_ANSWER_MODEL`
+- `LLM_EXTRACTION_MODE=source_packet|span_budget`
+- `EMBEDDING_BACKEND=openai|local|fake|yandex`
+- `EMBEDDING_API_BASE`, `EMBEDDING_API_KEY`, `EMBEDDING_MODEL_ID`
+- `QDRANT_COLLECTION`, `QDRANT_ENTITY_COLLECTION`
+- `JURY_ALLOWED_LABELS`, `DEFAULT_SOURCE_LABEL`
 
-```text
-Какие технические решения организации циркуляции католита при
-электроэкстракции никеля описаны в практике?        → конкретный насос и расход
-Как распределяются драгоценные металлы между штейном и шлаком?
-Какие методы обессоливания воды подходят при сульфатах не более 300 мг/л?
+Use a new Qdrant collection whenever the embedding dimension changes.
+
+## Upload And Security
+
+- `POST /sources/upload` validates filename, extension, MIME, and size.
+- `POST /sources/import-url` uses an SSRF-hardened fetcher with redirect-hop
+  revalidation and response-size caps.
+- Batch archive expansion rejects path traversal, enforces per-member and
+  cumulative extraction limits, and preserves archive-member provenance.
+- Source labels are filtered before retrieval context reaches the LLM. Requests
+  can only narrow the deployment visibility floor.
+
+## Batch Ingest
+
+The recommended production path builds a graph in a separate DuckDB file and
+separate Qdrant collections, then swaps them atomically:
+
+```bash
+docker compose -f docker-compose.server.yml run --rm --no-deps -T api \
+  python scripts/ingest_corpus.py --dir DATA_HACK --sample 300 --workers 6 --max-mb 150
 ```
 
-Every answer returns a grounded Russian summary with confidence, experiment
-table (when structured data matches), exact `EvidenceSpan` cards, graph paths,
-relevance-gated conflicts, honest gaps, and verification metrics.
+See `docs/deployment/full-ingest-runbook.md` for the zero-downtime build and
+swap procedure.
 
-## Architecture boundaries
+## Evaluation
 
-- DuckDB is the system of record (ledger + graph); if DuckDB and Qdrant
-  disagree, DuckDB wins. The API process holds one persistent DuckDB
-  connection — batch tools and a running API are mutually exclusive
-  (see the deployment doc for the lock contract).
-- Only `src/nornikel_kg/adapters/llm/gateway.py` may import litellm.
-- Domain and services depend on ports; vendor clients live in adapters.
-- No secrets in git: copy `.env.example` to `.env` on the runtime host.
+`scripts/run_realcase_eval.py` checks the live API on organizer-track questions.
+It verifies citation coverage, unsupported numbers, source-label leaks,
+prompt-injection success, semantic support, evidence presence, and absence of
+legacy fixture leakage.
 
-## Repository layout
+## Repository Status
 
-```text
-apps/web/          React/Vite workbench (six-section SPA)
-services/api/      FastAPI app and routes
-src/nornikel_kg/   Domain, services, adapters, resources
-scripts/           Batch corpus ingest, real-corpus eval, reindex
-tests/             Unit and integration tests
-docs/deployment/   Server deployment notes and lock contract
-.serena/           Plans, reviews, and project memories
-```
-
-History note: this repository is the working home since 2026-07-03;
-`rldyourmnd/nornikel-kg-search` is the frozen pre-migration archive.
+This repository is the working home for the 2026 hackathon submission. The older
+pre-migration repository is frozen and is not used for deployment.

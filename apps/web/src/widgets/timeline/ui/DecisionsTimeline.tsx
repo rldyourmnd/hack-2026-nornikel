@@ -13,7 +13,7 @@ export function DecisionsTimeline() {
       try {
         setEvents(await fetchTimeline());
       } catch {
-        // timeline is additive demo surface; stay silent on failure
+        // Timeline data is additive; keep the page usable when it is unavailable.
       } finally {
         setLoaded(true);
       }

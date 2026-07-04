@@ -21,7 +21,7 @@ def sentence_numbers_supported(sentence: str, cited_texts: list[str]) -> bool:
     """Every number in the sentence must literally exist in the cited spans.
 
     A citation-existence gate alone lets a model write «твердость 999 HV» and
-    cite a real span (audit H1); numbers are where fabrication hurts most, so
+    cite a real span; numbers are where fabrication hurts most, so
     they are checked against the evidence text itself.
     """
     sentence_numbers = _numbers_in(sentence)

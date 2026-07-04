@@ -1,112 +1,75 @@
-# rldyour Codex Global Instructions
+# Repository Instructions
 
-## Purpose
+## Project
 
-This file is the compact global Codex instruction layer installed as
-`~/.codex/AGENTS.md` in this repository copy.
-Detailed workflows live in rldyour plugins, skills, references, docs, and Serena memories so
-Codex only loads them when relevant.
+`hack-2026-nornikel` is the working repository for the Nornikel hackathon
+submission. The system is an evidence-led R&D knowledge graph and QA workbench
+for mining-and-metallurgy documents.
 
-The owner sets direction and priorities. Codex implements: research, code,
-verification, documentation, git synchronization, and release follow-through.
+Repository artifacts are written in English unless they are user-facing Russian
+UI copy or corpus examples.
 
-## Language
+## Engineering Rules
 
-- User-facing conversation with the owner is Russian unless explicitly requested otherwise.
-- Repository artifacts are English: code, comments, commits, docs, ADRs, and memories.
-- Technical identifiers stay ASCII.
+- Code, config, tests, and migrations are the source of truth.
+- Do not commit secrets, `.env`, runtime databases, caches, browser artifacts,
+  generated local state, or provider credentials.
+- Keep changes scoped and follow existing domain/service/adapter boundaries.
+- DuckDB is the authoritative ledger; Qdrant is a retrieval index only.
+- Vendor clients belong in `src/nornikel_kg/adapters/`.
+- Only `src/nornikel_kg/adapters/llm/gateway.py` may import LiteLLM directly.
+- Production ingest must not require a local GPU or graphical runtime.
+- Do not reintroduce legacy fixture seed data as runtime truth.
 
-## Operating Rules
-
-- Quality and correctness outrank speed.
-- No hacks, fake implementations, swallowed errors, hidden debt, or fake green checks.
-- Code/config/tests are the source of truth. Docs and memories must reflect verified state.
-- Keep semantic entropy low: reuse local patterns, clear boundaries, avoid duplicate policy sources.
-- Use current source-backed dependency/product facts; do not upgrade or migrate blindly.
-- Do not commit secrets, runtime markers, browser artifacts, caches, or accidental local state.
-- Do not revert user changes unless explicitly requested.
-
-## Plugin Router
-
-Use installed rldyour plugins automatically when the task matches scope:
-
-- `rldyour-flow`: `ry-init`, `ry-start`, `ry-review`, `ry-repair`, `ry-deploy`, instruction-docs sync,
-  and post-task sync/lifecycle hooks.
-- `rldyour-serena-mcp`: code understanding, semantic inspection/refactor, and memory sync.
-- `rldyour-explore`: official docs, upstream research, web evidence, and current-version checks.
-- `rldyour-rules`: quality, architecture, dependency policy, verification gates, ADR and instruction policy.
-- `rldyour-lsps`: language-server routing, health checks, and Serena/LSP integration.
-- `rldyour-browser`: browser validation/debugging, screenshots, user flows, console/network/runtime.
-- `rldyour-design`: design systems, tokens, i18n, FSD, shadcn/ui, ReactBits.
-- `rldyour-security`: OWASP-oriented implementation guidance and defensive review.
-
-## Tool Priority
-
-- Code structure: Serena symbols first, then `rg`/targeted reads for unsupported text.
-- Technical docs: Context7/OpenAI Docs MCP or official sources before web search.
-- Repo architecture: DeepWiki/source reads when needed.
-- Security-sensitive changes: project security scripts + defensive guidance.
-
-## Codex System Contract
-
-- Approval policy is `never`, execution is non-sandboxed / full access where allowed by repo policy.
-- Required features: hooks and multi-agent features remain enabled.
-- Default parent model is `gpt-5.5` with high reasoning unless overridden.
-- Safe mode is explicit only when requested by maintainers.
-
-## Native Boundaries
-
-- Workflows and behaviors are plugin/skill based and should be invoked through available rldyour skills.
-- Plugin manifests live in `.codex-plugin/plugin.json` where applicable.
-- Plugin-bundled hooks are discovered via manifests/hook tooling and must be respected.
-
-## Git And Delivery
-
-- Prefer atomic Conventional Commits.
-- Split unrelated implementation/test/docs/metadata work when independently reviewable.
-- Do not force-push `main`.
-- Run checks matching touched scope and report exact commands.
-- If changes are committed, push when release synchronization requires it.
-- Standard finish order: Serena sync → instruction-docs sync → quality checks → atomized commits → push → branch cleanup after explicit confirmation.
-
-## Key Commands
+## Main Commands
 
 ```bash
+make install
 make ci
-python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-flow/local/scripts/flow_post_task_state.py
-python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-flow/local/scripts/git_sync_audit.sh
-python3 /Users/rldyourmnd/.codex/plugins/cache/rldyour-codex/rldyour-serena-mcp/local/scripts/serena_memory_state.py
+make eval-realcase
+docker compose config
 ```
 
-Runtime defaults:
+Backend-only checks:
 
-- Upload hardening limit is `MAX_SOURCE_UPLOAD_BYTES` (default `5_242_880` bytes,
-  `26_214_400` on the stand), configurable via `.env`; accepted upload types:
-  `.csv .md .markdown .txt .text .pdf .docx .docm .doc .xlsx .xls`.
-- The bundled web Nginx proxy sets `client_max_body_size 32m` and 300s `/api/`
-  proxy timeouts; host-level reverse proxies must keep equal or larger limits.
+```bash
+uv run ruff check .
+uv run mypy
+uv run pytest
+```
 
-Run repository-local validation scripts when present.
+Frontend checks:
 
-## Key Notes
+```bash
+cd apps/web && npm run typecheck && npm run build
+```
 
-- Working repository: `rldyourmnd/hack-2026-nornikel` (migrated 2026-07-03;
-  `rldyourmnd/nornikel-kg-search` is a frozen archive — its deploy workflow is
-  disabled, never push there). Auto-deploy runs from this repo's main.
+## Runtime Defaults
 
-- MVP (waves W0-W5 merged 2026-07-02/03) is a grounded evidence-led flow: Docling PDF/DOCX
-  ingest with quarantine, trafilatura URL import, dictionary/GLiNER/LLM extraction with
-  entity resolution, own DuckDB+NetworkX graph layer, Qdrant hybrid retrieval
-  (USER-bge-m3 + BM25, RRF), LLM answer synthesis gated by the claim verifier with a
-  deterministic fallback, conflict detector, gaps matrix, and recursive DATA_HACK
-  corpus ingestion (archives, PDFs, spreadsheets).
-- Remaining gaps: real-corpus gold eval set, geomechanics ontology coverage, CI without
-  the `ingest` extra (GLiNER/Docling/spreadsheet paths untested there).
-- Implementation plan package (2026-07-02): `.serena/plans/00_PLAN_INDEX.md` (waves W0-W5)
-  plus `.serena/reviews/` (critical review, research evidence register). Plans amend
-  `18_IMPLEMENTATION_SPEC.md`; scope/decision precedence is `.serena/plans/01_MVP_SCOPE_AND_DECISIONS.md`.
-- LLM provider (2026-07-03): organizer-provided Yandex AI Studio via the LiteLLM SDK
-  (OpenAI-compatible base `https://ai.api.cloud.yandex.net/v1`, stand model
-  `aliceai-llm`, dense embeddings `text-embeddings` 1536-dim with
-  `EMBEDDING_BACKEND=yandex`); previous dataeyes config kept as server-side backup.
-  Langfuse self-host for observability; CI stays offline with deterministic LLM fakes.
+- Upload limit: `MAX_SOURCE_UPLOAD_BYTES` (default 5 MiB locally, 25 MiB on the
+  stand). The bundled web Nginx proxy allows 32 MiB uploads and 300s `/api/`
+  proxy timeouts.
+- Accepted upload types: `.csv .md .markdown .txt .text .pdf .docx .docm .doc
+  .xlsx .xls`.
+- PDF ingest defaults to `PDF_PARSE_MODE=pypdfium`, a text-layer parser that does
+  not need local ML/GPU dependencies.
+- LLM and embedding providers are configured by environment variables. Keep
+  model IDs and keys outside git.
+
+## Deployment
+
+- Pushes to `main` auto-deploy through `.github/workflows/deploy.yml`.
+- Stand deployment notes: `docs/deployment/nornikel-nddev.md`.
+- Batch ingest and atomic swap: `docs/deployment/full-ingest-runbook.md`.
+- Build full or sampled graphs into separate `DUCKDB_PATH`,
+  `QDRANT_COLLECTION`, and `QDRANT_ENTITY_COLLECTION` values; swap only after
+  successful smoke checks.
+
+## Verification Expectations
+
+Run checks matching the touched scope and report exact commands. For changes to
+ingest, retrieval, answer verification, source labels, or security-sensitive
+paths, include the relevant unit/integration tests and `make ci` when feasible.
+
+`make eval-realcase` requires a running API and verifies the live evidence
+contract against organizer-track questions.

@@ -77,7 +77,7 @@ class YandexEmbeddingBackend:
     def embed_dense(self, texts: list[str]) -> list[list[float]]:
         return self._embed_many(texts, self.doc_model_uri)
 
-    # Repeated demo questions re-embed the same query strings; a small
+    # Repeated QA queries re-embed the same query strings; a small
     # process-wide cache spares both latency and the shared RPS quota.
     _query_cache: dict[tuple[str, str], list[float]] = {}
     _query_cache_lock = threading.Lock()

@@ -14,8 +14,7 @@ def _client(tmp_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
     monkeypatch.setenv("SYNC_ENRICHMENT", "true")
     monkeypatch.setenv("GLINER_ENABLED", "false")
-    # Analytics tests assert against the seeded synthetic fixture; opt in
-    # explicitly now that seeding defaults OFF.
+    # Analytics tests use an isolated test ledger; runtime seeding stays OFF.
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
     runtime.get_ingestion_service.cache_clear()
@@ -125,7 +124,7 @@ def test_source_summary_carries_year_and_geography(
     assert uploaded[0]["year"] == 2019
     assert uploaded[0]["geography"] == "ru"
 
-def test_answer_runs_audit_trail(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_answer_runs_verification_trail(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     client = _client(tmp_path, monkeypatch)
     ask = client.post(
         "/qa/ask",

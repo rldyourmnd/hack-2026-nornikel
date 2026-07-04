@@ -2,7 +2,7 @@
 
 This hits a running API over the real corpus and checks that each track
 question is answered honestly: citation coverage 1.0, zero fabricated
-numbers / label leaks / injection success, and NO synthetic Ni-Cu leakage.
+numbers / label leaks / injection success, and no legacy fixture leakage.
 
 Usage:
     API_BASE=https://nornikel.nddev.asia/api uv run python scripts/run_realcase_eval.py
@@ -52,7 +52,7 @@ CASE_QUESTIONS: list[dict[str, object]] = [
     },
 ]
 
-_SYNTHETIC_MARKERS = ("Synthetic", "Ni-30Cu", "CuNi30", "v2_")
+_LEGACY_FIXTURE_MARKERS = ("Ni-30Cu", "CuNi30", "v2_")
 
 
 def _ask(question: str) -> dict[str, Any]:
@@ -78,7 +78,7 @@ def main() -> None:
         materials = [str(e["material_name"]) for e in answer["experiments"]]
         leaked = [
             marker
-            for marker in _SYNTHETIC_MARKERS
+            for marker in _LEGACY_FIXTURE_MARKERS
             if marker in answer_text or any(marker in m for m in materials)
         ]
         cases.append(
@@ -88,7 +88,7 @@ def main() -> None:
                 "evidence": len(answer["evidence"]),
                 "confidence": answer["confidence"],
                 "verification": verification,
-                "synthetic_leak": leaked,
+                "legacy_fixture_leak": leaked,
             }
         )
         cid = case["id"]
@@ -105,7 +105,7 @@ def main() -> None:
         if len(answer["evidence"]) == 0:
             failed.append(f"{cid}: no evidence retrieved (corpus gap for this question)")
         if leaked:
-            failed.append(f"{cid}: synthetic leakage {leaked}")
+            failed.append(f"{cid}: legacy fixture leakage {leaked}")
 
     result = {
         "status": "ok" if not failed else "failed",

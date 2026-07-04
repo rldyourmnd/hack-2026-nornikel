@@ -66,7 +66,7 @@ docker compose -f docker-compose.server.yml ps
 curl -fsS http://127.0.0.1:8513/api/health
 curl -fsS -X POST http://127.0.0.1:8513/api/qa/ask \
   -H 'Content-Type: application/json' \
-  --data '{"question":"Что делали по Ni-30Cu при старении 700 C 8 ч?"}'
+  --data '{"question":"Какие методы обессоливания воды подходят при сульфатах не более 300 мг/л?"}'
 sudo nginx -t
 curl -I https://fa.nddev.asia
 ```

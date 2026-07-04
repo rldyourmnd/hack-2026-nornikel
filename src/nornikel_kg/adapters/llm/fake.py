@@ -9,7 +9,7 @@ from nornikel_kg.ports.llm import LLMResult, LLMTask
 
 
 class FakeLLM:
-    """Deterministic LLM stand-in used whenever LLM_ENABLED=false (CI, tests, demo fallback).
+    """Deterministic LLM stand-in used whenever LLM_ENABLED=false.
 
     Outputs are either queued fixtures (tests) or a stable canned payload derived
     from the prompt hash, so pipelines behave identically across runs with no

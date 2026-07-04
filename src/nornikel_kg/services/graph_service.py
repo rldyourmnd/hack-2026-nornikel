@@ -54,7 +54,7 @@ class GraphService:
             return None
         nodes_by_id = {node["entity_id"]: node for node in result["nodes"]}
         # People and publications get a type boost: «кто эксперт по теме» must
-        # not lose them to densely-connected material nodes (audit gap).
+        # not lose them to densely-connected material nodes.
         type_boost = {"person": 1000, "publication": 500, "team": 500, "laboratory": 500}
 
         def rank_key(node_id: str) -> int:

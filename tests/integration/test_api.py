@@ -328,8 +328,10 @@ def test_qa_endpoint_source_filter_empty_result(
     assert payload["answer_summary"] == []
 
 
-def test_clean_ledger_has_no_synthetic_source(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    """A fresh ledger holds no synthetic data: no sources, honest-empty answers."""
+def test_clean_ledger_has_no_legacy_fixture_source(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """A fresh ledger holds no legacy fixture data: no sources, honest-empty answers."""
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "catalog.duckdb"))
     monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
     runtime.get_ledger_repository.cache_clear()
@@ -340,4 +342,4 @@ def test_clean_ledger_has_no_synthetic_source(tmp_path: Path, monkeypatch: Monke
     assert sources == []
     answer = client.post("/qa/ask", json={"question": "Что известно по Ni-30Cu?"}).json()
     assert answer["experiments"] == []
-    assert not any("Synthetic" in str(s.get("title", "")) for s in sources)
+    assert not any("Legacy Fixture" in str(s.get("title", "")) for s in sources)

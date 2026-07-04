@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Last commit: 97407f4
 Scope: src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
@@ -9,7 +9,7 @@ Area: ARCH
 
 ## Purpose
 
-Capture the current architecture contract for the evidence-first R&D workbench.
+Capture the architecture contract for the evidence-first R&D workbench.
 
 ## Source Of Truth
 
@@ -25,33 +25,31 @@ Capture the current architecture contract for the evidence-first R&D workbench.
 - `services/api/main.py:create_app`: mounts health, QA, sources, graph, entities, gaps, eval, stats routes.
 - `services/api/routes/query.py:/qa/ask`: answer API.
 - `services/api/routes/sources.py`: upload/import/archive/delete/reindex endpoints.
-- `src/nornikel_kg/services/runtime.py`: env-driven wiring for repository, retrieval, extraction, ingestion, QA.
+- `src/nornikel_kg/services/runtime.py`: env-driven wiring.
 - `src/nornikel_kg/services/ingestion_service.py:IngestionService.ingest_upload`: parse -> ledger -> extraction -> retrieval index.
 - `src/nornikel_kg/services/extraction_service.py:ExtractionService.process_source`: entity/relation extraction.
 - `src/nornikel_kg/services/qa_service.py:EvidenceQAService.ask`: filter/retrieve/compose/verify/persist answer.
 
 ## Current Behavior
 
-- `.pdf` ingest defaults to `PyPdfiumFastParser`, a pypdfium2 text-layer parser with no OCR, no ML layout model, no GPU, and no graphical-system dependency. `PDF_PARSE_MODE=docling` opts into Docling PDF parsing.
-- DOCX/DOCM/PPTX still use the Docling document parser; XLS/XLSX use the spreadsheet parser; legacy DOC uses antiword/catdoc; URL import uses trafilatura after controlled SSRF-safe fetch.
+- `.pdf` ingest defaults to `PyPdfiumFastParser`, a pypdfium2 text-layer parser with no OCR, no ML layout model, no GPU, and no graphical-system dependency.
+- DOCX/DOCM/PPTX use the document parser; XLS/XLSX use the spreadsheet parser; legacy DOC uses antiword/catdoc; URL import uses trafilatura after controlled SSRF-safe fetch.
 - `LLM_EXTRACTION_MODE=source_packet` is the default: one guided-JSON call over a representative source packet, then mentions/relations are attributed to spans containing the mention text. `span_budget` opts into deeper per-span extraction.
-- `MAX_EXTRACTION_SPANS` defaults to 400 and bounds graph extraction. All spans are still stored and indexed for retrieval.
-- `MAX_TABLE_ROWS_PER_SOURCE` defaults to 400 and bounds large table-row span emission.
+- `MAX_EXTRACTION_SPANS` and `MAX_TABLE_ROWS_PER_SOURCE` default to 400 and bound graph work for large files. All emitted spans are still stored and indexed for retrieval.
 - `DuckDBLedgerRepository.batch_transaction()` wraps one source's graph write burst in a single transaction under the process lock.
-- `RetrievalService` indexes spans into Qdrant, prefixes source title for retrievability, and re-joins hits back to DuckDB before trust.
-- `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates; provider failures degrade to deterministic/rule-only behavior where callers catch `LLMError`.
+- `RetrievalService` indexes spans into Qdrant, prefixes source title for retrievability, and rejoins hits back to DuckDB before trust.
+- `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates. Provider failures degrade to deterministic/rule-only behavior where callers catch `LLMError`.
 
-## Contracts And Data
+## Contracts
 
-- `AskRequest`/`AskResponse` live in `src/nornikel_kg/domain/models.py`.
+- `AskRequest` and `AskResponse` live in `src/nornikel_kg/domain/models.py`.
 - Retrieval collections are selected by `QDRANT_COLLECTION` and `QDRANT_ENTITY_COLLECTION`; use a new collection when vector dimension changes.
-- Current working dense embedding backend is `EMBEDDING_BACKEND=openai`; local and yandex backends remain code paths.
 - Source labels are deployment-floor filtered by `JURY_ALLOWED_LABELS` and may only be narrowed by request `allowed_labels`.
 
 ## Invariants
 
 - No answer may trust Qdrant text without DuckDB rejoin and label filtering.
-- No-GPU/no-local-graphics constraint applies to production ingest; avoid adding local ML/GPU-only parse or embedding dependencies as required paths.
+- No-GPU/no-local-graphics constraint applies to production ingest.
 - Do not call `duckdb.connect(...)` outside `DuckDBLedgerRepository._connect()`.
 
 ## Verification
