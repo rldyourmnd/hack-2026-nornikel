@@ -1541,7 +1541,12 @@ class DuckDBLedgerRepository:
         headers: list[str],
         values: list[str],
     ) -> int:
-        """Persist subject-tagged numeric facts extracted from one table row."""
+        """Persist subject-tagged numeric facts extracted from one table row.
+
+        Facts with a valid unit also produce a property_measurement row, so
+        structured numeric data is available for measurement-based queries
+        (not just numeric_facts).
+        """
         facts = extract_facts_from_row(list(headers), [str(value) for value in values])
         for fact in facts:
             identifier = "nf_" + stable_hash(
@@ -1569,6 +1574,33 @@ class DuckDBLedgerRepository:
                     "candidate",
                 ],
             )
+            if fact.unit:
+                measurement_id = "pm_" + stable_hash(
+                    [span_id, fact.subject, fact.prop, repr(fact.value)], 20
+                )
+                connection.execute(
+                    """
+                    INSERT INTO property_measurements
+                        (measurement_id, source_id, experiment_id, property_id,
+                         property_name, value, unit, original_value, method,
+                         supporting_span_ids_json, validation_status)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (measurement_id) DO NOTHING
+                    """,
+                    [
+                        measurement_id,
+                        source_id,
+                        "",
+                        "",
+                        fact.subject_label,
+                        fact.value,
+                        fact.unit,
+                        str(fact.value),
+                        "table_extraction",
+                        json.dumps([span_id], ensure_ascii=False),
+                        "validated_rule",
+                    ],
+                )
         return len(facts)
 
     def list_numeric_facts_for_spans(

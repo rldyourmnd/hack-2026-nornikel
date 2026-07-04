@@ -29,14 +29,18 @@ _HOMOGLYPH_CYR_TO_LAT = str.maketrans(
 
 
 def _fold_homoglyphs(token: str) -> str:
-    """Fold Cyrillic homoglyphs to Latin, but only in mixed-script tokens.
+    """Fold Cyrillic homoglyphs to Latin, but only in genuinely mixed-script tokens.
 
-    Only tokens that already carry a Latin letter fold («Ni-30Сu» typed with
-    Cyrillic С). Pure-Cyrillic tokens — including alloy codes like «МН30» —
-    stay Cyrillic: they are legitimate Russian designations resolved through
-    the alias table, not typos.
+    Only tokens that carry BOTH a Latin letter AND a Cyrillic letter fold
+    («Ni-30Сu» typed with Cyrillic С). Pure-Cyrillic tokens — including
+    alloy codes like «МН30» and words split by hyphens — stay Cyrillic: they
+    are legitimate Russian designations resolved through the alias table,
+    not typos. A token like «постоянным» must never fold even if a dash split
+    made an adjacent part appear Latin-only.
     """
-    if _LATIN_RE.search(token):
+    has_cyrillic = bool(re.search(r"[а-яё]", token))
+    has_latin = bool(_LATIN_RE.search(token))
+    if has_cyrillic and has_latin:
         return token.translate(_HOMOGLYPH_CYR_TO_LAT)
     return token
 

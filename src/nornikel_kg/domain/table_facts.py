@@ -35,6 +35,52 @@ _SUBJECT_HEADER_HINTS = (
 _VALUE_HEADER_HINTS = ("значен", "содержан", "концентрац", "value", "content", "concentration")
 _UNIT_HEADER_HINTS = ("ед.изм", "единиц", "unit", "размерн")
 
+# Known non-unit strings that appear in spreadsheet headers/parentheses but
+# are NOT physical units. These are country names, location qualifiers, or
+# table annotations that were misidentified as units in the 300-file ingest.
+_NON_UNIT_TOKENS = frozenset({
+    "japan", "russia", "australia", "belgium", "germany", "china", "anhuichina",
+    "txusa", "000t", "kazakhstan", "canada", "finland", "norway", "sweden",
+    "usa", "uk", "france", "italy", "spain", "poland", "india", "brazil",
+    "mexico", "chile", "peru", "zambia", "congo", "morocco", "south africa",
+    "new caledonia", "indonesia", "philippines", "zimbabwe", "botswana",
+    "namibia", "mongolia", "iran", "turkey", "korea", "ukraine", "belarus",
+    "arctic", "siberia", "ural", "kola",
+})
+
+# Valid unit patterns: must contain a digit, a unit symbol, or a known
+# measurement keyword. Pure word strings (country names, locations) are rejected.
+_UNIT_KEYWORDS = (
+    "мг", "г", "кг", "т", "мл", "л", "м3", "м²", "м", "мм", "см", "км",
+    "па", "кпа", "мпа", "бар", "атм", "руб", "долл", "$", "eur", "usd",
+    "час", "ч", "мин", "сут", "год", "лет", "мес",
+    "%", "град", "°", "c", "k", "f", "ppm", "ppb",
+    "вт", "квт", "мвт", "дж", "кал", "гц",
+    "мкг", "нг", "моль", "ммоль", "экв",
+    "mg", "g", "kg", "t", "ml", "l", "m", "mm", "cm", "km",
+    "pa", "kpa", "mpa", "bar", "atm", "rub", "usd", "eur",
+    "h", "min", "day", "year", "mo",
+    "ppm", "ppb", "kv", "kw", "mw", "j", "cal",
+    "ug", "ng", "mol", "mmol", "eq",
+    "отн", "ед", "раз", "доля", "tier", "class",
+)
+
+_UNIT_MIN_LENGTH = 1
+_UNIT_MAX_LENGTH = 20
+
+
+def _is_valid_unit(token: str) -> bool:
+    """Check if a token looks like a real physical unit, not a country name or random word."""
+    if not token or len(token) > _UNIT_MAX_LENGTH:
+        return False
+    low = token.lower().strip()
+    if low in _NON_UNIT_TOKENS:
+        return False
+    if any(non in low for non in ("japan", "russia", "china", "germany", "korea",
+                                   "australia", "belgium", "canada", "finland")):
+        return False
+    return any(kw in low for kw in _UNIT_KEYWORDS)
+
 
 @dataclass(frozen=True)
 class NumericFact:
@@ -57,7 +103,11 @@ def _to_float(text: str) -> float | None:
 
 def _unit_from_header(header: str) -> str:
     match = _UNIT_IN_HEADER_RE.search(header)
-    return normalize_unit(match.group(1)) if match else ""
+    if match:
+        raw_unit = normalize_unit(match.group(1))
+        if _is_valid_unit(raw_unit):
+            return raw_unit
+    return ""
 
 
 def _header_role(header: str) -> str:
@@ -96,7 +146,8 @@ def extract_facts_from_row(
         subject_label = cell(subject_idx)
         number = _to_float(cell(value_idx))
         if subject_label and number is not None:
-            unit = normalize_unit(cell(unit_idx)) or _unit_from_header(headers[value_idx])
+            raw_unit = normalize_unit(cell(unit_idx)) or _unit_from_header(headers[value_idx])
+            unit = raw_unit if _is_valid_unit(raw_unit) else ""
             facts.append(
                 NumericFact(
                     subject=canonical_key(subject_label),
@@ -124,13 +175,15 @@ def extract_facts_from_row(
         number = _to_float(value)
         if number is None:
             continue
+        raw_unit = _unit_from_header(header)
+        unit = raw_unit if _is_valid_unit(raw_unit) else ""
         facts.append(
             NumericFact(
                 subject=canonical_key(subject_label),
                 subject_label=subject_label,
                 prop=canonical_key(re.sub(_UNIT_IN_HEADER_RE, "", header).strip()) or "value",
                 value=number,
-                unit=_unit_from_header(header),
+                unit=unit,
             )
         )
     return facts

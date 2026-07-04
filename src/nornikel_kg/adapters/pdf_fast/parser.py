@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import logging
+import pickle
+import struct
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
-from typing import Any
 
 from nornikel_kg.ports.parser import (
     NoTextLayerError,
@@ -13,12 +17,10 @@ from nornikel_kg.ports.parser import (
 
 logger = logging.getLogger(__name__)
 
-# Block size for splitting page text into retrievable spans.
 _MAX_BLOCK_CHARS = 800
 
 
 def _chunk_page_text(text: str, max_chars: int) -> list[str]:
-    """Group a page's lines into ~max_chars blocks on line boundaries."""
     chunks: list[str] = []
     buffer: list[str] = []
     size = 0
@@ -36,50 +38,50 @@ def _chunk_page_text(text: str, max_chars: int) -> list[str]:
     return chunks
 
 
+_WORKER_SCRIPT = r'''
+import json, sys, pickle, struct
+
+def _run():
+    content_len = struct.unpack("<I", sys.stdin.buffer.read(4))[0]
+    content = sys.stdin.buffer.read(content_len)
+    import pypdfium2 as pdfium
+    pdf = pdfium.PdfDocument(content)
+    pages = []
+    for i in range(len(pdf)):
+        page = pdf[i]
+        tp = page.get_textpage()
+        text = tp.get_text_range()
+        tp.close()
+        page.close()
+        pages.append(text)
+    pdf.close()
+    sys.stdout.buffer.write(pickle.dumps(pages))
+
+if __name__ == "__main__":
+    _run()
+'''
+
+
 class PyPdfiumFastParser:
-    """Fast, ML-free PDF text extraction via pypdfium2 — no GPU, no layout model.
-
-    For text-layer PDFs this replaces the Docling ML pipeline (layout +
-    TableFormer), which is CPU-bound and slow with no hardware acceleration
-    (NNPACK unavailable on the stand). Text-only: a table's content is captured
-    as text lines (numbers stay inline, so retrieval + LLM/dictionary extraction
-    still see them) but not as structured numeric-fact rows. Scanned PDFs (no
-    text layer) raise NoTextLayerError — OCR is out of scope.
-    """
-
     parser_profile = "pypdfium_fast_v1"
 
     def parse(self, *, content: bytes, filename: str) -> ParsedDocument:
         extension = Path(filename).suffix.lower()
         if extension != ".pdf":
             raise ParserError(f"PyPdfiumFastParser handles .pdf only, got {extension}")
-        import pypdfium2 as pdfium
 
-        try:
-            pdf: Any = pdfium.PdfDocument(content)
-        except Exception as error:
-            raise ParserError(f"pypdfium2 could not open {filename}: {error}") from error
+        pages_text = self._parse_in_subprocess(content, filename)
 
         blocks: list[ParsedBlock] = []
         ordinal = 0
-        try:
-            for page_index in range(len(pdf)):
-                page = pdf[page_index]
-                textpage = page.get_textpage()
-                try:
-                    text = textpage.get_text_range()
-                finally:
-                    textpage.close()
-                    page.close()
-                for chunk in _chunk_page_text(text, _MAX_BLOCK_CHARS):
-                    ordinal += 1
-                    blocks.append(
-                        ParsedBlock(
-                            text=chunk, page=page_index + 1, locator=f"block_{ordinal}"
-                        )
+        for page_index, text in enumerate(pages_text):
+            for chunk in _chunk_page_text(text, _MAX_BLOCK_CHARS):
+                ordinal += 1
+                blocks.append(
+                    ParsedBlock(
+                        text=chunk, page=page_index + 1, locator=f"block_{ordinal}"
                     )
-        finally:
-            pdf.close()
+                )
 
         parsed = ParsedDocument(
             blocks=blocks,
@@ -92,3 +94,42 @@ class PyPdfiumFastParser:
                 f"PDF {filename} has no extractable text layer (OCR is out of scope)."
             )
         return parsed
+
+    @staticmethod
+    def _parse_in_subprocess(content: bytes, filename: str) -> list[str]:
+        with tempfile.NamedTemporaryFile(
+            suffix=".py", mode="w", delete=False, encoding="utf-8"
+        ) as script_file:
+            script_file.write(_WORKER_SCRIPT)
+            script_path = script_file.name
+
+        try:
+            proc = subprocess.run(
+                [sys.executable, script_path],
+                input=struct.pack("<I", len(content)) + content,
+                capture_output=True,
+                timeout=300,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise ParserError(
+                f"pypdfium2 subprocess timed out for {filename}: {error}"
+            ) from error
+        finally:
+            Path(script_path).unlink(missing_ok=True)
+
+        if proc.returncode != 0:
+            stderr = proc.stderr.decode("utf-8", errors="replace")[:500]
+            if "NoTextLayer" in stderr or "no text" in stderr.lower():
+                raise NoTextLayerError(
+                    f"PDF {filename} has no extractable text layer (OCR is out of scope)."
+                )
+            raise ParserError(f"pypdfium2 subprocess failed for {filename}: {stderr}")
+
+        try:
+            pages: list[str] = pickle.loads(proc.stdout)
+        except Exception as error:
+            raise ParserError(
+                f"pypdfium2 subprocess returned invalid data for {filename}: {error}"
+            ) from error
+
+        return pages
