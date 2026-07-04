@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
-Scope: src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/adapters/llm/gateway.py; src/nornikel_kg/adapters/embeddings/yandex.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
+Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
+Scope: scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/adapters/llm/gateway.py; src/nornikel_kg/adapters/embeddings/yandex.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
 
@@ -37,6 +37,11 @@ Capture the architecture contract for the evidence-first R&D workbench.
 - `LLM_EXTRACTION_MODE=source_packet` is the default: one guided-JSON call over a representative source packet, then mentions/relations are attributed to spans containing the mention text. `span_budget` opts into deeper per-span extraction.
 - `MAX_EXTRACTION_SPANS` and `MAX_TABLE_ROWS_PER_SOURCE` default to 400 and bound graph work for large files. All emitted spans are still stored and indexed for retrieval.
 - `DuckDBLedgerRepository.batch_transaction()` wraps one source's graph write burst in a single transaction under the process lock.
+- High-throughput corpus builds should run multiple independent ingest shards:
+  each shard uses its own `DUCKDB_PATH`, all shards can write to one fresh
+  Qdrant collection, and `scripts/merge_duckdb_shards.py` merges the ledgers.
+  This is the supported way to use more no-GPU server resources without
+  violating DuckDB's single-file writer constraints.
 - `RetrievalService` indexes spans into Qdrant, prefixes source title for retrievability, and rejoins hits back to DuckDB before trust.
 - `YandexEmbeddingBackend` uses Yandex AI Studio text vectorization v2 with
   `text-embeddings-v2-doc` for indexed content, `text-embeddings-v2-query` for
@@ -44,6 +49,10 @@ Capture the architecture contract for the evidence-first R&D workbench.
 - `LiteLLMGateway` supports Yandex AI Studio's OpenAI-compatible endpoint by
   adding `OpenAI-Project: $YANDEX_FOLDER_ID` for `*.yandex.net` providers while
   keeping the standard LiteLLM `api_base`/`api_key` call path.
+- `LiteLLMGateway` forwards `LLM_REASONING_EFFORT` when set. For `gpt-5*`
+  model IDs it uses `temperature=1` because LiteLLM/OpenAI-compatible GPT-5
+  chat completions reject `temperature=0`; older extraction models keep
+  temperature zero.
 - `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates. Provider failures degrade to deterministic/rule-only behavior where callers catch `LLMError`.
 
 ## Contracts

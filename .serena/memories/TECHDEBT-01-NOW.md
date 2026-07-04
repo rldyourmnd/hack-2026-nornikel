@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
-Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/run_realcase_eval.py; src/nornikel_kg/
+Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
+Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; scripts/run_realcase_eval.py; src/nornikel_kg/
 Area: TECHDEBT
 -->
 
@@ -25,7 +25,12 @@ historical issues.
 - **No real-corpus gold-answer set**: `scripts/run_realcase_eval.py` checks honesty properties on four live track questions, not expected answer text.
 - **CI does not install `--extra ingest`**: heavy Docling/GLiNER/spreadsheet/legacy paths are not fully exercised in CI.
 - **Qdrant client/server mismatch warning**: Python client 1.18.0 warns against server `qdrant/qdrant:v1.16.3`.
-- **Random-sample batch speed floor**: pypdfium2, source_packet, write batching, and caps are deployed, but large XLS/PDF sources still take tens/hundreds of seconds due to span volume, remote embeddings, and graph resolution. Deeper bulk-resolution/indexing work is the remaining speed path on the no-GPU stand.
+- **Shard load balancing is still ordinal, not weight-aware**:
+  `scripts/ingest_corpus.py --shard-count/--shard-index` splits the selected
+  file list by ordinal modulo. This removes the single-process DuckDB writer
+  bottleneck, but a shard can still receive more large XLS/PDF files than
+  others. A future improvement is a manifest-based scheduler sorted by file
+  size/type/estimated span count before modulo assignment.
 - **Yandex embedding throughput is quota-bound**: the Yandex REST embedding
   backend sends one text-vectorization request per text. AI Studio vectorization
   quota and provider-side 429s make high-worker ingest slower unless
@@ -39,6 +44,9 @@ historical issues.
 - Old generated fixtures are not an active evaluation path.
 - Full local GPU or graphics-dependent components are not acceptable requirements for the stand.
 - Public README/runbook/env docs are provider-neutral and do not expose account-specific operational history.
+- The single-process ingest speed floor is no longer the primary build path:
+  sharded ingest plus `scripts/merge_duckdb_shards.py` is the current
+  high-throughput no-GPU production flow.
 
 ## Verification
 

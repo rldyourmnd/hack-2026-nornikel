@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
+Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
 Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
@@ -26,8 +26,8 @@ Capture current validation commands and what they prove.
 Full local verification remains:
 
 - `uv run ruff check .`: clean.
-- `uv run mypy`: clean, 82 source files.
-- `uv run pytest`: 184 passed.
+- `uv run mypy`: clean.
+- `uv run pytest`: full backend test suite.
 - `cd apps/web && npm run typecheck`: clean.
 - `cd apps/web && npm run build`: clean.
 
@@ -36,6 +36,10 @@ Provider-specific unit coverage includes:
 - `tests/unit/test_llm_gateway.py::test_gateway_sends_yandex_project_header`:
   verifies Yandex AI Studio OpenAI-compatible calls receive the `OpenAI-Project`
   header derived from `YANDEX_FOLDER_ID`.
+- `tests/unit/test_llm_gateway.py::test_gateway_forwards_reasoning_effort`:
+  verifies `LLM_REASONING_EFFORT` is passed through LiteLLM, GPT-5-family model
+  IDs use provider-compatible `temperature=1`, and extraction calls do not set
+  output token caps that could truncate structured JSON.
 - `tests/unit/test_yandex_embeddings.py`: verifies split doc/query embedding
   model URIs and the configured `dim` field in Yandex text-vectorization payloads.
 

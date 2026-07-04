@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
+Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -21,6 +21,7 @@ knowledge-graph submission.
 - `services/api/`: FastAPI route layer.
 - `apps/web/`: React/Vite workbench.
 - `scripts/ingest_corpus.py`: direct container batch ingest for DATA_HACK corpora.
+- `scripts/merge_duckdb_shards.py`: merge independently built DuckDB shard ledgers before atomic swap.
 - `scripts/run_realcase_eval.py`: live real-corpus honesty gate.
 - `docs/deployment/`: stand deployment and ingest/swap runbooks.
 - `.serena/memories/`: this current fact set.
@@ -47,6 +48,11 @@ knowledge-graph submission.
 - Legacy fixture seed data and old generated fixtures are deleted from runtime paths.
 - Default PDF ingest is no-GPU/no-layout-model: `.pdf` routes to `PyPdfiumFastParser` unless `PDF_PARSE_MODE=docling`.
 - Fast graph controls are active: `LLM_EXTRACTION_MODE=source_packet`, `MAX_EXTRACTION_SPANS=400`, `MAX_TABLE_ROWS_PER_SOURCE=400`, `DuckDBLedgerRepository.batch_transaction()`, and `scripts/ingest_corpus.py --sample N`.
+- Parallel corpus builds use deterministic ingest sharding:
+  `scripts/ingest_corpus.py --shard-count N --shard-index I` writes each shard
+  to a separate `DUCKDB_PATH`; `scripts/merge_duckdb_shards.py` merges shard
+  ledgers into the final catalog before the atomic swap. Qdrant collection
+  creation is race-tolerant for concurrent shard writers.
 
 ## Invariants
 
