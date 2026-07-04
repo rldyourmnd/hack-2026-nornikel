@@ -27,7 +27,18 @@ jobs:
         run: |
           git archive HEAD | ssh -i ~/.ssh/deploy_key \
             "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
-            'tar -x -C /srv/nornikel-kg-search'
+            '
+              set -e
+              cd /srv/nornikel-kg-search
+              find . -mindepth 1 -maxdepth 1 \
+                ! -name ".env" \
+                ! -name ".env.*" \
+                ! -name "data" \
+                ! -name "DATA_HACK" \
+                ! -name "ingest_*.log" \
+                -exec rm -rf {} +
+              tar -x
+            '
 
       - name: Build and restart
         run: |
