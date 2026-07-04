@@ -196,7 +196,7 @@ class DuckDBLedgerRepository:
                             rows=rows,
                             artifact_locator=filename,
                             parser_profile="csv_table_v1",
-                            first_row_ordinal=1,
+                            first_row_ordinal=2,
                         )
                     else:
                         # Arbitrary CSV (no experiment schema): keep it as a
@@ -1507,7 +1507,7 @@ class DuckDBLedgerRepository:
         """Ingest an arbitrary CSV as header-labeled table-row spans + facts."""
         clean_headers = [header.strip() for header in headers]
         inserted = 0
-        for ordinal, values in enumerate(data_rows, start=1):
+        for ordinal, values in enumerate(data_rows, start=2):
             labeled = " | ".join(
                 f"{header}: {str(value).strip()}"
                 for header, value in zip(clean_headers, values, strict=False)

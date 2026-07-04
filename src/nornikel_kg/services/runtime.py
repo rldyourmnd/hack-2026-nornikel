@@ -7,6 +7,7 @@ from threading import Lock
 
 from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository
 from nornikel_kg.adapters.llm import LLMSettings, build_llm
+from nornikel_kg.domain.security import DEFAULT_ALLOWED_LABELS, SourceLabelPolicy
 from nornikel_kg.services.answer_composer import LLMAnswerComposer
 from nornikel_kg.services.extraction_service import ExtractionService
 from nornikel_kg.services.graph_service import GraphService
@@ -15,6 +16,17 @@ from nornikel_kg.services.qa_service import EvidenceQAService
 from nornikel_kg.services.retrieval_service import RetrievalService
 
 _repository_build_lock = Lock()
+
+
+def _deployment_label_policy() -> SourceLabelPolicy:
+    """Server-side visibility floor from JURY_ALLOWED_LABELS (e.g. "public,internal").
+    A request's allowed_labels can only narrow further, never widen."""
+    raw = os.getenv("JURY_ALLOWED_LABELS", "").strip()
+    if not raw:
+        return SourceLabelPolicy()
+    requested = {label.strip() for label in raw.split(",") if label.strip()}
+    labels = frozenset(label for label in DEFAULT_ALLOWED_LABELS if label in requested)
+    return SourceLabelPolicy(allowed_labels=labels) if labels else SourceLabelPolicy()
 
 
 def project_root() -> Path:
@@ -61,6 +73,7 @@ def get_qa_service() -> EvidenceQAService:
         retrieval_service=get_retrieval_service(),
         answer_composer=composer,
         run_recorder=repository,
+        source_label_policy=_deployment_label_policy(),
     )
 
 

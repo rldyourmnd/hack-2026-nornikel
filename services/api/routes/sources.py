@@ -165,7 +165,7 @@ async def upload_source(file: Annotated[UploadFile, File(...)]) -> SourceIngestR
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=(
                 "Unsupported upload type. Allowed: "
-                ".csv, .md, .markdown, .txt, .text, .pdf, .docx, .docm, .doc, .xlsx, .xls"
+                + ", ".join(sorted(_ALLOWED_UPLOAD_EXTENSIONS))
             ),
         )
     if file.size is not None and file.size > max_upload_bytes:
@@ -213,6 +213,14 @@ def _is_archive_filename(filename: str) -> bool:
     return lowered.endswith(_ARCHIVE_SUFFIXES) or bool(_MULTIPART_ARCHIVE_RE.search(lowered))
 
 
+_MULTIPART_PART_RE = re.compile(r"(\.zip\.\d{3}|\.part\d+\.rar)$", re.IGNORECASE)
+
+
+def _is_multipart_part(filename: str) -> bool:
+    """A single volume of a multipart archive — cannot be expanded alone."""
+    return bool(_MULTIPART_PART_RE.search(filename.lower()))
+
+
 class ArchiveMemberResult(BaseModel):
     member_path: str
     status: str  # ingested | skipped | failed
@@ -241,7 +249,15 @@ async def upload_archive(file: Annotated[UploadFile, File(...)]) -> ArchiveUploa
     if not _is_archive_filename(filename):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported archive type. Allowed: .zip, .rar, .zip.NNN",
+            detail="Unsupported archive type. Allowed: .zip, .rar",
+        )
+    if _is_multipart_part(filename):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Multipart archives (.zip.NNN / .partN.rar) can only be ingested via the "
+                "batch tool (scripts/ingest_corpus.py); a single volume cannot be expanded."
+            ),
         )
     max_upload_bytes = _max_upload_bytes()
     if file.size is not None and file.size > max_upload_bytes:
