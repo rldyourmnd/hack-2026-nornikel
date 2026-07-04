@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
+Last commit: 1db4c68 docs(instructions): note sharded ingest workflow
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -33,8 +33,10 @@ knowledge-graph submission.
 - `SEC-01-ACL-AND-PROMPT-INJECTION.md`: source labels, prompt-injection, SSRF, provider failure safety.
 - `TEST-01-EVALUATION-GATES.md`: current checks and eval commands.
 - `RELEASE-01-VALIDATION.md`: deployment, compose, batch ingest, swap, validation.
-- `DOCS-01-PLANNING-SOURCE.md`: documentation precedence.
+- `DOCS-01-INSTRUCTIONS.md`: durable documentation and instruction contract.
+- `DOCS-01-PLANNING-SOURCE.md`: planning context and historical pruning.
 - `TECHDEBT-01-NOW.md`: current verified gaps only.
+- `CODEX-01-PLUGIN-CANON.md`: Codex plugin/tooling/flow rule canon used in this repo.
 
 ## Current Behavior
 
