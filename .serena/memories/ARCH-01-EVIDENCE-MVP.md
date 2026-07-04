@@ -686,3 +686,28 @@ semantic mode, #18 numeric_facts as answer rows, #22 experts/laboratories/topics
 Ingest blocker found: batch `_embed_many` (yandex.py) bursts `max_workers` concurrent embed
 calls -> exceeds the 10-RPS Yandex quota -> 429 -> 7-retry fail; full 4.9GB ingest ~66h. Needs
 serialized/paced batch embedding + the quota raised before a full corpus ingest.
+
+
+## Yandex DENIED -> dataeyes+local pivot (2026-07-04)
+
+CRITICAL: the organizer Yandex key returns 403 PermissionDenied for BOTH the LLM
+(gpt://<folder>/deepseek-v4-flash/latest) AND embeddings (foundationModels textEmbedding)
+— verified by direct API calls, every auth style. Live demo LLM answers were silently
+empty; retrieval degraded to BM25.
+
+Working stack now on the stand (.env):
+- LLM = dataeyes (platform.dataeyes.ai/v1, key in .env via DATAEYES_API_BASE/KEY alias):
+  LLM_EXTRACTION_MODEL=openai/gpt-5.4-mini, LLM_ANSWER_MODEL=openai/gpt-5.5, LLM_TIMEOUT_S=120.
+- Embeddings = LOCAL deepvk/USER-bge-m3 1024-dim (EMBEDDING_BACKEND=local,
+  QDRANT_COLLECTION=evidence_local). Yandex embeddings dead.
+- Gateway: dual-provider round-robin + failover on ANY provider error (not just 429);
+  yandex embed fast-fails on 4xx.
+- Verified working: QA returns real cited dataeyes gpt-5.5 answers + local dense retrieval.
+
+Full DATA_HACK ingest reality (8-vCPU stand): 2015 ingestible files (1163 pdf/115 docx/
+46 xls/5 pptx + 662 archive members). Docling PDF parse serialized by a thread-lock
+(~20-30s/PDF) + local bge-m3 ~300ms/embedding (model NOT cached — redownloads each restart)
+=> ~6-10h, CPU-bound. Batch writes to separate DUCKDB_PATH=catalog_full.duckdb +
+QDRANT_COLLECTION=evidence_full (zero-downtime) then atomic swap. Speed levers not yet applied:
+OpenAI/dataeyes embedding backend (offload CPU) or removing the Docling lock (if thread-safe).
+Backups: .env.bak-dataeyes (working), .env.bak-yandex-* (denied Yandex snapshot).
