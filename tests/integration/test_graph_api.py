@@ -36,57 +36,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
         cache.cache_clear()
 
 
-def test_entities_search_finds_dictionary_and_alias(client: TestClient) -> None:
-    response = client.get("/entities/search", params={"q": "МН30"})
-    assert response.status_code == 200
-    entities = response.json()["entities"]
-    assert any(entity["entity_id"] == "mat_cuni_30" for entity in entities)
-
-
-def test_entity_card_includes_neighborhood(client: TestClient) -> None:
-    upload = client.post(
-        "/sources/upload",
-        files={
-            "file": (
-                "note.md",
-                "## Note\nNi-30Cu после старения испытан на микротвердомер.".encode(),
-                "text/markdown",
-            )
-        },
-    )
-    assert upload.status_code == 200, upload.text
-    response = client.get("/entities/mat_nicu_30")
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["entity"]["canonical_name"] == "Ni-30Cu"
-    assert payload["neighborhood"] is not None
-    assert len(payload["neighborhood"]["nodes"]) >= 2
-
-
-def test_graph_neighborhood_returns_typed_nodes_and_edges(client: TestClient) -> None:
-    upload = client.post(
-        "/sources/upload",
-        files={
-            "file": (
-                "link.md",
-                "## Link\nNi-30Cu старение печь сопротивления команда.".encode(),
-                "text/markdown",
-            )
-        },
-    )
-    assert upload.status_code == 200, upload.text
-    response = client.get(
-        "/graph/neighborhood", params={"entity_id": "mat_nicu_30", "depth": 1, "limit": 50}
-    )
-    assert response.status_code == 200
-    payload = response.json()
-    node_types = {node["entity_type"] for node in payload["nodes"]}
-    assert "material" in node_types
-    assert payload["edges"], "neighborhood must include relation edges"
-    assert all("relation_type" in edge for edge in payload["edges"])
-    assert all(edge["evidence_count"] >= 1 for edge in payload["edges"])
-
-
 def test_graph_neighborhood_404_for_unknown_entity(client: TestClient) -> None:
     response = client.get("/graph/neighborhood", params={"entity_id": "ent_missing"})
     assert response.status_code == 404

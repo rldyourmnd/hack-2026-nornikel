@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck api web eval docker-up docker-down ci reindex warmup
+.PHONY: install test lint typecheck api web docker-up docker-down ci reindex warmup
 
 install:
 	uv sync --group dev
@@ -20,9 +20,6 @@ api:
 
 web:
 	cd apps/web && npm run dev -- --host 0.0.0.0 --port 5173
-
-eval:
-	uv run python scripts/run_eval.py
 
 eval-realcase:
 	uv run python scripts/run_realcase_eval.py

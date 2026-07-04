@@ -11,11 +11,11 @@ from nornikel_kg.domain.models import AskRequest, ExperimentRow
 from nornikel_kg.services.qa_service import EvidenceQAService
 
 _CSV = (
-    b"experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
-    b"property,method,baseline_value,treated_value,unit,effect\n"
-    b"exp_h1,Ni-30Cu,aging,700,8,air,Vickers hardness,HV10,210,245,HV,increase\n"
-    b"exp_h2,CuNi30,annealing,700,1,air,Vickers hardness,HV10,205,215,HV,increase\n"
-)
+    "experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
+    "property,method,baseline_value,treated_value,unit,effect\n"
+    "exp_h1,Медный штейн,aging,700,8,air,Vickers hardness,HV10,210,245,HV,increase\n"
+    "exp_h2,Никелевый штейн,annealing,700,1,air,Vickers hardness,HV10,205,215,HV,increase\n"
+).encode()
 
 
 @pytest.fixture()
@@ -46,14 +46,6 @@ def test_chemical_formula_is_not_a_material_token(
     assert service._requested_material_tokens("Как CO2 влияет на процесс?") == set()
     assert service._requested_material_tokens("выход Al2O3 при обжиге") == set()
     assert service._requested_material_tokens("твердость Ni-30Cu") == {"ni30cu"}
-
-
-def test_alias_material_token_resolves_ru_designation(
-    repository: DuckDBLedgerRepository,
-) -> None:
-    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
-    response = service.ask(AskRequest(question="Что известно по МН30?"))
-    assert any("CuNi30" in e.material_name for e in response.experiments)
 
 
 def test_sentence_numbers_supported_catches_fabrication() -> None:
@@ -167,23 +159,3 @@ def test_packet_cache_invalidated_by_data_version(
     assert service._load_packet() is not first  # write invalidated the cache
 
 
-def test_question_time_scope_keeps_unknown_year_sources(
-    repository: DuckDBLedgerRepository,
-) -> None:
-    """«за последние 5 лет» from question text must not blank sources whose
-    year is unknown; an explicit UI year filter stays strict."""
-    service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
-    derived = service.ask(
-        AskRequest(question="Что известно по Ni-30Cu за последние 5 лет?")
-    )
-    assert derived.experiments  # fixture has no year metadata — kept
-
-    from nornikel_kg.domain.models import AskFilters
-
-    strict = service.ask(
-        AskRequest(
-            question="Что известно по Ni-30Cu?",
-            filters=AskFilters(year_from=2021),
-        )
-    )
-    assert strict.experiments == []  # explicit filter drops unknown-year sources

@@ -41,12 +41,12 @@ def test_rule_extraction_links_known_entities(repository: DuckDBLedgerRepository
     _ingest_text(
         repository,
         "src_report1",
-        ["Сплав Ni-30Cu после старения показал рост твердости на печь сопротивления."],
+        ["Медный штейн подвергали конвертированию в печи Ванюкова; извлечение выросло."],
     )
     service = ExtractionService(repository, use_gliner=False)
     counters = service.process_source("src_report1")
-    assert counters["entities"] >= 3  # material + regime + property/equipment
-    material = repository.get_entity("mat_nicu_30")
+    assert counters["entities"] >= 3  # material + regime + equipment
+    material = repository.get_entity("mat_matte_copper")
     assert material is not None
     assert len(material["evidence_span_ids"]) >= 1
     relations = repository.list_graph_relations()
@@ -59,17 +59,19 @@ def test_second_document_auto_links_to_existing_graph(
     repository: DuckDBLedgerRepository,
 ) -> None:
     service = ExtractionService(repository, use_gliner=False)
-    _ingest_text(repository, "src_doc1", ["Ni-30Cu подвергался старению при 700 C."])
+    _ingest_text(repository, "src_doc1", ["Медный штейн подвергали плавке при 1200 C."])
     service.process_source("src_doc1")
-    material_before = repository.get_entity("mat_nicu_30")
+    material_before = repository.get_entity("mat_matte_copper")
     assert material_before is not None
     spans_before = len(material_before["evidence_span_ids"])
 
     _ingest_text(
-        repository, "src_doc2", ["Новый протокол по Ni-30Cu: испытание на микротвердомер."]
+        repository,
+        "src_doc2",
+        ["Новый протокол: медный штейн переработали, использовалась Печь Ванюкова."],
     )
     service.process_source("src_doc2")
-    material_after = repository.get_entity("mat_nicu_30")
+    material_after = repository.get_entity("mat_matte_copper")
     assert material_after is not None
     assert len(material_after["evidence_span_ids"]) > spans_before
     relations = repository.list_graph_relations()
@@ -82,10 +84,14 @@ def test_second_document_auto_links_to_existing_graph(
 def test_alias_mention_merges_into_canonical_entity(
     repository: DuckDBLedgerRepository,
 ) -> None:
-    _ingest_text(repository, "src_alias", ["Образец МН30 показал деградацию электропроводности."])
+    _ingest_text(
+        repository,
+        "src_alias",
+        ["Файнштейн показал рост извлечения при конвертировании."],
+    )
     service = ExtractionService(repository, use_gliner=False)
     service.process_source("src_alias")
-    entity = repository.get_entity("mat_cuni_30")
+    entity = repository.get_entity("mat_matte_nickel")
     assert entity is not None
     assert len(entity["evidence_span_ids"]) >= 1
 

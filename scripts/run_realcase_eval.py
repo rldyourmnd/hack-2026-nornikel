@@ -1,7 +1,6 @@
 """Real-corpus evaluation against the four hackathon track questions.
 
-Unlike run_eval.py (which self-tests the synthetic Ni-Cu fixture offline),
-this hits a running API over the real corpus and checks that each track
+This hits a running API over the real corpus and checks that each track
 question is answered honestly: citation coverage 1.0, zero fabricated
 numbers / label leaks / injection success, and NO synthetic Ni-Cu leakage.
 

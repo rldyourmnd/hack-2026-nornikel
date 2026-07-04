@@ -7,23 +7,6 @@ import pytest
 from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository, SourceIngestError
 
 
-def test_duckdb_ledger_seeds_synthetic_packet(tmp_path: Path) -> None:
-    repository = DuckDBLedgerRepository(tmp_path / "catalog.duckdb")
-    packet = repository.seed_synthetic_fixture(Path("sample_docs/synthetic"))
-
-    assert packet.measurement.value == 245
-    assert packet.measurement.unit == "HV"
-    assert packet.effect.direction == "increase"
-    assert packet.evidence[0].span_type == "table_row"
-    assert len(packet.experiments) == 2
-    assert packet.conflicts
-    assert packet.gaps
-
-    loaded = repository.load_evidence_packet()
-    assert loaded.measurement.measurement_id == packet.measurement.measurement_id
-    assert loaded.evidence[0].span_id == packet.evidence[0].span_id
-
-
 def test_duckdb_ledger_ingests_uploaded_csv(tmp_path: Path) -> None:
     repository = DuckDBLedgerRepository(tmp_path / "catalog.duckdb")
     csv_content = (
@@ -64,22 +47,6 @@ def test_arbitrary_csv_ingests_as_generic_table_with_facts(tmp_path: Path) -> No
     }
     assert 250.0 in values
     assert 1200.0 in values
-
-
-def test_uploaded_csv_does_not_steal_seeded_source_facts(tmp_path: Path) -> None:
-    repository = DuckDBLedgerRepository(tmp_path / "catalog.duckdb")
-    sample_dir = Path("sample_docs/synthetic")
-    repository.seed_synthetic_fixture(sample_dir)
-
-    result = repository.ingest_source_bytes(
-        filename="mechanical_properties.csv",
-        content=(sample_dir / "mechanical_properties.csv").read_bytes(),
-    )
-
-    sources = {source.title: source for source in repository.list_sources()}
-    assert sources["Synthetic Ni-Cu aging report"].measurement_count == 2
-    assert sources[result.source.title].measurement_count == 2
-    assert len(repository.load_evidence_packet().experiments) == 4
 
 
 def test_upload_invalid_csv_does_not_invent_source(tmp_path: Path) -> None:

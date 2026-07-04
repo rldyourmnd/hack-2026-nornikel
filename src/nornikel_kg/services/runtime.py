@@ -35,7 +35,7 @@ def project_root() -> Path:
         return Path(configured_root).resolve()
 
     current_directory = Path.cwd()
-    if (current_directory / "sample_docs").exists():
+    if (current_directory / "pyproject.toml").exists():
         return current_directory
 
     return Path(__file__).resolve().parents[3]

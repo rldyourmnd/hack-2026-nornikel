@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 from pytest import MonkeyPatch
 
@@ -13,9 +12,6 @@ from services.api.main import create_app
 def client_with_tmp_ledger(tmp_path: Path, monkeypatch: MonkeyPatch) -> TestClient:
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "catalog.duckdb"))
     monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
-    # These QA tests assert against the synthetic Ni-Cu fixture, which seeding
-    # now defaults OFF — opt in explicitly (the production default is false).
-    monkeypatch.setenv("SEED_SYNTHETIC_FIXTURE", "true")
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
     runtime.get_ingestion_service.cache_clear()
@@ -29,142 +25,6 @@ def test_health_endpoint(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     assert response.json()["status"] == "ok"
 
 
-def test_qa_endpoint_returns_grounded_answer(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    client = client_with_tmp_ledger(tmp_path, monkeypatch)
-    response = client.post(
-        "/qa/ask",
-        json={
-            "question": "Что делали по Ni-30Cu при старении 700 C 8 ч?",
-            "language": "ru",
-            "include_graph": True,
-            "include_gaps": True,
-        },
-    )
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["verification"]["unsupported_claim_count"] == 0
-    assert payload["experiments"]
-    assert payload["evidence"]
-
-
-def test_qa_endpoint_returns_gap_without_hallucinating(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    client = client_with_tmp_ledger(tmp_path, monkeypatch)
-    response = client.post(
-        "/qa/ask",
-        json={
-            "question": "Есть ли электропроводность для Ni-30Cu после старения 700 C 8 ч?",
-            "language": "ru",
-            "include_graph": True,
-            "include_gaps": True,
-        },
-    )
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["answer_summary"] == []
-    assert payload["experiments"] == []
-    assert payload["gaps"]
-    assert payload["verification"]["unsupported_claim_count"] == 0
-
-
-@pytest.mark.parametrize(
-    "question",
-    [
-        "что было с Ni-20",
-        "что со сплавами? с ni-20",
-        "что со сплавами? с ni 20",
-        "что со сплавами? с Ni–20",
-    ],
-)
-def test_qa_endpoint_does_not_return_nearby_material_for_unknown_explicit_material(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-    question: str,
-) -> None:
-    client = client_with_tmp_ledger(tmp_path, monkeypatch)
-    response = client.post(
-        "/qa/ask",
-        json={
-            "question": question,
-            "language": "ru",
-            "include_graph": True,
-            "include_gaps": True,
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["answer_summary"] == []
-    assert payload["experiments"] == []
-    assert payload["evidence"] == []
-    assert payload["gaps"] == []
-    assert payload["confidence"] == "low"
-    assert "Что было с Ni-30Cu?" in payload["follow_up_queries"]
-    assert "Что было с CuNi30?" in payload["follow_up_queries"]
-
-
-@pytest.mark.parametrize(
-    ("question", "expected_material"),
-    [
-        ("что было с Ni-30Cu", "Ni-30Cu"),
-        ("что со сплавами? с ni-30cu", "Ni-30Cu"),
-        ("что со сплавами? с Ni 30 Cu", "Ni-30Cu"),
-        ("что со сплавами? с Cu Ni 30", "CuNi30"),
-    ],
-)
-def test_qa_endpoint_keeps_exact_material_query_scoped_to_that_material(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-    question: str,
-    expected_material: str,
-) -> None:
-    client = client_with_tmp_ledger(tmp_path, monkeypatch)
-    response = client.post(
-        "/qa/ask",
-        json={
-            "question": question,
-            "language": "ru",
-            "include_graph": True,
-            "include_gaps": True,
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["experiments"]
-    assert {experiment["material_name"] for experiment in payload["experiments"]} == {
-        expected_material
-    }
-
-
-def test_qa_endpoint_keeps_family_query_broad_without_treating_temperature_as_material(
-    tmp_path: Path,
-    monkeypatch: MonkeyPatch,
-) -> None:
-    client = client_with_tmp_ledger(tmp_path, monkeypatch)
-    response = client.post(
-        "/qa/ask",
-        json={
-            "question": "что со сплавами Ni-Cu 700 C 8 ч",
-            "language": "ru",
-            "include_graph": True,
-            "include_gaps": True,
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert {experiment["material_name"] for experiment in payload["experiments"]} == {
-        "CuNi30",
-        "Ni-30Cu",
-    }
-
-
 def test_sources_upload_and_evidence_listing(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -173,7 +33,7 @@ def test_sources_upload_and_evidence_listing(
     csv_content = (
         "experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
         "property,method,baseline_value,treated_value,unit,effect\n"
-        "exp_api_upload,Ni-30Cu,aging,700,8,air,Vickers hardness,HV10,200,231,HV,increase\n"
+        "exp_api_upload,Медный штейн,aging,700,8,air,Vickers hardness,HV10,200,231,HV,increase\n"
     )
 
     upload = client.post(
@@ -205,7 +65,7 @@ def test_sources_upload_rejects_invalid_csv(tmp_path: Path, monkeypatch: MonkeyP
     invalid_csv = (
         "experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
         "property,method,baseline_value,treated_value,unit,effect\n"
-        "exp_api_upload_bad,Ni-30Cu,aging,not-a-number,8,air,"
+        "exp_api_upload_bad,Медный штейн,aging,not-a-number,8,air,"
         "Vickers hardness,HV10,200,230,HV,increase\n"
     )
 
@@ -319,7 +179,7 @@ def test_sources_delete_endpoint_removes_source(
     csv_content = (
         "experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
         "property,method,baseline_value,treated_value,unit,effect\n"
-        "exp_api_upload,Ni-30Cu,aging,700,8,air,Vickers hardness,HV10,200,231,HV,increase\n"
+        "exp_api_upload,Медный штейн,aging,700,8,air,Vickers hardness,HV10,200,231,HV,increase\n"
     )
 
     upload = client.post(
@@ -469,10 +329,9 @@ def test_qa_endpoint_source_filter_empty_result(
 
 
 def test_clean_ledger_has_no_synthetic_source(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
-    """With seeding defaulted OFF, a fresh ledger holds no synthetic Ni-Cu."""
+    """A fresh ledger holds no synthetic data: no sources, honest-empty answers."""
     monkeypatch.setenv("DUCKDB_PATH", str(tmp_path / "catalog.duckdb"))
     monkeypatch.setenv("ARTIFACT_ROOT", str(tmp_path / "artifacts"))
-    monkeypatch.delenv("SEED_SYNTHETIC_FIXTURE", raising=False)
     runtime.get_ledger_repository.cache_clear()
     runtime.get_qa_service.cache_clear()
     runtime.get_ingestion_service.cache_clear()
