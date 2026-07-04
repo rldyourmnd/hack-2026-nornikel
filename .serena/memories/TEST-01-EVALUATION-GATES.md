@@ -1,184 +1,45 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
-Scope: Makefile; tests/; scripts/run_eval.py; eval/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
+Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
-
 
 # TEST-01-EVALUATION-GATES
 
 ## Purpose
 
-Capture required verification and acceptance gates after the accuracy/SOTA overhaul (waves A-D)
-and the archive/legacy-format ingestion wave (E).
+Capture current validation commands and what they prove.
 
 ## Source Of Truth
 
-- `scripts/run_eval.py`: hardcoded `EVAL_QUESTIONS` list, now **17** question dicts (verified via
-  `grep -c '"question_id":'`), run against the live `EvidenceQAService` and a temp-copy DuckDB
-  ledger, covering only the synthetic corpus.
-- `eval/gold_questions.yml`, `eval/adversarial_questions.yml`, `eval/expected_spans.yml`: legacy
-  YAML fixtures kept in the repo but not referenced by any code path.
-- `tests/unit/`: ID stability, claim verifier, source-label policy, dictionary-loader, LLM
-  gateway, entity resolution, extraction service, retrieval service, answer composer, ingestion
-  service, scope/constraint tests, plus new (this sync) `test_quantities_and_dates.py`,
-  `test_extraction_accuracy.py`, `test_retrieval_and_resolution_accuracy.py`,
-  `test_answer_honesty.py`, `test_corpus_formats.py`.
-- `tests/integration/`: FastAPI, DuckDB ledger, graph API, ingest API, synthetic-v2-corpus, plus
-  new `test_analytics_api.py`.
-- `make ci` / `make eval`: local gates matching CI.
+- `Makefile`: `lint`, `typecheck`, `test`, `ci`, `eval-realcase`, `reindex`, `warmup`.
+- `.github/workflows/ci.yml`: CI backend/frontend gates.
+- `tests/unit/`: domain/service/adapter tests.
+- `tests/integration/`: FastAPI, DuckDB ledger, graph, ingest, analytics tests.
+- `scripts/run_realcase_eval.py`: live real-corpus honesty eval.
 
 ## Current Behavior
 
-`uv run pytest` passes **182 tests, 5 skipped** at `ee84a6b` — verified by a live run in this
-sync pass, an increase of 28 passed over the previously recorded 154-passed/5-skipped baseline
-at `4ede8c5` (skip count unchanged). `uv run ruff check .` ("All checks passed!") and
-`uv run mypy` ("Success: no issues found in 79 source files") both pass clean, live-run
-verified in this sync pass.
+`scripts/run_eval.py`, `eval/*.yml`, and `tests/integration/test_synthetic_v2_corpus.py` were removed. There is no `make eval` target at `a81edd1`.
 
-New test modules this sync (Wave 10, all passing, verified via `grep -rn "def test_"`):
-- `tests/unit/test_encoding.py` (new): `decode_text_bytes` cascade (utf-8-sig/utf-8/cp1251/
-  charset-normalizer fallback).
-- `tests/unit/test_geography.py` (new): `detect_geography` RU/foreign signal precedence over
-  the script-ratio fallback, and the `None` low-signal case.
-- `tests/unit/test_parameter_constraints.py` (new): `NumericConstraint.subject` binding via
-  `parse_parameter_constraints`/`facts_satisfy_constraints` for multi-analyte questions.
-- `tests/unit/test_table_facts.py` (new): `extract_facts_from_row` wide/tall header-labeled
-  row layouts, unit-in-header parsing.
-- `tests/unit/test_ssrf_guard.py` (new): `assert_public_url` rejects non-http(s) schemes and
-  private/loopback/link-local/reserved/metadata hosts.
-- `tests/unit/test_corpus_formats.py`, `tests/unit/test_runtime_paths.py`,
-  `tests/integration/test_api.py`, `tests/integration/test_analytics_api.py`: gained
-  assertions/cases for archive path preservation and the `SEED_SYNTHETIC_FIXTURE=false` default
-  (a clean ledger has zero synthetic sources and answers empty).
+Live-run verification at `a81edd1`:
 
-The 5 skips remain `pytest.importorskip` guards for optional heavy dependencies (`docling`,
-`trafilatura`, `fastembed`, and similar), unchanged this sync.
+- `uv run ruff check .`: clean.
+- `uv run mypy`: clean, 82 source files.
+- `uv run pytest`: 184 passed.
+- `cd apps/web && npm run typecheck`: clean.
+- `cd apps/web && npm run build`: clean.
 
-New test modules/functions this sync (all passing):
-- `tests/unit/test_dates.py` (new, commit `4ede8c5`, 2 test functions):
-  `test_parse_time_scope_last_n_years` (RU/EN «last N years», «с/до YYYY года», `YYYY-YYYY`
-  ranges, and that a bare year mention stays a fact, not a scope) and
-  `test_parse_time_scope_requires_year_marker` (RU «до»/«с» + bare year with no «года» marker
-  never parses as a scope).
-- `tests/unit/test_answer_honesty.py` gained `test_question_time_scope_keeps_unknown_year_sources`
-  (commit `4ede8c5`): a question-derived time scope keeps year-less fixture sources, while an
-  explicit `AskFilters(year_from=...)` on the same question drops them.
-- `tests/unit/test_ratelimit.py` (new, 2 test functions): `RateLimiter` spaces requests to the
-  configured interval; `get_limiter` returns the same shared instance for a repeated name.
-- `tests/unit/test_llm_gateway.py` gained `test_gateway_retries_rate_limit`: a `litellm.
-  RateLimitError` on the first two attempts is retried and the third attempt's response is
-  returned, proving the gateway does not fail a call on a transient 429.
-
-Test modules added the prior sync (unchanged this sync):
-- `tests/unit/test_yandex_embeddings.py` (5 test functions): `YandexEmbeddingBackend` credential
-  requirement, doc/query model-URI split, `embed_dense` order preservation, sparse-stays-local
-  flat query weights (`pytest.importorskip("fastembed")`-gated), query-embedding cache hits.
-- `tests/unit/test_answer_honesty.py` gained one function,
-  `test_packet_cache_invalidated_by_data_version`: verifies `EvidenceQAService._load_packet()` caches
-  while `data_version` is unchanged and invalidates after a ledger-mutating write.
-- `tests/integration/test_analytics_api.py` gained two functions, `test_stats_overview_counters`
-  and `test_answer_runs_audit_trail`: route-level coverage for the new
-  `GET /stats/overview`/`GET /stats/answer-runs` endpoints.
-
-Prior-sync test modules (unchanged this sync):
-- `tests/unit/test_quantities_and_dates.py` (9 test functions): unit canonicalization equivalence
-  (мг/дм³≡мг/л etc.), numeric-constraint parsing (single/range/RU-operator forms), unit-mismatch
-  non-filtering, year-marker-guarded year extraction, bare-year rejection (Kelvin/sample codes).
-- `tests/unit/test_extraction_accuracy.py` (9 test functions): word-boundary alias matching
-  (no false hits inside longer words), author-extraction affiliation gating and EN-initials
-  blacklist, canonical-key edge-punctuation stripping and mixed-vs-pure-script homoglyph folding.
-- `tests/unit/test_retrieval_and_resolution_accuracy.py` (6 test functions): BM25
-  `SPARSE_LANGUAGE` wiring, reranker candidate-pool behavior, semantic entity-resolution
-  auto-merge/review thresholds and digit veto.
-- `tests/unit/test_answer_honesty.py` (7 test functions): honest empty answers for irrelevant
-  questions, chemical-formula veto, conflict relevance gating, numeric-fabrication rejection in
-  `ClaimVerifier`/`LLMAnswerComposer`.
-- `tests/unit/test_corpus_formats.py` (7 test functions): plain-zip/multipart-zip/zip-slip/
-  corrupt-rar archive expansion, spreadsheet-parser table rows, legacy-doc `ParserError` on
-  empty extraction, `.docm` routing through the document parser.
-- `tests/integration/test_analytics_api.py` (7 test functions): route-level coverage for
-  `/gaps/analyze`, `/graph/timeline` (incl. dated publications), `/sources/{id}/enrich`,
-  `/sources/reindex-all`.
-
-`scripts/run_eval.py`'s `EVAL_QUESTIONS` grew from 12 to 17 questions this wave: the original 12
-(ideal Ni-30Cu scenario, Cyrillic-alias resolution, provenance, comparison, gap, conflict,
-unknown-material negative controls, exact spaced-material scoping, one broad family query) plus
-5 new cases — `q_conflict_surfaced_for_question` (asserts `min_conflict_count >= 1`),
-`q_numeric_constraint_hv` (asserts the constrained material's HV values respect a
-`max_measurement_value_hv` ceiling), `q_year_phrase_is_not_a_filter` (asserts «до 2020 года»
-does not silently drop a valid Ni-30Cu experiment — since commit `4ede8c5`, «до 2020 года» IS
-parsed as an explicit `year_to=2020` scope by `domain.dates.parse_time_scope`, but the
-question-derived scope is permissive and keeps the fixture's year-less experiment; live-run
-verified in this sync pass, `experiment_count: 1`), `q_injection_ignore_instructions` (asserts
-`max_source_label_leaks = 0` under a prompt-injection attempt), and `q_injection_fake_span`
-(asserts a `forbidden_answer_substrings` check that a fabricated "999 HV" claim never appears in
-the answer). `main()` now also asserts `numeric_mismatch_count == 0` and
-`citation_coverage >= 1.0` for every question, in addition to the prior
-`unsupported_claim_count`/`source_label_leak_count` gates.
-
-CI runs the same backend (`uv sync --group dev`, `ruff`, `mypy`, `pytest`,
-`uv run python scripts/run_eval.py`) and frontend (`npm ci`, `typecheck`, `build`) checks; the
-backend job still does not pass `--extra ingest` (`mem:TECHDEBT-01-NOW`).
-
-`scripts/run_realcase_eval.py` (new, Wave 10, `make eval-realcase`) checks the four hackathon
-track questions against a live API: citation coverage 1.0, zero fabrication, zero source-label
-leak, zero synthetic-Ni-Cu leakage. It requires a running stand and is not part of `make ci`/CI.
-
-## Contracts And Data
-
-Non-negotiable demo gates are now `unsupported_claim_count = 0`, `source_label_leak_count = 0`,
-`numeric_mismatch_count = 0`, and `citation_coverage >= 1.0`; `run_eval.py` raises
-`SystemExit(1)` if any `EVAL_QUESTIONS` case fails its assertions.
-
-`tests/unit/test_scope_and_constraints.py` protects: RU/symbolic numeric-constraint parsing and
-filtering (now via `domain/quantities.py`), the real-domain dictionary extension's
-resolvability, publication/author graph linking, and geography/year scope filtering — all
-against synthetic in-memory DuckDB fixtures built with
-`DuckDBLedgerRepository(tmp_path / "scope.duckdb")`.
+`scripts/run_realcase_eval.py` checks four organizer track questions against a running API. It asserts citation coverage 1.0, zero fabricated numbers, zero source-label leaks, zero prompt-injection success, zero semantic unsupported sentences, non-empty evidence, and no synthetic Ni-Cu leakage.
 
 ## Invariants
 
-- Do not mark a demo answer successful if unsupported final sentences exist, or if any cited
-  number in the answer diverges from the literal cited evidence text.
-- Do not mark a security run successful if restricted evidence enters the context packet or if a
-  prompt-injection attempt causes a source-label leak.
-- Whenever `scripts/run_eval.py`'s `EVAL_QUESTIONS` changes, keep the question count and this
-  memory's description in sync in the same change; do not resurrect `eval/*.yml` as a second
-  source of truth without wiring it into code first.
-- Whenever the real-corpus ontology, scope filters, or accuracy fixes change, extend the relevant
-  `tests/unit/test_*_accuracy.py`/`test_answer_honesty.py`/`test_quantities_and_dates.py` module
-  in the same change.
-
-## Change Rules
-
-When new ingestion/retrieval/extraction behavior is added, extend `EVAL_QUESTIONS` in
-`scripts/run_eval.py` and the relevant `tests/unit/` or `tests/integration/` module in the same
-change.
+- Add or update tests in the same change as ingestion, extraction, retrieval, answer verification, or API contract changes.
+- Keep CI offline: no provider secrets or external LLM calls are required for `make ci`.
+- Use `eval-realcase` only against a live stand/API.
 
 ## Verification
 
-- `make ci`: ruff, mypy, pytest (182 passed, 5 skipped at `ee84a6b`, live-run verified), frontend
-  typecheck, build.
-- `make eval`: `scripts/run_eval.py` — 17-question live QA metrics against the synthetic DuckDB
-  ledger only, incl. adversarial injection assertions.
-- `make eval-realcase`: `scripts/run_realcase_eval.py` — 4 track-question honesty check against
-  a live API; not part of CI (needs a running stand).
-- `docker compose config`: Compose validation.
-
-
-## Wave 11 backend-hardening tests (2026-07-04)
-
-New tests (all green; `make ci` exit 0, `make eval` status=ok 17/17, pytest 189 passed):
-- `tests/integration/test_duckdb_ledger.py::test_arbitrary_csv_ingests_as_generic_table_with_facts`
-  (generic CSV -> table-row spans + persisted `numeric_facts`).
-- `tests/unit/test_corpus_formats.py` — sheet-provenance locator assertion (needs the `ingest`
-  extra / `pytest.importorskip`) + `test_cp1251_markdown_decodes_cyrillic`.
-- `tests/integration/test_ingest_api.py::test_upload_archive_ingests_members` /
-  `::test_upload_archive_rejects_non_archive`.
-- `tests/unit/test_source_label_policy.py::test_ask_request_labels_only_narrow_deployment_policy`
-  (narrow-only invariant).
-- `tests/unit/test_claim_verifier.py` — negation-flip flagged + semantically-supported accepted.
-Eval `numeric_mismatch_count` stays 0 after the verifier stopped blanket-skipping fact-backed
-sentences (validated against ledger fact numbers).
+- `make ci`: backend lint/type/test plus frontend build.
+- `make eval-realcase`: live stand honesty check.

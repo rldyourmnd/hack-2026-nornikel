@@ -1,153 +1,38 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: ee84a6b docs(plan): mark Wave 10 implementation status (shipped vs deferred)
-Scope: README.md; .serena/newproj/nornikel-kg-search/; .serena/plans/; .serena/reviews/; .serena/plans/10_AUDIT_RESPONSE_PLAN.md
+Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Scope: README.md; AGENTS.md; .claude/CLAUDE.md; docs/deployment/; .serena/newproj/; .serena/plans/; .serena/reviews/
 Area: DOCS
 -->
-
 
 # DOCS-01-PLANNING-SOURCE
 
 ## Purpose
 
-Capture how to use and maintain the planning package given the current implementation state.
+Capture documentation precedence and how to use planning artifacts without treating old plans as current code truth.
 
 ## Source Of Truth
 
-- `.serena/newproj/nornikel-kg-search/`: original planning package; superseded on conflict by
-  `.serena/plans/`.
-- `.serena/plans/00_PLAN_INDEX.md` / `01_MVP_SCOPE_AND_DECISIONS.md` / `03_IMPLEMENTATION_PLAN.md`:
-  the W0-W5 implementation plan, fully realized.
-- `.serena/plans/06_DEPLOYMENT_AND_OBSERVABILITY.md`: deployment/observability plan, realized by
-  `docs/deployment/nornikel-nddev.md`.
-- `.serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md`: full-track requirement brief («Научный
-  клубок») and gap analysis G1-G10 against the real `DATA_HACK/` corpus.
-- `.serena/plans/10_AUDIT_RESPONSE_PLAN.md` (new, `68bf940`, status updated `ee84a6b`): the Wave
-  10 real-corpus-MVP audit-response plan — five parallel-read audit verdicts, TIER 1/2/3
-  prioritization, an explicit list of stale/false auditor claims, and an "Implementation status"
-  section recording which items were shipped versus deliberately deferred (see
-  `mem:CORE-01-INDEX`'s Wave 10 section and `mem:TECHDEBT-01-NOW`).
-- `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md` (new, `2368791`): the accuracy/SOTA overhaul plan
-  — 4 evidence-based audits (GLiNER2 research, SOTA stack research, backend accuracy audit,
-  eval/CI/frontend audit), locked research verdicts, and waves A-D (landed as PR #15) plus wave
-  E (archive/legacy-format ingestion, landed as PR #16, tracked in the same doc's scope).
-- `.serena/reviews/`: plan self-critique and source-backed research facts.
-- `README.md`: current implementation status.
-- `docs/deployment/nornikel-nddev.md`: primary live-stand deployment doc, now also documenting
-  the DuckDB lock contract and archive-aware batch-ingest procedure.
-- `AGENTS.md` / `.claude/CLAUDE.md`: Codex-native and Claude Code project instructions.
-
-## Entry Points
-
-- `README.md`: start here for status and document map.
-- `.serena/plans/09_ACCURACY_SOTA_OVERHAUL.md`: current wave plan (research verdicts + waves
-  A-D/E scope).
-- `.serena/plans/08_TRACK_FULL_REQUIREMENTS_AND_GAPS.md`: full-track requirement brief (G1-G10);
-  still the reference for the geomechanics ontology gap (`mem:TECHDEBT-01-NOW`).
+- Code/config/tests at `HEAD`: highest authority.
+- `.claude/CLAUDE.md`: current operational notes for provider/runtime state.
+- `AGENTS.md`: Codex instruction layer.
+- `docs/deployment/full-ingest-runbook.md`: current ingest/swap procedure.
+- `docs/deployment/nornikel-nddev.md`: stand deployment notes.
+- `.serena/plans/`: historical and implementation plans; useful context, not automatic truth.
+- `.serena/reviews/`: review/audit artifacts.
+- `README.md`: product overview; provider section is stale at `a81edd1`.
 
 ## Current Behavior
 
-Waves W0-W5 (2026-07-02 plan package) and the real-corpus hardening wave (`58760b3` and
-follow-ons through `41ee7ac`) were implemented and merged to `main` as of the prior sync.
-
-This sync covers twelve additional commits on `main` since the `65af046` memory-sync commit:
-`7c5d30b` (Yandex AI Studio embeddings backend, feat), `210bddd`/`d17675f`/`fa4e637` (Yandex
-host/truncation/mypy fixes), merged `6d8c7ff` as PR #17, `7e0f0f4` (instruction-doc update for
-the provider switch), `5194f6c` (tenacity hard dependency + guarded enrichment thread),
-`ee641dd` (process-wide embedding rate limiter + reindex marker), `98fc57e` (sectioned UI,
-feat), merged `53191d2` as PR #18, `67d3bca` (batched Qdrant upserts + visible app logs), and
-`327f47c` (incremental hash-skip indexing, packet cache, query-embed cache). All twelve commits
-are verified present in `git log --oneline 65af046..HEAD`.
-
-`.claude/CLAUDE.md`/`AGENTS.md` now record Yandex AI Studio (organizer-provided) as the primary
-LLM/embedding provider (`https://ai.api.cloud.yandex.net/v1`, `EMBEDDING_BACKEND=yandex`), with
-the previous `dataeyes.ai` + `gpt-5.4-mini` configuration kept as a server-side rollback
-(`.env.bak-dataeyes`, per `.claude/CLAUDE.md`, not a tracked repo artifact). As of `f72c7f6`
-(2026-07-04, verified in `.claude/CLAUDE.md`/`.env.example` at `HEAD`) the stand model split is
-answers on `deepseek-v4-flash` (owner requirement), extraction on `aliceai-llm` — see
-`mem:TECHDEBT-01-NOW` for the bench history.
-
-This sync additionally covers five more commits on `main` since `327f47c`: `6feff7a` (shared
-client-side rate-limit queue for the LLM gateway and Yandex embeddings, new
-`adapters/ratelimit.py`), `ef812af` (verified evidence-grounded answers without a structured
-match now report `"medium"` confidence instead of `"low"`), `24282f1` (answer-composer system
-prompt demands synthesis of concrete values/factors instead of table/figure references),
-`9338017` (GitHub Actions auto-deploy via new `.github/workflows/deploy.yml`, plus
-`https://изи-никель.рф` made the primary stand domain with `https://nornikel.nddev.asia` as a
-mirror), merged as PR #19 in `652317e`, and `ec79a96` (corrected "alias" wording to "mirror" in
-`.claude/CLAUDE.md`/`docs/deployment/nornikel-nddev.md`, and refreshed the Serena memory files
-committed in this same pass). All six commits are verified present in
-`git log --oneline 327f47c..HEAD`.
-
-This sync covers two further commits, `919a636` (repository-migration doc update:
-`.claude/CLAUDE.md`/`AGENTS.md` now name `hack-2026-nornikel` as the working repo and
-`nornikel-kg-search` as a frozen, do-not-push archive — see `mem:CORE-01-INDEX`'s
-Repository Identity And History section for the verified dual-repo auto-deploy state) and
-`bb45bce` (current `HEAD`, "docs: refresh all documentation to the shipped state":
-`README.md` rewrite, `AGENTS.md` runtime-defaults fix, `.claude/CLAUDE.md` deployment-notes/
-Known-TODOs rewrite, `docs/deployment/fa-nddev.md` marked `(HISTORICAL)`). Both commits are
-part of a freshly squashed history on `hack-2026-nornikel`'s `main` (24 commits total,
-`40eb27c`..`bb45bce`); commit SHAs cited elsewhere in these memory files that predate this
-squash (e.g. `652317e`, `ec79a96`) are not ancestors of the current `HEAD` — they identify
-commits on the archived `nornikel-kg-search` line only (verified via `git merge-base
---is-ancestor`, see `mem:CORE-01-INDEX`).
-
-One more commit, `f72c7f6` (current `HEAD`, "config: answers on deepseek-v4-flash per owner
-requirement") changed `.claude/CLAUDE.md`/`.env.example` to switch the stand's answer model to
-`deepseek-v4-flash` while extraction stays `aliceai-llm` — see `mem:TECHDEBT-01-NOW` for the
-verified bench detail.
-
-Local `main` and `origin/main` were in sync (`git rev-list --left-right --count
-origin/main...main` -> `0\t0`, verified 2026-07-04 at `f72c7f6`, before that sync pass's own
-commit).
-
-This sync covers the Wave 10 "real-corpus MVP: audit response" batch of thirteen commits
-(`a2a8908`..`ee84a6b`, verified via `git log --oneline 42ca7ba..HEAD`): synthetic-seeding
-default flipped off, archive path preservation, CP1251/CSV + Excel-cap hardening, table-header
-preservation + generic numeric-fact extraction, subject-bound numeric constraints, ontology/
-relation vocabulary extension, per-sentence clickable citations + `locator`, a live real-corpus
-eval script, quarantine reason codes, an SSRF guard on URL import, signal-based geography
-detection, `/health` reporting live models, and removal of the orphaned `/graph/demo-path`
-route — see `mem:CORE-01-INDEX`'s "Wave 10" section for the per-file detail and
-`mem:TECHDEBT-01-NOW` for the resolved-gaps bookkeeping. `.serena/plans/10_AUDIT_RESPONSE_PLAN.md`
-records the plan, verdicts, and shipped-vs-deferred status. `uv run pytest` now passes **182
-tests, 5 skipped** (up from 154 passed / 5 skipped), `ruff`/`mypy` both clean — all live-run
-verified in this sync pass.
-
-`.env.example` now documents `SEED_SYNTHETIC_FIXTURE`, `SYNTHETIC_SAMPLE_DIR`,
-`LLM_TOKEN_BUDGET`, `LLM_EXTRACTION_ENABLED`, `GLINER_ENABLED`, `SYNC_ENRICHMENT`,
-`ENTITY_SEMANTIC_FALLBACK`, `SPARSE_LANGUAGE`, and `RERANKER_ENABLED`/`RERANKER_MODEL_ID`/
-`RERANKER_BACKEND` — all of the env knobs introduced by the real-corpus and accuracy-overhaul
-waves are now documented (previously several were read directly from `os.getenv` with
-undocumented code-level defaults; this gap is now closed). `DATAEYES_API_BASE`'s example value
-was corrected to `https://platform.dataeyes.ai/v1` (the prior example pointed at the wrong
-dataeyes.ai product).
-
-## Contracts And Data
-
-Repository artifacts are written in English. User-facing conversation remains Russian unless
-the owner requests otherwise.
+Planning docs remain useful for rationale and prior review context. Current implementation truth is code + tests + runbook. `README.md` still contains Yandex/aliceai wording; prefer `.claude/CLAUDE.md`, `.env.example`, runtime code, and `docs/deployment/full-ingest-runbook.md` until README is refreshed.
 
 ## Invariants
 
-- Synthetic fixtures should be committed; real internal corpora (`DATA_HACK/`, `data/corpus/`)
-  must never be committed — they are gitignored.
-- Planning docs under `.serena/plans/`/`.serena/newproj/` describe design intent at the time
-  they were written; cross-check `README.md` and `.serena/memories/` for current implementation
-  state, and cross-check `git cat-file -t <sha>` before trusting any commit SHA recorded in an
-  older memory or plan document — history has been rewritten at least once (`58760b3`, prior to
-  this sync's range).
-
-## Change Rules
-
-Keep planning updates source-backed when they mention external tools or current capabilities.
-Update `README.md`'s implemented-scope section when a new wave lands.
+- Do not copy stale planning statements into implementation without verifying against code.
+- Keep `AGENTS.md` and `.claude/CLAUDE.md` separate first-class instruction docs.
+- Store durable facts in `.serena/memories`; store plans in `.serena/plans`; do not store runtime snapshots as memories.
 
 ## Verification
 
-- Targeted `rg`/`grep` scans: consistency and accidental secret markers.
-- `git cat-file -t <sha>`: verify a commit SHA still exists before citing it in a new memory.
-- `git rev-list --left-right --count origin/main...main`: verify local/remote sync state
-  (`0\t0`, verified 2026-07-04).
-- `git log --oneline 65af046..HEAD`: verify the exact commit range covered by this sync pass
-  (12 commits, confirmed).
+- `rg` against code/config for any documented behavior before relying on it.
+- `git log --oneline` for recent implementation provenance.
