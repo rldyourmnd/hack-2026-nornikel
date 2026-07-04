@@ -66,7 +66,7 @@ Requirements: Python 3.12, uv, Node 24, Docker Compose (optional).
 
 ```bash
 make install          # backend + frontend deps
-make api              # FastAPI on :8000
+make api              # FastAPI on :8000 port
 cd apps/web && VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
