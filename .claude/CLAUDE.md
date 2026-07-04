@@ -58,6 +58,9 @@ docker compose config
 - Mirror: `https://nornikel.nddev.asia`.
 - Host: `ssh curestry`, compose project `/srv/nornikel-kg-search`.
 - Ingest/swap runbook: `docs/deployment/full-ingest-runbook.md`.
+- High-throughput ingest uses deterministic shard DB files
+  (`scripts/ingest_corpus.py --shard-count/--shard-index`) and merges them with
+  `scripts/merge_duckdb_shards.py` before swap.
 
 ## Quality Notes
 

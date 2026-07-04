@@ -64,6 +64,10 @@ cd apps/web && npm run typecheck && npm run build
 - Build full or sampled graphs into separate `DUCKDB_PATH`,
   `QDRANT_COLLECTION`, and `QDRANT_ENTITY_COLLECTION` values; swap only after
   successful smoke checks.
+- High-throughput corpus builds use deterministic ingest shards:
+  `scripts/ingest_corpus.py --shard-count N --shard-index I` writes each shard
+  to its own DuckDB file, then `scripts/merge_duckdb_shards.py` merges the
+  ledger files before the atomic swap.
 
 ## Verification Expectations
 
