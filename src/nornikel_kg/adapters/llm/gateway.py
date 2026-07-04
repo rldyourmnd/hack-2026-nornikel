@@ -103,13 +103,13 @@ def _provider_extra_headers(provider: _Provider) -> dict[str, str] | None:
 def _temperature_for_model(model: str) -> int:
     """Return the temperature value accepted by the target model family.
 
-    GPT-5-series chat completions reject `temperature=0`; LiteLLM surfaces this
-    before the request reaches the provider. Use the model default (`1`) there
-    and keep deterministic temperature zero for older extraction models that
-    still accept it.
+    GPT-5-series and Claude thinking/effort completions reject `temperature=0`;
+    LiteLLM or the provider can surface this before/after routing. Use the
+    model default (`1`) there and keep deterministic temperature zero for older
+    extraction models that still accept it.
     """
     normalized = model.lower()
-    return 1 if "gpt-5" in normalized else 0
+    return 1 if "gpt-5" in normalized or "claude" in normalized else 0
 
 
 class TokenBudget:

@@ -155,6 +155,37 @@ def test_gateway_forwards_reasoning_effort(monkeypatch: pytest.MonkeyPatch) -> N
     assert "max_completion_tokens" not in captured
 
 
+def test_gateway_uses_default_temperature_for_claude_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gateway = LiteLLMGateway(
+        _settings(
+            llm_answer_model="openai/claude-sonnet-5",
+            llm_reasoning_effort="medium",
+        )
+    )
+    captured: dict[str, Any] = {}
+
+    def stub_completion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _completion_response(json.dumps({"ok": True}))
+
+    import litellm
+
+    monkeypatch.setattr(litellm, "completion", stub_completion)
+    gateway.generate_json(
+        task="answer",
+        system_prompt="system",
+        user_prompt="user",
+        json_schema=SCHEMA,
+    )
+
+    assert captured["model"] == "openai/claude-sonnet-5"
+    assert captured["reasoning_effort"] == "medium"
+    assert captured["allowed_openai_params"] == ["reasoning_effort"]
+    assert captured["temperature"] == 1
+
+
 def test_gateway_rejects_unrepairable_output(monkeypatch: pytest.MonkeyPatch) -> None:
     gateway = LiteLLMGateway(_settings())
     import litellm
