@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import argparse
 import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from nornikel_kg.services.archive_expansion import expand_archives
@@ -50,6 +52,11 @@ def main() -> None:
     parser.add_argument("--dir", required=True, help="Corpus directory (recursed)")
     parser.add_argument("--limit", type=int, default=0, help="Max files to ingest (0 = all)")
     parser.add_argument("--max-mb", type=float, default=20.0, help="Per-file size cap")
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Concurrent ingest workers — overlaps LLM/embedding I/O across files "
+        "(Docling parsing is serialized internally for thread-safety)",
+    )
     args = parser.parse_args()
 
     from nornikel_kg.services.runtime import get_ingestion_service, get_ledger_repository
@@ -82,9 +89,10 @@ def main() -> None:
             print(f"Archives: {dict(archive_stats)} -> {len(extracted)} extracted files")
         files = all_files + sorted(extracted)
 
-        ingested = 0
+        # Pre-filter (fast, sequential): images, archives/unsupported, oversized.
+        to_ingest: list[Path] = []
         for path in files:
-            if args.limit and ingested >= args.limit:
+            if args.limit and len(to_ingest) >= args.limit:
                 break
             suffix = path.suffix.lower()
             if suffix in IMAGE_EXTENSIONS:
@@ -99,23 +107,40 @@ def main() -> None:
                 stats["too_large"] += 1
                 print(f"TOO_LARGE ({size_mb:.0f}MB) {path.name[:70]}")
                 continue
-            ingested += 1
+            to_ingest.append(path)
+
+        total = len(to_ingest)
+        stats_lock = threading.Lock()
+        done = [0]
+
+        def _ingest_one(path: Path) -> None:
             file_started = time.time()
             try:
-                response = service.ingest_upload(
-                    filename=path.name, content=path.read_bytes()
-                )
+                response = service.ingest_upload(filename=path.name, content=path.read_bytes())
                 status = response.source.status
-                stats[status if status in stats else "completed"] = (
-                    stats.get(status if status in stats else "completed", 0) + 1
-                )
+                key = status if status in stats else "completed"
+                with stats_lock:
+                    stats[key] = stats.get(key, 0) + 1
+                    done[0] += 1
+                    marker = done[0]
                 print(
-                    f"{status.upper():<12} {time.time() - file_started:5.1f}s "
-                    f"{response.evidence_count:4d} spans  {path.name[:70]}"
+                    f"[{marker:4d}/{total}] {status.upper():<11} "
+                    f"{time.time() - file_started:5.1f}s {response.evidence_count:4d} spans  "
+                    f"{path.name[:60]}"
                 )
-            except Exception as error:  # single bad file must never stop the batch
-                stats["failed"] += 1
-                print(f"FAILED       {path.name[:70]}: {error!r}")
+            except Exception as error:  # a single bad file must never stop the batch
+                with stats_lock:
+                    stats["failed"] += 1
+                    done[0] += 1
+                print(f"FAILED       {path.name[:60]}: {error!r}")
+
+        if args.workers > 1:
+            with ThreadPoolExecutor(max_workers=args.workers) as pool:
+                list(pool.map(_ingest_one, to_ingest))
+        else:
+            for path in to_ingest:
+                _ingest_one(path)
+        ingested = total
     elapsed = time.time() - started
     print(
         f"\nDone in {elapsed:.0f}s: {stats} "

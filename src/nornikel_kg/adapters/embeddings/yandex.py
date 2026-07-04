@@ -16,6 +16,10 @@ logger = logging.getLogger(__name__)
 _rate_limiter = get_limiter(
     "yandex-embeddings", float(os.getenv("YANDEX_EMBED_RPS", "8"))
 )
+# Bound concurrent in-flight requests below the folder's 10-concurrent embedding
+# quota so batch ThreadPool bursts do not trip 429s (the RPS limiter alone lets
+# many slow requests pile up in flight).
+_EMBED_CONCURRENCY = threading.Semaphore(int(os.getenv("YANDEX_EMBED_CONCURRENCY", "6")))
 
 # Canonical AI Studio host (docs, 2026-06): ai.api.cloud.yandex.net; the old
 # llm.api host still answers but is the legacy alias.
@@ -114,16 +118,17 @@ class YandexEmbeddingBackend:
         last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
-                _rate_limiter.acquire()
-                response = httpx.post(
-                    _API_URL,
-                    json=payload,
-                    headers={
-                        "Authorization": f"Api-Key {self.api_key}",
-                        "x-folder-id": self.folder_id,
-                    },
-                    timeout=_TIMEOUT_S,
-                )
+                with _EMBED_CONCURRENCY:
+                    _rate_limiter.acquire()
+                    response = httpx.post(
+                        _API_URL,
+                        json=payload,
+                        headers={
+                            "Authorization": f"Api-Key {self.api_key}",
+                            "x-folder-id": self.folder_id,
+                        },
+                        timeout=_TIMEOUT_S,
+                    )
                 if response.status_code == 429 or response.status_code >= 500:
                     raise RuntimeError(f"HTTP {response.status_code}: {response.text[:120]}")
                 response.raise_for_status()

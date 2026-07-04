@@ -65,13 +65,21 @@ class SpreadsheetDocumentParser:
                 break
             frame = frame.fillna("")
             all_rows = list(frame.itertuples(index=False))
-            # The first non-empty row is the header; its labels stay attached to
-            # every data cell so numbers keep their column meaning downstream.
-            header = [str(value).strip() for value in all_rows[0][:max_columns]] if all_rows else []
+            # Header = first row with >=2 non-empty cells, so a leading blank
+            # spacer or a single-cell title row above the table is skipped (its
+            # labels would otherwise poison every data cell downstream).
+            header_idx = next(
+                (i for i, r in enumerate(all_rows) if sum(bool(str(v).strip()) for v in r) >= 2),
+                next((i for i, r in enumerate(all_rows) if any(str(v).strip() for v in r)), 0),
+            )
+            header = (
+                [str(value).strip() for value in all_rows[header_idx][:max_columns]]
+                if all_rows else []
+            )
             rows: list[ParsedTableRow] = []
-            for row_index, row in enumerate(all_rows[1:], start=2):
-                if row_index - 1 > max_rows:
-                    truncated_rows += len(all_rows) - 1 - max_rows
+            for row_index, row in enumerate(all_rows[header_idx + 1 :], start=header_idx + 2):
+                if row_index - (header_idx + 1) > max_rows:
+                    truncated_rows += len(all_rows) - (header_idx + 1) - max_rows
                     break
                 cells = [
                     ParsedTableCell(
