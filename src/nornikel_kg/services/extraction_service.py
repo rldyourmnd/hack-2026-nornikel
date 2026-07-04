@@ -179,6 +179,13 @@ class ExtractionService:
         processable = [
             span for span in spans if span.span_type in {"text", "text_block", "table_row"}
         ]
+        # Cap entity/relation extraction per source: a 1000+-row table's entities live
+        # in its headers + first rows, and per-span resolution (dictionary + find_entity)
+        # is O(spans) under the write lock. All spans are still indexed for retrieval and
+        # numeric facts are extracted at parse time — only graph extraction is bounded.
+        max_extraction = int(os.getenv("MAX_EXTRACTION_SPANS", "400"))
+        if max_extraction > 0:
+            processable = processable[:max_extraction]
         # LLM extraction dispatched by LLM_EXTRACTION_MODE:
         #   source_packet  -> ONE call over a representative packet (fast; 30-min build)
         #   span_budget    -> up to MAX_LLM_SPANS_PER_SOURCE parallel per-span calls (deep)
