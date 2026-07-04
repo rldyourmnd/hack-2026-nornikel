@@ -114,7 +114,7 @@ class GLiNERMentionExtractor:
                 end = int(prediction.get("end", 0)) + offset
                 mention = EntityMention(
                     text=str(prediction.get("text", "")).strip(),
-                    entity_type=entity_type,
+                    entity_type=entity_type,  # type: ignore[arg-type]
                     start=start,
                     end=end,
                     confidence=float(prediction.get("score", 0.0)),

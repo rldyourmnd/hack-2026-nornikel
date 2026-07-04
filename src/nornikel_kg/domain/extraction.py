@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 ENTITY_TYPES = (
@@ -29,6 +31,15 @@ ENTITY_TYPES = (
     "patent",
     "standard",
 )
+
+EntityTypeLiteral = Literal[
+    "material", "process", "regime", "condition", "property",
+    "equipment", "facility", "experiment", "method", "team",
+    "person", "expert", "laboratory", "organization", "location",
+    "technology_solution", "economic_indicator", "conclusion",
+    "recommendation", "limitation", "decision", "value",
+    "publication", "patent", "standard",
+]
 
 RELATION_TYPES = (
     "MADE_OF",
@@ -63,7 +74,7 @@ class EntityMention(BaseModel):
     """A typed mention found in a span (GLiNER, LLM, or dictionary rules)."""
 
     text: str
-    entity_type: str
+    entity_type: EntityTypeLiteral
     start: int = 0
     end: int = 0
     confidence: float = 1.0
