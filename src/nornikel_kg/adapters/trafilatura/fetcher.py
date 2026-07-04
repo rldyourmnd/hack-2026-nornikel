@@ -38,17 +38,51 @@ def assert_public_url(url: str) -> None:
             raise ParserError(f"URL resolves to a non-public address ({ip}): {url}")
 
 
+# URL-import fetch limits (SSRF + resource caps).
+_MAX_URL_HOPS = 4
+_MAX_URL_BYTES = 20_000_000
+_URL_TIMEOUT_S = 30.0
+_URL_USER_AGENT = "nornikel-kg-search/1.0 (+url-import)"
+
+
 class TrafilaturaUrlFetcher:
     """URL -> clean main text via trafilatura, with title/date metadata."""
 
     def fetch(self, url: str) -> FetchedPage:
-        import trafilatura
+        """Fetch with a controlled client, then extract.
+
+        `trafilatura.fetch_url` follows redirects internally, so validating only
+        the initial host is an SSRF hole: a public URL can 3xx-redirect to
+        169.254.169.254 or 127.0.0.1. We disable auto-redirects and revalidate
+        every hop against `assert_public_url`, and cap the body size.
+        """
+        import httpx
 
         assert_public_url(url)
-        downloaded = trafilatura.fetch_url(url)
-        if not downloaded:
-            raise ParserError(f"Could not download URL: {url}")
-        return self.extract(url=url, html=downloaded)
+        current = url
+        with httpx.Client(follow_redirects=False, timeout=_URL_TIMEOUT_S) as client:
+            for _ in range(_MAX_URL_HOPS):
+                with client.stream(
+                    "GET", current, headers={"User-Agent": _URL_USER_AGENT}
+                ) as response:
+                    if response.is_redirect and response.next_request is not None:
+                        current = str(response.next_request.url)
+                        assert_public_url(current)  # revalidate EVERY redirect hop
+                        continue
+                    response.raise_for_status()
+                    body = bytearray()
+                    for chunk in response.iter_bytes():
+                        body.extend(chunk)
+                        if len(body) > _MAX_URL_BYTES:
+                            raise ParserError(
+                                f"URL body exceeds {_MAX_URL_BYTES} bytes: {current}"
+                            )
+                    encoding = response.encoding or "utf-8"
+                html = bytes(body).decode(encoding, errors="replace")
+                if not html.strip():
+                    raise ParserError(f"Could not download URL: {current}")
+                return self.extract(url=current, html=html)
+        raise ParserError(f"Too many redirects for URL: {url}")
 
     def extract(self, *, url: str, html: str) -> FetchedPage:
         import trafilatura

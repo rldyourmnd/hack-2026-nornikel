@@ -287,8 +287,9 @@ async def upload_archive(file: Annotated[UploadFile, File(...)]) -> ArchiveUploa
         extracted, stats = expand_archives([archive_path], work_dir)
         for member in sorted(extracted):
             member_path = str(member.relative_to(work_dir))
-            member_bytes = member.read_bytes()
-            if len(member_bytes) > max_upload_bytes:
+            # Check size on disk BEFORE reading the member into memory (a bomb
+            # member could be multi-GB — read_bytes first would OOM the process).
+            if member.stat().st_size > max_upload_bytes:
                 members.append(
                     ArchiveMemberResult(
                         member_path=member_path,
@@ -297,6 +298,7 @@ async def upload_archive(file: Annotated[UploadFile, File(...)]) -> ArchiveUploa
                     )
                 )
                 continue
+            member_bytes = member.read_bytes()
             try:
                 response = ingestion.ingest_upload(filename=member_path, content=member_bytes)
             except (SourceIngestError, ParserError) as error:

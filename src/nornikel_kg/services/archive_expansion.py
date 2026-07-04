@@ -37,6 +37,11 @@ _MULTIPART_RAR_RE = re.compile(r"^(?P<base>.+)\.part(?P<part>\d+)\.rar$", re.IGN
 # Guards: archives can nest and can be decompression bombs.
 _MAX_ARCHIVE_DEPTH = 8
 _MAX_TOTAL_MEMBERS = 200_000
+# Decompression-bomb byte guards (per-archive; nested archives each get their own).
+_MAX_MEMBER_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+_MAX_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024
+_MAX_COMPRESSION_RATIO = 200
+_COPY_CHUNK = 1024 * 1024
 
 
 def _is_secondary_rar_part(name: str) -> bool:
@@ -94,6 +99,7 @@ def _safe_extract_zip(archive_path: Path, target_dir: Path) -> list[Path]:
     would silently overwrite (e.g. two `report.pdf` from different years).
     """
     extracted: list[Path] = []
+    total_bytes = 0
     with zipfile.ZipFile(archive_path) as archive:
         for member in archive.infolist():
             if member.is_dir():
@@ -101,13 +107,48 @@ def _safe_extract_zip(archive_path: Path, target_dir: Path) -> list[Path]:
             relative = _sanitize_member_path(member.filename)
             if relative is None or not _should_extract(relative.name):
                 continue
+            # Decompression-bomb guards, applied BEFORE writing to disk.
+            if member.file_size > _MAX_MEMBER_UNCOMPRESSED_BYTES:
+                logger.warning(
+                    "Oversized zip member skipped: %s (%d bytes)",
+                    member.filename,
+                    member.file_size,
+                )
+                continue
+            if (
+                member.compress_size
+                and member.file_size / member.compress_size > _MAX_COMPRESSION_RATIO
+            ):
+                logger.warning("Suspicious compression ratio skipped: %s", member.filename)
+                continue
+            if total_bytes + member.file_size > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+                logger.warning(
+                    "Zip cumulative uncompressed cap reached at %s; stopping",
+                    member.filename,
+                )
+                break
             destination = _collision_free(target_dir, relative)
             if not destination.resolve().is_relative_to(target_dir.resolve()):
                 logger.warning("Zip-slip path skipped: %s", member.filename)
                 continue
             destination.parent.mkdir(parents=True, exist_ok=True)
+            # Byte-limited copy guards a spoofed header (real data > declared size).
+            written = 0
+            hard_cap = member.file_size + _COPY_CHUNK
             with archive.open(member) as source, destination.open("wb") as sink:
-                shutil.copyfileobj(source, sink)
+                while True:
+                    chunk = source.read(_COPY_CHUNK)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > hard_cap:
+                        break
+                    sink.write(chunk)
+            if written > hard_cap:
+                destination.unlink(missing_ok=True)
+                logger.warning("Zip member exceeded declared size, dropped: %s", member.filename)
+                continue
+            total_bytes += written
             extracted.append(destination)
     return extracted
 
@@ -142,11 +183,23 @@ def _extract_rar(archive_path: Path, target_dir: Path) -> list[Path]:
             check=False,
         )
         if result.returncode == 0:
-            return [
+            new_files = [
                 path
                 for path in target_dir.rglob("*")
                 if path.is_file() and path not in before and _should_extract(path.name)
             ]
+            total = sum(path.stat().st_size for path in new_files)
+            if total > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+                logger.warning(
+                    "RAR %s exceeded uncompressed cap (%d bytes); dropped",
+                    archive_path.name,
+                    total,
+                )
+                for path in target_dir.rglob("*"):
+                    if path.is_file() and path not in before:
+                        path.unlink(missing_ok=True)
+                return []
+            return new_files
         logger.warning(
             "%s failed on %s: %s", tool, archive_path.name, result.stderr.decode()[:200]
         )

@@ -27,6 +27,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from nornikel_kg.domain.ids import source_id_from_bytes
 from nornikel_kg.services.archive_expansion import expand_archives
 
 SUPPORTED = {
@@ -79,6 +80,7 @@ def main() -> None:
         "skipped": 0,
         "too_large": 0,
         "images_no_ocr": 0,
+        "duplicate": 0,
     }
     started = time.time()
     all_files = sorted(path for path in Path(args.dir).rglob("*") if path.is_file())
@@ -112,11 +114,40 @@ def main() -> None:
         total = len(to_ingest)
         stats_lock = threading.Lock()
         done = [0]
+        seen_ids: set[str] = set()
+        seen_lock = threading.Lock()
+        scan_dir = Path(args.dir)
+        work_root = Path(work_dir)
+
+        def _display_name(path: Path) -> str:
+            # Corpus-/archive-relative path preserves provenance (year folders,
+            # archive member paths) instead of a collision-prone basename.
+            for base in (scan_dir, work_root):
+                try:
+                    return str(path.relative_to(base))
+                except ValueError:
+                    continue
+            return path.name
 
         def _ingest_one(path: Path) -> None:
             file_started = time.time()
+            name = _display_name(path)
             try:
-                response = service.ingest_upload(filename=path.name, content=path.read_bytes())
+                content = path.read_bytes()
+                # Content-hash dedup: the same bytes (loose + inside an archive)
+                # must ingest once — re-extraction is expensive and a second ingest
+                # would race the first's provenance to a last-writer result.
+                source_id = source_id_from_bytes(content)
+                with seen_lock:
+                    duplicate = source_id in seen_ids
+                    if not duplicate:
+                        seen_ids.add(source_id)
+                if duplicate:
+                    with stats_lock:
+                        stats["duplicate"] += 1
+                        done[0] += 1
+                    return
+                response = service.ingest_upload(filename=name, content=content)
                 status = response.source.status
                 key = status if status in stats else "completed"
                 with stats_lock:
@@ -126,13 +157,13 @@ def main() -> None:
                 print(
                     f"[{marker:4d}/{total}] {status.upper():<11} "
                     f"{time.time() - file_started:5.1f}s {response.evidence_count:4d} spans  "
-                    f"{path.name[:60]}"
+                    f"{name[:60]}"
                 )
             except Exception as error:  # a single bad file must never stop the batch
                 with stats_lock:
                     stats["failed"] += 1
                     done[0] += 1
-                print(f"FAILED       {path.name[:60]}: {error!r}")
+                print(f"FAILED       {name[:60]}: {error!r}")
 
         if args.workers > 1:
             with ThreadPoolExecutor(max_workers=args.workers) as pool:

@@ -5,6 +5,7 @@ import os
 from typing import Protocol
 
 from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository
+from nornikel_kg.adapters.qdrant_index.index import EmbeddingDimMismatch
 from nornikel_kg.ports.retrieval import IndexableUnit, VectorIndexPort
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,10 @@ class RetrievalService:
             if include_entities:
                 count += self._index_entities()
             return count
+        except EmbeddingDimMismatch:
+            # Deployment/config error (wrong QDRANT_COLLECTION for the backend) —
+            # fail loud rather than silently commit an unindexed source.
+            raise
         except Exception:
             logger.warning("Indexing failed for %s; retrieval degraded", source_id, exc_info=True)
             return 0
