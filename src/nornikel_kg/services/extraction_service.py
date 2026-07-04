@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -178,24 +179,12 @@ class ExtractionService:
         processable = [
             span for span in spans if span.span_type in {"text", "text_block", "table_row"}
         ]
-        # The budgeted per-source LLM calls dominate wall-clock for large sources
-        # and were serial (one in flight per batch worker -> only ~half the 16
-        # provider slots used). Run them CONCURRENTLY — they are I/O-bound and the
-        # gateway semaphore caps real provider concurrency — to saturate the slots.
-        llm_spans = (
-            [span for span in processable if len(span.visible_text) > 80]
-            if self.llm is not None
-            else []
-        )[: self.MAX_LLM_SPANS_PER_SOURCE]
-        llm_results: dict[str, tuple[list[EntityMention], list[ExtractedRelation]]] = {}
-        if llm_spans:
-            with ThreadPoolExecutor(max_workers=len(llm_spans)) as pool:
-                futures = {
-                    pool.submit(self._llm_extract, source_id, span): span.span_id
-                    for span in llm_spans
-                }
-                for future in as_completed(futures):
-                    llm_results[futures[future]] = future.result()
+        # LLM extraction dispatched by LLM_EXTRACTION_MODE:
+        #   source_packet  -> ONE call over a representative packet (fast; 30-min build)
+        #   span_budget    -> up to MAX_LLM_SPANS_PER_SOURCE parallel per-span calls (deep)
+        llm_results = (
+            self._llm_extract_source(source_id, processable) if self.llm is not None else {}
+        )
 
         entities_touched = 0
         relations_written = 0
@@ -271,6 +260,121 @@ class ExtractionService:
             )
             relations += 1
         return relations
+
+    def _llm_extract_source(
+        self, source_id: str, processable: list[EvidenceSpan]
+    ) -> dict[str, tuple[list[EntityMention], list[ExtractedRelation]]]:
+        """Per-source LLM extraction, dispatched by LLM_EXTRACTION_MODE."""
+        if os.getenv("LLM_EXTRACTION_MODE", "source_packet").lower() == "span_budget":
+            llm_spans = [s for s in processable if len(s.visible_text) > 80][
+                : self.MAX_LLM_SPANS_PER_SOURCE
+            ]
+            results: dict[str, tuple[list[EntityMention], list[ExtractedRelation]]] = {}
+            if llm_spans:
+                with ThreadPoolExecutor(max_workers=len(llm_spans)) as pool:
+                    futures = {
+                        pool.submit(self._llm_extract, source_id, span): span.span_id
+                        for span in llm_spans
+                    }
+                    for future in as_completed(futures):
+                        results[futures[future]] = future.result()
+            return results
+        # source_packet: ONE call over a representative packet, then attribute each
+        # entity/relation back to the span(s) whose text contains it (evidence invariant).
+        packet_spans = self._select_packet_spans(processable)
+        if not packet_spans:
+            return {}
+        entities, relations = self._llm_extract_packet(source_id, packet_spans)
+        return self._distribute_packet(processable, entities, relations)
+
+    def _select_packet_spans(self, spans: list[EvidenceSpan]) -> list[EvidenceSpan]:
+        """Representative spans for a single-call packet, bounded by a char budget.
+        Document order (head narrative + early tables) covers the entity-dense part
+        of R&D docs; table rows carry numeric facts."""
+        budget = int(os.getenv("LLM_SOURCE_PACKET_CHARS", "8000"))
+        picked: list[EvidenceSpan] = []
+        used = 0
+        for span in spans:
+            text = span.visible_text[: self.MAX_SPAN_CHARS].strip()
+            if not text:
+                continue
+            if used + len(text) > budget and picked:
+                break
+            picked.append(span)
+            used += len(text)
+        return picked
+
+    def _llm_extract_packet(
+        self, source_id: str, packet_spans: list[EvidenceSpan]
+    ) -> tuple[list[EntityMention], list[ExtractedRelation]]:
+        assert self.llm is not None
+        packet_text = "\n\n".join(
+            span.visible_text[: self.MAX_SPAN_CHARS] for span in packet_spans
+        )[:12000]
+        claim_key = "exc_pkt_" + stable_hash([source_id], 20)
+        for attempt in (1, 2):
+            try:
+                result = self.llm.generate_json(
+                    task="extraction",
+                    system_prompt=_EXTRACTION_SYSTEM_PROMPT,
+                    user_prompt=f"Источник (несколько фрагментов):\n{packet_text}",
+                    json_schema=dict(EXTRACTION_JSON_SCHEMA),
+                    trace_id=claim_key,
+                    tags=["ingest", source_id, "packet"],
+                )
+            except LLMError:
+                logger.warning("Packet extraction failed for %s; rule-only", source_id)
+                return [], []
+            except Exception:  # provider/transport error must not abort the source
+                logger.warning(
+                    "Packet extraction errored for %s; rule-only", source_id, exc_info=True
+                )
+                return [], []
+            try:
+                payload = ExtractionPayload.model_validate(result.content)
+                self.repository.insert_extraction_claim(
+                    claim_id_value=claim_key,
+                    source_id=source_id,
+                    span_id=packet_spans[0].span_id,
+                    payload=result.content,
+                    model_id=result.model_id,
+                )
+                return payload.entities, payload.relations
+            except ValidationError:
+                if attempt == 2:
+                    logger.warning("Packet payload invalid for %s; rule-only", source_id)
+                    return [], []
+        return [], []
+
+    def _distribute_packet(
+        self,
+        spans: list[EvidenceSpan],
+        entities: list[EntityMention],
+        relations: list[ExtractedRelation],
+    ) -> dict[str, tuple[list[EntityMention], list[ExtractedRelation]]]:
+        """Attribute packet entities/relations to spans by text containment: an
+        entity goes to every span whose text contains it (resolution dedupes);
+        a relation goes to the first span carrying either endpoint."""
+        norms = {span.span_id: canonical_key(span.visible_text) for span in spans}
+        results: dict[str, tuple[list[EntityMention], list[ExtractedRelation]]] = {
+            span.span_id: ([], []) for span in spans
+        }
+        for entity in entities:
+            key = canonical_key(entity.text)
+            if not key:
+                continue
+            for span in spans:
+                if key in norms[span.span_id]:
+                    results[span.span_id][0].append(entity)
+        for relation in relations:
+            src = canonical_key(relation.src_text)
+            dst = canonical_key(relation.dst_text)
+            for span in spans:
+                text = norms[span.span_id]
+                if (src and src in text) or (dst and dst in text):
+                    results[span.span_id][1].append(relation)
+                    break
+        return {sid: val for sid, val in results.items() if val[0] or val[1]}
 
     def _process_span(
         self,
