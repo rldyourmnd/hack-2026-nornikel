@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Protocol
@@ -59,6 +60,7 @@ class IngestionService:
     ) -> None:
         self.repository = repository
         self._parser = parser
+        self._pdf_parser: DocumentParserPort | None = None
         self._url_fetcher = url_fetcher
         self._spreadsheet_parser: DocumentParserPort | None = None
         self._legacy_doc_parser: DocumentParserPort | None = None
@@ -74,6 +76,20 @@ class IngestionService:
 
             self._parser = DoclingDocumentParser()
         return self._parser
+
+    @property
+    def pdf_parser(self) -> DocumentParserPort:
+        """PDF parser: fast ML-free pypdfium2 (default; no GPU/layout model) or
+        Docling ML (PDF_PARSE_MODE=docling, for structured tables when HW allows)."""
+        if self._pdf_parser is None:
+            if self._parser is not None or os.getenv("PDF_PARSE_MODE", "fast").lower() == "docling":
+                # An explicitly injected parser (tests/custom) or Docling ML mode.
+                self._pdf_parser = self.parser
+            else:
+                from nornikel_kg.adapters.pdf_fast import PyPdfiumFastParser
+
+                self._pdf_parser = PyPdfiumFastParser()
+        return self._pdf_parser
 
     @property
     def url_fetcher(self) -> UrlFetcherPort:
@@ -128,6 +144,10 @@ class IngestionService:
                 },
             )
             return self._with_run_status(response)
+        if extension == ".pdf":
+            return self._ingest_parsed(
+                filename=filename, content=content, title=title, parser=self.pdf_parser
+            )
         if extension in PARSER_EXTENSIONS:
             return self._ingest_parsed(filename=filename, content=content, title=title)
         if extension in SPREADSHEET_EXTENSIONS:

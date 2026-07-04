@@ -91,6 +91,8 @@ module = [
   "litellm.*",
   "langfuse",
   "langfuse.*",
+  "pypdfium2",
+  "pypdfium2.*",
   "docling",
   "docling.*",
   "trafilatura",
