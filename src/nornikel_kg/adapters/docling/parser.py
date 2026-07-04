@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import logging
+import threading
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,10 @@ from nornikel_kg.ports.parser import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Docling's converter holds shared ML models; concurrent convert() calls race,
+# so batch --workers overlaps LLM/embedding I/O while parsing stays serialized.
+_CONVERT_LOCK = threading.Lock()
 
 # .docm is the same OOXML container as .docx (macros are ignored by Docling);
 # the stream name is rewritten so format detection stays on the DOCX path.
@@ -57,7 +62,8 @@ class DoclingDocumentParser:
         )
         stream = DocumentStream(name=stream_name, stream=io.BytesIO(content))
         try:
-            result = converter.convert(stream, raises_on_error=True)
+            with _CONVERT_LOCK:
+                result = converter.convert(stream, raises_on_error=True)
         except Exception as error:  # docling raises many concrete types
             raise ParserError(f"Docling failed to parse {filename}: {error}") from error
         if result.status not in (ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS):

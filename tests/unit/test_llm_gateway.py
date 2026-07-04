@@ -166,6 +166,66 @@ def test_strictify_adds_additional_properties() -> None:
     assert "additionalProperties" not in schema
 
 
+def test_gateway_round_robins_across_two_providers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 2nd provider (e.g. dataeyes gpt-5.5) makes consecutive calls alternate
+    endpoints so both share the batch-ingest load."""
+    gateway = LiteLLMGateway(
+        _settings(
+            llm_api_base="https://primary/v1",
+            llm_api_base_2="https://secondary/v1",
+            llm_api_key_2="key-2",
+            llm_model_2="openai/second-model",
+        )
+    )
+    import litellm
+
+    seen: list[tuple[str, str]] = []
+
+    def stub(**kwargs: Any) -> Any:
+        seen.append((kwargs["api_base"], kwargs["model"]))
+        return _completion_response(json.dumps({"ok": True}))
+
+    monkeypatch.setattr(litellm, "completion", stub)
+    for _ in range(4):
+        gateway.generate_json(
+            task="extraction", system_prompt="s", user_prompt="u", json_schema=SCHEMA
+        )
+    assert {base for base, _ in seen} == {"https://primary/v1", "https://secondary/v1"}
+    assert ("https://secondary/v1", "openai/second-model") in seen
+    assert ("https://primary/v1", "openai/test-extract") in seen
+
+
+def test_gateway_fails_over_to_second_provider_on_rate_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A 429 on the first provider fails over to the second, not the whole call."""
+    gateway = LiteLLMGateway(
+        _settings(
+            llm_api_base="https://primary/v1",
+            llm_api_base_2="https://secondary/v1",
+            llm_api_key_2="key-2",
+            llm_model_2="openai/second-model",
+        )
+    )
+    import litellm
+
+    seen: list[str] = []
+
+    def stub(**kwargs: Any) -> Any:
+        seen.append(kwargs["api_base"])
+        if kwargs["api_base"] == "https://primary/v1":
+            raise litellm.RateLimitError(message="429", llm_provider="openai", model="m")
+        return _completion_response(json.dumps({"ok": True}))
+
+    monkeypatch.setattr(litellm, "completion", stub)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    result = gateway.generate_json(
+        task="extraction", system_prompt="s", user_prompt="u", json_schema=SCHEMA
+    )
+    assert result.content == {"ok": True}
+    assert "https://secondary/v1" in seen  # failed over to the 2nd provider
+
+
 def test_gateway_retries_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     """429 must back off and retry, not fail the call (shared folder quota)."""
     gateway = LiteLLMGateway(_settings())

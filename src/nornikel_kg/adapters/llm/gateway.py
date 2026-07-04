@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import random
 import threading
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from nornikel_kg.adapters.llm.settings import LLMSettings
@@ -44,6 +46,44 @@ def _strictify(schema: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+@dataclass(frozen=True)
+class _Provider:
+    """One OpenAI-compatible LLM endpoint (used through LiteLLM)."""
+
+    api_base: str
+    api_key: str
+    extraction_model: str
+    answer_model: str
+
+    def model_for(self, task: str) -> str:
+        model = self.extraction_model if task == "extraction" else self.answer_model
+        if not model:
+            raise ValueError(f"No model configured for task '{task}' (check LLM_* env)")
+        return model
+
+
+def _build_providers(settings: LLMSettings) -> list[_Provider]:
+    """Primary provider + an optional second one, round-robined for throughput."""
+    providers = [
+        _Provider(
+            settings.llm_api_base,
+            settings.llm_api_key,
+            settings.llm_extraction_model,
+            settings.llm_answer_model,
+        )
+    ]
+    if settings.llm_api_base_2 and settings.llm_api_key_2 and settings.llm_model_2:
+        providers.append(
+            _Provider(
+                settings.llm_api_base_2,
+                settings.llm_api_key_2,
+                settings.llm_model_2,
+                settings.llm_model_2,
+            )
+        )
+    return providers
+
+
 class TokenBudget:
     """Process-wide hard stop: once spent, every further LLM call raises."""
 
@@ -78,6 +118,8 @@ class LiteLLMGateway:
         self.settings = settings
         self._semaphore = threading.BoundedSemaphore(settings.llm_max_concurrency)
         self.budget = TokenBudget(settings.llm_token_budget)
+        self._providers = _build_providers(settings)
+        self._round_robin = itertools.count()
         self._configure_callbacks()
 
     def _configure_callbacks(self) -> None:
@@ -100,20 +142,27 @@ class LiteLLMGateway:
     ) -> LLMResult:
         import litellm
 
-        model = self.settings.model_for(task)
         json_schema = _strictify(json_schema)
         started = time.perf_counter()
         limiter = get_limiter("llm-completions", self.settings.llm_rps)
+        providers = self._providers
+        # Round-robin the starting provider across calls; a rate limit fails the
+        # retry over to the next provider so both share the load.
+        start = next(self._round_robin)
+        provider = providers[start % len(providers)]
+        model = provider.model_for(task)
         response: Any = None
         with self._semaphore:
             delay = 1.0
             for attempt in range(1, _RATE_LIMIT_RETRIES + 1):
+                provider = providers[(start + attempt - 1) % len(providers)]
+                model = provider.model_for(task)
                 limiter.acquire()
                 try:
                     response = litellm.completion(
                         model=model,
-                        api_base=self.settings.llm_api_base,
-                        api_key=self.settings.llm_api_key,
+                        api_base=provider.api_base,
+                        api_key=provider.api_key,
                         temperature=0,
                         timeout=self.settings.llm_timeout_s,
                         num_retries=self.settings.llm_max_retries,
@@ -142,7 +191,8 @@ class LiteLLMGateway:
                     if attempt == _RATE_LIMIT_RETRIES:
                         raise
                     logger.warning(
-                        "LLM rate limited (attempt %s/%s); retrying in %.1fs",
+                        "LLM rate limited on %s (attempt %s/%s); failover + retry in %.1fs",
+                        model,
                         attempt,
                         _RATE_LIMIT_RETRIES,
                         delay,

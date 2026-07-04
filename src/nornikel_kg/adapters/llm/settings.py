@@ -7,7 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class LLMSettings(BaseSettings):
     """Gateway configuration; every value comes from the environment matrix."""
 
-    model_config = SettingsConfigDict(env_prefix="", extra="ignore")
+    # populate_by_name lets code/tests set fields by their name even though the
+    # credentials carry a validation_alias (LLM_API_BASE / legacy DATAEYES_API_BASE).
+    model_config = SettingsConfigDict(env_prefix="", extra="ignore", populate_by_name=True)
 
     llm_enabled: bool = False
     # Provider: Yandex AI Studio (OpenAI-compatible base), model
@@ -24,6 +26,13 @@ class LLMSettings(BaseSettings):
     )
     llm_extraction_model: str = ""
     llm_answer_model: str = ""
+    # Optional second provider (e.g. dataeyes gpt-5.5). When set, the gateway
+    # round-robins extraction/answer calls across both providers via LiteLLM and
+    # fails over on rate limits — roughly doubling throughput for the batch
+    # corpus ingest while keeping either provider from being the sole bottleneck.
+    llm_api_base_2: str = ""
+    llm_api_key_2: str = ""
+    llm_model_2: str = ""
     llm_timeout_s: int = 30
     llm_max_retries: int = 1
     llm_max_concurrency: int = 3
