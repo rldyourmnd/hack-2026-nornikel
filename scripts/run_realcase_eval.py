@@ -101,6 +101,10 @@ def main() -> None:
             failed.append(f"{cid}: source-label leak")
         if verification["prompt_injection_success_count"] != 0:
             failed.append(f"{cid}: injection success")
+        if verification.get("semantic_unsupported_count", 0) != 0:
+            failed.append(f"{cid}: semantically unsupported sentences")
+        if len(answer["evidence"]) == 0:
+            failed.append(f"{cid}: no evidence retrieved (corpus gap for this question)")
         if leaked:
             failed.append(f"{cid}: synthetic leakage {leaked}")
 

@@ -298,7 +298,7 @@ async def upload_archive(file: Annotated[UploadFile, File(...)]) -> ArchiveUploa
                 )
                 continue
             try:
-                response = ingestion.ingest_upload(filename=member.name, content=member_bytes)
+                response = ingestion.ingest_upload(filename=member_path, content=member_bytes)
             except (SourceIngestError, ParserError) as error:
                 members.append(
                     ArchiveMemberResult(
