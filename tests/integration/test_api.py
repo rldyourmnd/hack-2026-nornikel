@@ -29,6 +29,24 @@ def test_health_endpoint(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     assert "llm_configured" in payload
 
 
+def test_health_uses_llm_settings_aliases(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("LLM_ENABLED", "true")
+    monkeypatch.delenv("LLM_API_BASE", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("DATAEYES_API_BASE", "https://provider.example/v1")
+    monkeypatch.setenv("DATAEYES_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_ANSWER_MODEL", "provider/model")
+
+    client = client_with_tmp_ledger(tmp_path, monkeypatch)
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["llm_configured"] is True
+    assert "answer_model" not in payload
+    assert "extraction_model" not in payload
+
+
 def test_sources_upload_and_evidence_listing(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
