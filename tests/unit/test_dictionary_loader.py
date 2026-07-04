@@ -41,7 +41,7 @@ def test_loader_seeds_all_entity_types(connection: duckdb.DuckDBPyConnection) ->
         row[0]
         for row in connection.execute("SELECT DISTINCT entity_type FROM entities").fetchall()
     }
-    # teams.yml is intentionally empty (no synthetic teams) -> no "team" entities
+    # teams.yml is intentionally empty -> no "team" entities
     assert entity_types == {"material", "regime", "property", "equipment"}
 
 

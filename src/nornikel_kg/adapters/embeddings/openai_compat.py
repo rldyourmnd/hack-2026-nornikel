@@ -14,18 +14,18 @@ _MAX_RETRIES = 5
 _TIMEOUT_S = 60.0
 # The OpenAI /embeddings API returns one vector per input in a single call, so
 # batching offloads the whole per-doc span set in a few requests — the fix for
-# CPU-bound local dense embedding on a constrained stand. dataeyes caps a batch
-# at ~32 inputs (larger returns 403), so keep the default conservative.
+# CPU-bound local dense embedding is slow on constrained stands. Most compatible
+# embedding providers cap batch size, so keep the default conservative.
 _MAX_BATCH = int(os.getenv("EMBEDDING_BATCH", "32"))
 _MAX_INPUT_CHARS = 8000
 
 
 class OpenAIEmbeddingBackend:
-    """Dense embeddings via an OpenAI-compatible ``/embeddings`` endpoint (e.g.
-    dataeyes); sparse BM25 stays local (fastembed, same as the local backend).
+    """Dense embeddings via an OpenAI-compatible ``/embeddings`` endpoint.
 
     Dense vectors are produced by the provider API in batched requests, which
-    keeps the 8-vCPU stand free for Docling parsing during bulk ingest.
+    keeps CPU-only stands free for parsing during bulk ingest. Sparse BM25 stays
+    local (fastembed, same as the local backend).
     """
 
     def __init__(
@@ -43,8 +43,7 @@ class OpenAIEmbeddingBackend:
         self.model = model or os.getenv("EMBEDDING_MODEL_ID", "text-embedding-3-small")
         if not self.api_base or not self.api_key:
             raise ValueError(
-                "OpenAIEmbeddingBackend needs EMBEDDING_API_BASE/EMBEDDING_API_KEY "
-                "(or DATAEYES_API_BASE/DATAEYES_API_KEY)"
+                "OpenAIEmbeddingBackend needs EMBEDDING_API_BASE/EMBEDDING_API_KEY"
             )
 
     # -- dense (API, batched) ----------------------------------------------

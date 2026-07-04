@@ -96,7 +96,7 @@ export function LandingPage() {
           </div>
           <div className="hero-pill">
             <img alt="" className="hero-pill-mascot" src="/brand/mascot.png" />
-            Не чирикаем без источника
+            Только проверяемые ответы с источниками
           </div>
         </div>
         <div className="hero-visual">

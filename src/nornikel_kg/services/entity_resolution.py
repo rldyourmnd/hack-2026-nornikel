@@ -41,7 +41,7 @@ class EntityResolutionService:
     Guards: mentions carrying digits (alloy codes, formulas — Ni-30Cu vs
     Ni-20Cu often exceed 0.9 cosine) and short strings never merge
     semantically; resolution never crosses entity types. Scores in
-    [0.80, 0.90) are logged for audit, not merged.
+    [0.80, 0.90) are logged for review, not merged.
     """
 
     def __init__(

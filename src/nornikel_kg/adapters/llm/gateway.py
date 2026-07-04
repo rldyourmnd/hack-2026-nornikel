@@ -29,7 +29,7 @@ def _strictify(schema: dict[str, Any]) -> dict[str, Any]:
 
     Strict mode rejects object schemas where `additionalProperties` is unset
     OR where any `properties` key is missing from `required` — the second
-    rule silently broke every extraction call until schemas were audited.
+    rule silently broke every extraction call until schemas were reviewed.
     Other providers ignore both fields.
     """
     result = dict(schema)

@@ -12,7 +12,7 @@ router = APIRouter(prefix="/eval", tags=["evaluation"])
 def _baseline_probe_question(packet: EvidenceLedgerPacket) -> str | None:
     """Derive a live-baseline question from the corpus itself.
 
-    The eval summary must never hardcode a demo material: when no eval run is
+    The eval summary must never hardcode a fixed material: when no eval run is
     stored we probe the first available experiment so the baseline reflects the
     actual corpus (empty corpus -> no probe).
     """

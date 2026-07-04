@@ -20,7 +20,7 @@ def repository(tmp_path: Path) -> DuckDBLedgerRepository:
 
 
 def test_alias_scan_respects_word_boundaries(repository: DuckDBLedgerRepository) -> None:
-    """«руд» inside «оборудование» must not become the material «руда» (audit C2)."""
+    """«руд» inside «оборудование» must not become the material «руда»."""
     service = ExtractionService(repository, use_gliner=False)
     mentions = service._dictionary_mentions(
         "Новое оборудование установлено в цехе; медицинский осмотр пройден."

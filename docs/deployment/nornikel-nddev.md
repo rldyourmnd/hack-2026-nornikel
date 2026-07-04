@@ -41,12 +41,12 @@ Three isolated Docker Compose projects run on the host:
   network to reach `langfuse-web:3000`.
 - Port `127.0.0.1:8080` is a host-local fallback to the web container.
 
-## Server files not in git
+## Server-local files
 
-- `/srv/nornikel-kg-search/docker-compose.server.yml` — compose override
-  (networks, restart policies, pinned `qdrant/qdrant:v1.16.3`).
-- `/srv/nornikel-kg-search/.env` — env matrix from `.env.example` with real
-  values (dataeyes key, Langfuse keys, `EMBEDDING_BACKEND=local`).
+- `/srv/nornikel-kg-search/docker-compose.server.yml` - tracked server compose
+  file, deployed from this repository.
+- `/srv/nornikel-kg-search/.env` - env matrix from `.env.example` with real
+  provider keys, Langfuse keys, and collection/backend selections.
 - `/srv/langfuse/.env` — Langfuse stack secrets (never in git).
 
 ## Deploy procedure
@@ -85,7 +85,7 @@ Smoke:
 curl -fsS https://nornikel.nddev.asia/api/health
 curl -fsS -X POST https://nornikel.nddev.asia/api/qa/ask \
   -H 'Content-Type: application/json' \
-  --data '{"question":"Что делали по Ni-30Cu при старении 700 C 8 ч?"}'
+  --data '{"question":"Какие технические решения организации циркуляции католита при электроэкстракции никеля описаны в практике?"}'
 curl -fsS https://nornikel.nddev.asia/api/gaps/analyze | head -c 200
 curl -fsS https://nornikel.nddev.asia/api/eval/summary | head -c 200
 ```

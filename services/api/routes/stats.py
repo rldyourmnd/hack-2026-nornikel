@@ -15,5 +15,5 @@ def overview() -> dict[str, object]:
 
 @router.get("/answer-runs")
 def answer_runs(limit: int = Query(default=20, ge=1, le=100)) -> dict[str, object]:
-    """Recent answer runs: the audit trail (question, mode, verification)."""
+    """Recent answer runs: verification trail (question, mode, verification)."""
     return {"runs": get_ledger_repository().list_answer_runs(limit)}

@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Last commit: a81edd1
 Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
@@ -21,7 +21,7 @@ Capture current validation commands and what they prove.
 
 ## Current Behavior
 
-`scripts/run_eval.py`, `eval/*.yml`, and `tests/integration/test_synthetic_v2_corpus.py` were removed. There is no `make eval` target at `a81edd1`.
+`scripts/run_eval.py`, `eval/*.yml`, and the legacy fixture corpus test were removed. There is no `make eval` target at `a81edd1`.
 
 Live-run verification at `a81edd1`:
 
@@ -31,7 +31,7 @@ Live-run verification at `a81edd1`:
 - `cd apps/web && npm run typecheck`: clean.
 - `cd apps/web && npm run build`: clean.
 
-`scripts/run_realcase_eval.py` checks four organizer track questions against a running API. It asserts citation coverage 1.0, zero fabricated numbers, zero source-label leaks, zero prompt-injection success, zero semantic unsupported sentences, non-empty evidence, and no synthetic Ni-Cu leakage.
+`scripts/run_realcase_eval.py` checks four organizer track questions against a running API. It asserts citation coverage 1.0, zero fabricated numbers, zero source-label leaks, zero prompt-injection success, zero semantic unsupported sentences, non-empty evidence, and no legacy fixture leakage.
 
 ## Invariants
 

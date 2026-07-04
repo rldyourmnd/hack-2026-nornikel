@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Last commit: a81edd1
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/adapters/llm/; src/nornikel_kg/adapters/trafilatura/fetcher.py; services/api/routes/sources.py; scripts/run_realcase_eval.py; tests/unit/
 Area: SEC
 -->
@@ -30,7 +30,7 @@ Capture source-label filtering, prompt-injection resistance, URL import hardenin
 - Answer sentences are dropped/flagged when citations are missing, numbers are unsupported, or narrow contradiction checks fail.
 - LiteLLM provider exhaustion is wrapped as `LLMError`; extraction and answer paths degrade to rule-only/deterministic fallbacks instead of raw 500s when callers catch it.
 - URL import rejects non-http(s), private, loopback, link-local, reserved, and metadata targets; redirects are followed manually and revalidated per hop.
-- Synthetic prompt-injection fixtures and `scripts/run_eval.py` are no longer active; current security coverage is unit tests plus `scripts/run_realcase_eval.py`.
+- Legacy prompt-injection fixtures and `scripts/run_eval.py` are no longer active; current security coverage is unit tests plus `scripts/run_realcase_eval.py`.
 
 ## Invariants
 

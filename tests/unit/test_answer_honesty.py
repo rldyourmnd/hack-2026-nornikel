@@ -29,7 +29,7 @@ def repository(tmp_path: Path) -> DuckDBLedgerRepository:
 def test_irrelevant_question_returns_honest_empty(
     repository: DuckDBLedgerRepository,
 ) -> None:
-    """No arbitrary experiments[:5] with confidence=high (audit C1)."""
+    """No arbitrary experiments[:5] with confidence=high."""
     service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     response = service.ask(
         AskRequest(question="Какие меры безопасности при работе с печью?")
@@ -41,7 +41,7 @@ def test_irrelevant_question_returns_honest_empty(
 def test_chemical_formula_is_not_a_material_token(
     repository: DuckDBLedgerRepository,
 ) -> None:
-    """«CO2» must not become an unknown material blanking the answer (audit C4)."""
+    """«CO2» must not become an unknown material blanking the answer."""
     service = EvidenceQAService(ledger_repository=repository, run_recorder=repository)
     assert service._requested_material_tokens("Как CO2 влияет на процесс?") == set()
     assert service._requested_material_tokens("выход Al2O3 при обжиге") == set()
@@ -111,7 +111,7 @@ def test_conflict_detector_requires_same_unit_for_numeric() -> None:
 
 
 def test_delete_source_cascades_graph_references(tmp_path: Path) -> None:
-    """No dangling span ids in entities/relations after source delete (audit H6)."""
+    """No dangling span ids in entities/relations after source delete."""
     from nornikel_kg.ports.parser import ParsedBlock, ParsedDocument
     from nornikel_kg.services.extraction_service import ExtractionService
 
@@ -157,5 +157,4 @@ def test_packet_cache_invalidated_by_data_version(
     assert service._load_packet() is first  # cached while version unchanged
     repository.ingest_source_bytes(filename="bump.md", content=b"new note about slag")
     assert service._load_packet() is not first  # write invalidated the cache
-
 

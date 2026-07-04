@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: a81edd1 Merge pull request #14 from rldyourmnd/perf/table-row-cap
+Last commit: a81edd1
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; scripts/ingest_corpus.py
 Area: DATA
 -->
@@ -34,7 +34,7 @@ Capture evidence identity, DuckDB ledger schema, graph/fact persistence, and ret
 
 ## Current Behavior
 
-- Synthetic/demo seed infrastructure is removed from the active code path; clean ledgers should have no synthetic sources.
+- Legacy fixture seed infrastructure is removed from the active code path; clean ledgers should have no fixture sources.
 - Default PDF parse produces text blocks with parser profile `pypdfium_fast_v1`. It preserves page/locator provenance but does not produce structured PDF table rows or numeric facts.
 - Spreadsheet and Docling table paths produce `table_row` evidence and `numeric_facts`, capped by `MAX_TABLE_ROWS_PER_SOURCE`.
 - All ingested spans are stored and indexed, but graph extraction processes only the first `MAX_EXTRACTION_SPANS` source spans by default.
@@ -47,7 +47,7 @@ Capture evidence identity, DuckDB ledger schema, graph/fact persistence, and ret
 - `evidence_spans`: span ID, source, artifact, type, visible text, page, locator JSON, validation, confidence, label.
 - `numeric_facts`: source/span, subject, property, value, unit, qualifier, validation.
 - `entities`/`entity_aliases`/`relations`: extracted graph; relations carry evidence span IDs.
-- `answer_runs`/`answer_claims`: audit trail for answered questions and verified claims.
+- `answer_runs`/`answer_claims`: verification trail for answered questions and verified claims.
 
 ## Invariants
 

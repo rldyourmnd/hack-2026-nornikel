@@ -13,9 +13,9 @@ _DIRECTIONS = {"increase", "decrease"}
 def _regime_bucket(experiment: ExperimentRow) -> str:
     """Regime key: regime TYPE + temperature, so only near-identical regimes compare.
 
-    The type must survive the `reg_`/`regime_` id prefix (audit H4: splitting
-    the raw id put every experiment into one `reg:` bucket, so aging and
-    annealing at the same temperature produced fake contradictions).
+    The type must survive the `reg_`/`regime_` id prefix. Splitting the raw id
+    put every experiment into one `reg:` bucket, so aging and annealing at the
+    same temperature produced fake contradictions.
     """
     regime = experiment.regime_id or experiment.regime_summary
     token = regime.removeprefix("reg_").removeprefix("regime_")
