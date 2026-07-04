@@ -4,3 +4,5 @@
 -- full scan. Idempotent (the migration runner re-executes every file per start).
 CREATE INDEX IF NOT EXISTS idx_relations_src ON relations(src_entity_id);
 CREATE INDEX IF NOT EXISTS idx_relations_dst ON relations(dst_entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_relations_type ON relations(relation_type);

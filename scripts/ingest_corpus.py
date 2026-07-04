@@ -38,6 +38,8 @@ SUPPORTED = {
     ".txt",
     ".xlsx",
     ".xls",
+    ".pptx",
+    ".text",
 }
 IMAGE_EXTENSIONS = {".gif", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp"}
 ARCHIVE_EXTENSIONS = {".zip", ".rar"}

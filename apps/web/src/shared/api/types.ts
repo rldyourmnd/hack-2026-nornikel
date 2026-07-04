@@ -179,6 +179,9 @@ export type StatsOverview = {
   sources: number;
   evidence_spans: number;
   measurements: number;
+  numeric_facts: number;
+  numeric_facts_by_unit: Record<string, number>;
+  numeric_facts_by_subject: Record<string, number>;
   relations: number;
   answer_runs: number;
   entities_by_type: Record<string, number>;

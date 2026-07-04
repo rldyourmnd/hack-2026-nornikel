@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,10 +10,18 @@ class LLMSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
     llm_enabled: bool = False
-    # Unified LLM endpoint (api.dataeyes.ai is their separate Search & Reader
-    # product with its own keys — a wrong default silently kills the gateway).
-    dataeyes_api_base: str = "https://platform.dataeyes.ai/v1"
-    dataeyes_api_key: str = ""
+    # Provider: Yandex AI Studio (OpenAI-compatible base), model
+    # deepseek-4-flash, routed through LiteLLM. LLM_API_BASE / LLM_API_KEY are
+    # the canonical env names; the legacy DATAEYES_* names still resolve during
+    # the transition so an existing server .env keeps working.
+    llm_api_base: str = Field(
+        default="https://ai.api.cloud.yandex.net/v1",
+        validation_alias=AliasChoices("LLM_API_BASE", "DATAEYES_API_BASE"),
+    )
+    llm_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("LLM_API_KEY", "DATAEYES_API_KEY"),
+    )
     llm_extraction_model: str = ""
     llm_answer_model: str = ""
     llm_timeout_s: int = 30

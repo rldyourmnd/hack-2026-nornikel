@@ -19,7 +19,7 @@ SCHEMA: dict[str, Any] = {"type": "object", "properties": {"ok": {"type": "boole
 def _settings(**overrides: Any) -> LLMSettings:
     defaults: dict[str, Any] = {
         "llm_enabled": True,
-        "dataeyes_api_key": "test-key",
+        "llm_api_key": "test-key",
         "llm_extraction_model": "openai/test-extract",
         "llm_answer_model": "openai/test-answer",
     }

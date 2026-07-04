@@ -255,7 +255,15 @@ class IngestionService:
         head text is predominantly Cyrillic («ё» included), else `foreign` —
         a coarse but honest split for «отечественная vs зарубежная практика».
         """
-        head = " ".join(block.text for block in parsed.blocks[:20])[:3000]
+        head_parts = [block.text for block in parsed.blocks[:20]]
+        # Table-only docs (XLSX) have no blocks — pull sheet names, headers and
+        # a few rows so year/geography detection has content to work with.
+        for table in parsed.tables[:10]:
+            if table.sheet_name:
+                head_parts.append(table.sheet_name)
+            head_parts.append(" ".join(table.header))
+            head_parts.extend(row.text for row in table.rows[:5])
+        head = " ".join(part for part in head_parts if part)[:3000]
         parsed_date = str(parsed.metadata.get("date") or "")
         fallback_year = extract_year(f"{parsed_date} г.") if parsed_date else None
         self._set_year_geography(source_id, filename, head, fallback_year=fallback_year)
@@ -382,9 +390,9 @@ class IngestionService:
         if self.artifact_root is None:
             return
         try:
-            target_dir = self.artifact_root / "sources" / source_id
-            target_dir.mkdir(parents=True, exist_ok=True)
-            (target_dir / filename).write_bytes(content)
+            destination = self.artifact_root / "sources" / source_id / filename
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(content)
         except OSError:  # artifact archive is best-effort, never blocks ingest
             logger.warning("Could not archive artifact for %s", source_id, exc_info=True)
 

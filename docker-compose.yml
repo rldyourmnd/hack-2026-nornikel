@@ -28,7 +28,7 @@ services:
       - api
 
   qdrant:
-    image: qdrant/qdrant:latest
+    image: qdrant/qdrant:v1.16.3
     ports:
       - "6333:6333"
       - "6334:6334"

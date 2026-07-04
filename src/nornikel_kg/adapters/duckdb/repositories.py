@@ -196,7 +196,7 @@ class DuckDBLedgerRepository:
                             rows=rows,
                             artifact_locator=filename,
                             parser_profile="csv_table_v1",
-                            first_row_ordinal=1,
+                            first_row_ordinal=2,
                         )
                     else:
                         # Arbitrary CSV (no experiment schema): keep it as a
@@ -761,6 +761,7 @@ class DuckDBLedgerRepository:
                 "sources": "SELECT COUNT(*) FROM sources",
                 "evidence_spans": "SELECT COUNT(*) FROM evidence_spans",
                 "measurements": "SELECT COUNT(*) FROM property_measurements",
+                "numeric_facts": "SELECT COUNT(*) FROM numeric_facts",
                 "relations": "SELECT COUNT(*) FROM relations",
                 "answer_runs": "SELECT COUNT(*) FROM answer_runs",
             }
@@ -805,6 +806,20 @@ class DuckDBLedgerRepository:
                 reasons[code] = reasons.get(code, 0) + 1
             stats["quarantine_reasons"] = reasons
             stats["quarantined"] = sum(reasons.values())
+            stats["numeric_facts_by_unit"] = {
+                str(row[0] or "—"): int(row[1])
+                for row in connection.execute(
+                    "SELECT unit, COUNT(*) AS n FROM numeric_facts "
+                    "GROUP BY unit ORDER BY n DESC LIMIT 20"
+                ).fetchall()
+            }
+            stats["numeric_facts_by_subject"] = {
+                str(row[0] or "—"): int(row[1])
+                for row in connection.execute(
+                    "SELECT subject, COUNT(*) AS n FROM numeric_facts "
+                    "GROUP BY subject ORDER BY n DESC LIMIT 20"
+                ).fetchall()
+            }
         return stats
 
     def list_answer_runs(self, limit: int = 20) -> list[dict[str, Any]]:
@@ -1507,7 +1522,7 @@ class DuckDBLedgerRepository:
         """Ingest an arbitrary CSV as header-labeled table-row spans + facts."""
         clean_headers = [header.strip() for header in headers]
         inserted = 0
-        for ordinal, values in enumerate(data_rows, start=1):
+        for ordinal, values in enumerate(data_rows, start=2):
             labeled = " | ".join(
                 f"{header}: {str(value).strip()}"
                 for header, value in zip(clean_headers, values, strict=False)

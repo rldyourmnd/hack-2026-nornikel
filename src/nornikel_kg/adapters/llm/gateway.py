@@ -112,8 +112,8 @@ class LiteLLMGateway:
                 try:
                     response = litellm.completion(
                         model=model,
-                        api_base=self.settings.dataeyes_api_base,
-                        api_key=self.settings.dataeyes_api_key,
+                        api_base=self.settings.llm_api_base,
+                        api_key=self.settings.llm_api_key,
                         temperature=0,
                         timeout=self.settings.llm_timeout_s,
                         num_retries=self.settings.llm_max_retries,
