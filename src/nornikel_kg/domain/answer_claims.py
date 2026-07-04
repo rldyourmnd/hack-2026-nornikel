@@ -54,6 +54,48 @@ def _has_negation(text: str) -> bool:
     return bool(tokens & _NEGATION_CUES)
 
 
+# Monotonic-direction antonym axes, prefix-stem matched to tolerate inflection.
+# A sentence asserting one direction whose cited spans assert ONLY the opposite
+# inverts the evidence — the same failure mode as an introduced negation.
+# Stems kept narrow (clear verb antonyms) to avoid false drops on выше/ниже etc.
+_DIRECTION_AXES: tuple[tuple[frozenset[str], frozenset[str]], ...] = (
+    (
+        frozenset({"увелич", "повыш", "возраст", "нараст", "ускор"}),
+        frozenset({"уменьш", "сниж", "сокращ", "замедл", "убыва"}),
+    ),
+)
+
+
+def _direction_signs(text: str) -> set[tuple[int, int]]:
+    words = _CONTENT_WORD_RE.findall(text.lower().replace("ё", "е"))
+    signs: set[tuple[int, int]] = set()
+    for axis, (rising, falling) in enumerate(_DIRECTION_AXES):
+        if any(word.startswith(stem) for word in words for stem in rising):
+            signs.add((axis, 1))
+        if any(word.startswith(stem) for word in words for stem in falling):
+            signs.add((axis, -1))
+    return signs
+
+
+def sentence_contradicts_cited(sentence: str, cited_texts: list[str]) -> bool:
+    """True when the sentence INVERTS the polarity of its cited spans: a negation
+    it introduces that no span carries, or a monotonic-direction flip («снижает»
+    cited to «повышает»). Precise (no coverage heuristic) — safe as a hard drop
+    gate in the answer composer, unlike the coarse coverage check."""
+    if _has_negation(sentence) and not any(_has_negation(text) for text in cited_texts):
+        return True
+    sentence_dirs = _direction_signs(sentence)
+    if not sentence_dirs:
+        return False
+    evidence_dirs: set[tuple[int, int]] = set()
+    for text in cited_texts:
+        evidence_dirs |= _direction_signs(text)
+    return any(
+        (axis, sign) not in evidence_dirs and (axis, -sign) in evidence_dirs
+        for axis, sign in sentence_dirs
+    )
+
+
 def sentence_semantically_supported(sentence: str, cited_texts: list[str]) -> bool:
     """Rule-based semantic support (CI-safe, no NLI model).
 
@@ -74,11 +116,9 @@ def sentence_semantically_supported(sentence: str, cited_texts: list[str]) -> bo
     covered = sum(1 for word in words if word[:5] in corpus_prefixes)
     if covered / len(words) < 0.6:
         return False
-    # A negation the sentence introduces but no cited span carries flips meaning.
-    introduces_negation = _has_negation(sentence) and not any(
-        _has_negation(text) for text in cited_texts
-    )
-    return not introduces_negation
+    # Polarity flip (negation or monotonic direction) inverts meaning — delegated
+    # so the composer can gate on this precise signal without the coverage check.
+    return not sentence_contradicts_cited(sentence, cited_texts)
 
 
 class ClaimVerifier:

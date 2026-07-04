@@ -414,6 +414,14 @@ class ExtractionService:
                     attempt,
                 )
                 return [], []
+            except Exception:  # provider/transport error must not abort the whole source
+                logger.warning(
+                    "LLM extraction errored for %s (attempt %s); rule-only fallback",
+                    span.span_id,
+                    attempt,
+                    exc_info=True,
+                )
+                return [], []
             try:
                 payload = ExtractionPayload.model_validate(result.content)
             except ValidationError as error:

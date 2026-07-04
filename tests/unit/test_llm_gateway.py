@@ -226,6 +226,27 @@ def test_gateway_fails_over_to_second_provider_on_rate_limit(
     assert "https://secondary/v1" in seen  # failed over to the 2nd provider
 
 
+def test_gateway_wraps_exhausted_failure_as_llm_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After all provider attempts fail, the gateway raises the domain LLMError (never a
+    raw litellm exception) so callers' `except LLMError` reaches the deterministic fallback
+    instead of 500-ing /qa/ask."""
+    from nornikel_kg.ports.llm import LLMError
+
+    gateway = LiteLLMGateway(_settings())
+    import litellm
+
+    def always_fail(**kwargs: Any) -> Any:
+        raise litellm.AuthenticationError(message="denied", llm_provider="openai", model="m")
+
+    monkeypatch.setattr(litellm, "completion", always_fail)
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    with pytest.raises(LLMError) as excinfo:
+        gateway.generate_json(
+            task="answer", system_prompt="s", user_prompt="u", json_schema=SCHEMA
+        )
+    assert isinstance(excinfo.value.__cause__, litellm.AuthenticationError)
+
+
 def test_gateway_retries_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     """429 must back off and retry, not fail the call (shared folder quota)."""
     gateway = LiteLLMGateway(_settings())
