@@ -775,3 +775,22 @@ slots used with N workers). ~2x on the LLM-bound path. Parse (big PDFs) is now t
 
 Realistic targets: full-quality full corpus ~2-4h; 40 curated small files ~minutes;
 coarse-local-only (LLM off) = minutes for all but drops typed relations.
+
+
+## Speedup — deployed + MEASURED floors (2026-07-04, PR #9+#10)
+
+Deployed 3 optimizations (all merged+live): (a) parallel per-source LLM (PR #9),
+(b) FAST TableFormer + parallel Docling converter pool DOCLING_PARSE_WORKERS (PR #10),
+(c) [earlier] openai embedding offload. Verified using more cores (peaked ~12 vs 2.5).
+
+MEASURED reality (40-file samples on stand): even SMALL 8-span files take ~28-100s.
+Two hard floors, neither removable without re-architecture:
+1. Extraction LLM latency ~15-30s/call (big prompt + dataeyes ~5000-tok overhead) x 16
+   concurrent cap (32+ -> 403) -> full-quality 40 files ~20-30 min, 2015 files ~hours.
+2. DuckDB SINGLE-WRITER lock: all N batch workers serialize their entity-resolution +
+   inserts -> even COARSE mode (LLM_EXTRACTION_ENABLED=false, dictionary+co-occurrence only)
+   is ~28s/file, ~2h for 2015. Throughput collapses to ~serial DB under contention.
+=> "whole graph in minutes" is PHYSICALLY IMPOSSIBLE on this pipeline+hardware. Realistic:
+   full-quality full corpus ~2-4h; coarse ~2h; 40 curated files ~20 min. Only Slovnet-class
+   local-only + a fast parser + batched DB writes could approach minutes (bigger re-architecture).
+Coarse toggle: LLM_EXTRACTION_ENABLED=false (default false in code; stand .env sets true).
