@@ -125,6 +125,35 @@ def test_gateway_sends_yandex_project_header(monkeypatch: pytest.MonkeyPatch) ->
     assert captured["extra_headers"] == {"OpenAI-Project": "folder"}
 
 
+def test_gateway_forwards_reasoning_effort(monkeypatch: pytest.MonkeyPatch) -> None:
+    gateway = LiteLLMGateway(
+        _settings(
+            llm_extraction_model="openai/gpt-5.4-mini",
+            llm_reasoning_effort="low",
+        )
+    )
+    captured: dict[str, Any] = {}
+
+    def stub_completion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _completion_response(json.dumps({"ok": True}))
+
+    import litellm
+
+    monkeypatch.setattr(litellm, "completion", stub_completion)
+    gateway.generate_json(
+        task="extraction",
+        system_prompt="system",
+        user_prompt="user",
+        json_schema=SCHEMA,
+    )
+
+    assert captured["reasoning_effort"] == "low"
+    assert captured["temperature"] == 1
+    assert "max_tokens" not in captured
+    assert "max_completion_tokens" not in captured
+
+
 def test_gateway_rejects_unrepairable_output(monkeypatch: pytest.MonkeyPatch) -> None:
     gateway = LiteLLMGateway(_settings())
     import litellm
