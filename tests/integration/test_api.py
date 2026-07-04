@@ -22,7 +22,11 @@ def test_health_endpoint(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     client = client_with_tmp_ledger(tmp_path, monkeypatch)
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+    payload = response.json()
+    assert payload["status"] == "ok"
+    assert "answer_model" not in payload
+    assert "extraction_model" not in payload
+    assert "llm_configured" in payload
 
 
 def test_sources_upload_and_evidence_listing(
