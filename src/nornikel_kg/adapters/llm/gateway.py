@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import json
 import logging
+import os
 import random
 import threading
 import time
@@ -85,6 +86,20 @@ def _build_providers(settings: LLMSettings) -> list[_Provider]:
     return providers
 
 
+def _provider_extra_headers(provider: _Provider) -> dict[str, str] | None:
+    """Provider-specific OpenAI-compatible headers.
+
+    Yandex AI Studio's OpenAI-compatible endpoint accepts the same request
+    shape as OpenAI, but the folder must be forwarded as the OpenAI project.
+    Keep this isolated so the main gateway call path stays identical across
+    providers.
+    """
+    if "yandex" not in provider.api_base.lower():
+        return None
+    folder_id = os.getenv("YANDEX_FOLDER_ID", "").strip()
+    return {"OpenAI-Project": folder_id} if folder_id else None
+
+
 class TokenBudget:
     """Process-wide hard stop: once spent, every further LLM call raises."""
 
@@ -160,14 +175,14 @@ class LiteLLMGateway:
                 model = provider.model_for(task)
                 limiter.acquire()
                 try:
-                    response = litellm.completion(
-                        model=model,
-                        api_base=provider.api_base,
-                        api_key=provider.api_key,
-                        temperature=0,
-                        timeout=self.settings.llm_timeout_s,
-                        num_retries=self.settings.llm_max_retries,
-                        response_format={
+                    completion_kwargs: dict[str, Any] = {
+                        "model": model,
+                        "api_base": provider.api_base,
+                        "api_key": provider.api_key,
+                        "temperature": 0,
+                        "timeout": self.settings.llm_timeout_s,
+                        "num_retries": self.settings.llm_max_retries,
+                        "response_format": {
                             "type": "json_schema",
                             "json_schema": {
                                 "name": task,
@@ -175,15 +190,19 @@ class LiteLLMGateway:
                                 "strict": True,
                             },
                         },
-                        messages=[
+                        "messages": [
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt},
                         ],
-                        metadata={
+                        "metadata": {
                             "trace_id": trace_id,
                             "tags": [task, *(tags or [])],
                         },
-                    )
+                    }
+                    extra_headers = _provider_extra_headers(provider)
+                    if extra_headers is not None:
+                        completion_kwargs["extra_headers"] = extra_headers
+                    response = litellm.completion(**completion_kwargs)
                     break
                 except Exception as error:
                     # Fail over to the next provider on ANY provider-side error

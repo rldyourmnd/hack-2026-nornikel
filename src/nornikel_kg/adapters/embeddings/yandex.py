@@ -24,11 +24,13 @@ _EMBED_CONCURRENCY = threading.Semaphore(int(os.getenv("YANDEX_EMBED_CONCURRENCY
 # Canonical AI Studio host (docs, 2026-06): ai.api.cloud.yandex.net; the old
 # llm.api host still answers but is the legacy alias.
 _API_URL = "https://ai.api.cloud.yandex.net/foundationModels/v1/textEmbedding"
-# The new-generation unified embedder (1536-dim, newer than the documented
-# text-embeddings-v2 pair) serves both documents and queries; the split pairs
-# (text-embeddings-v2-doc/-query, text-search-doc/-query) stay available
-# through the env overrides.
-_DEFAULT_MODEL = "text-embeddings/latest"
+# Official AI Studio v2 retrieval pair: document vectors for indexed content
+# and query vectors for short questions. v2 supports 128/256/512/768 dimensions;
+# default to 768 for the quality benchmark, while allowing lower dimensions via
+# YANDEX_EMBED_DIM when storage/latency matters more.
+_DEFAULT_DOC_MODEL = "text-embeddings-v2-doc"
+_DEFAULT_QUERY_MODEL = "text-embeddings-v2-query"
+_DEFAULT_DIM = int(os.getenv("YANDEX_EMBED_DIM", "768"))
 _MAX_RETRIES = 7
 _TIMEOUT_S = 30.0
 # Documented input cap is 2048 tokens (v1 wording; compat ref says 8192).
@@ -64,10 +66,11 @@ class YandexEmbeddingBackend:
         self.folder_id: str = folder_id if folder_id else os.getenv("YANDEX_FOLDER_ID", "")
         if not self.api_key or not self.folder_id:
             raise ValueError("YandexEmbeddingBackend needs YANDEX_API_KEY and YANDEX_FOLDER_ID")
-        doc = doc_model or os.getenv("YANDEX_EMBED_DOC_MODEL", _DEFAULT_MODEL)
-        query = query_model or os.getenv("YANDEX_EMBED_QUERY_MODEL", _DEFAULT_MODEL)
+        doc = doc_model or os.getenv("YANDEX_EMBED_DOC_MODEL", _DEFAULT_DOC_MODEL)
+        query = query_model or os.getenv("YANDEX_EMBED_QUERY_MODEL", _DEFAULT_QUERY_MODEL)
         self.doc_model_uri = f"emb://{self.folder_id}/{doc}"
         self.query_model_uri = f"emb://{self.folder_id}/{query}"
+        self.dim = int(os.getenv("YANDEX_EMBED_DIM", str(_DEFAULT_DIM)))
         # The folder quota (10 RPS) is shared across ALL callers — concurrent
         # enrichment threads each spinning 8 workers produced a 429 storm.
         self.max_workers = max_workers or int(os.getenv("YANDEX_EMBED_MAX_WORKERS", "4"))
@@ -117,7 +120,11 @@ class YandexEmbeddingBackend:
     def _embed_one(self, text: str, model_uri: str) -> list[float]:
         import httpx
 
-        payload = {"modelUri": model_uri, "text": text[:_MAX_INPUT_CHARS]}
+        payload = {
+            "modelUri": model_uri,
+            "text": text[:_MAX_INPUT_CHARS],
+            "dim": str(self.dim),
+        }
         delay = 1.0
         last_error: Exception | None = None
         for attempt in range(1, _MAX_RETRIES + 1):
