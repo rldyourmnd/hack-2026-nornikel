@@ -23,6 +23,29 @@ variables:
 
 Use a new Qdrant collection for each embedding dimension or backend change.
 
+## Verified Throughput Facts
+
+The current no-GPU production profile is DataEyes/OpenAI-compatible
+`openai/gpt-5.4-mini` with `LLM_REASONING_EFFORT=low` and
+`EMBEDDING_MODEL_ID=text-embedding-3-small`.
+
+Measured on the stand against the same seeded 40-file DATA_HACK sample
+(`--sample 40`, seed 1234, `--max-mb 25`):
+
+| Profile | Result |
+| --- | --- |
+| Previous single-process DataEyes/MiniMax profile | 40/40 in 1439s, 0 failed |
+| Single-process `gpt-5.4-mini` + `text-embedding-3-small` | 40/40 in 790s, 0 failed, 4 provider retries |
+| Four-shard `gpt-5.4-mini` + `text-embedding-3-small` | 40/40 in 500s max shard wall time, 0 failed, 1 provider retry |
+
+The four-shard benchmark produced a merged ledger with 40 sources, 16,102
+evidence spans, 1,067 entities, 23,672 numeric facts, and a shared Qdrant
+collection with 16,102 points.
+
+Operational conclusion: DuckDB read replicas do not speed ingest. The useful
+pattern is write sharding: independent `DUCKDB_PATH` files per shard, then a
+deterministic merge before the atomic swap.
+
 ## Fast 300-File Build
 
 Use this profile for a bounded jury graph build or for performance checks:
