@@ -189,14 +189,19 @@ class ExtractionService:
         entities_touched = 0
         relations_written = 0
         mentioned_entity_ids: set[str] = set()
-        for span in processable:
-            entity_count, relation_count, span_entities = self._process_span(
-                source_id, span, llm_result=llm_results.get(span.span_id)
+        # One transaction per source: resolution + relation writes commit once,
+        # instead of hundreds of autocommits that serialized the batch ingester.
+        with self.repository.batch_transaction():
+            for span in processable:
+                entity_count, relation_count, span_entities = self._process_span(
+                    source_id, span, llm_result=llm_results.get(span.span_id)
+                )
+                entities_touched += entity_count
+                relations_written += relation_count
+                mentioned_entity_ids.update(span_entities)
+            relations_written += self._link_publication(
+                source_id, spans, mentioned_entity_ids
             )
-            entities_touched += entity_count
-            relations_written += relation_count
-            mentioned_entity_ids.update(span_entities)
-        relations_written += self._link_publication(source_id, spans, mentioned_entity_ids)
         return {"entities": entities_touched, "relations": relations_written}
 
     def _link_publication(

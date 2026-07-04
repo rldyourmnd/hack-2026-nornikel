@@ -94,6 +94,23 @@ class DuckDBLedgerRepository:
     def data_version(self) -> int:
         return self._data_version
 
+    @contextmanager
+    def batch_transaction(self) -> Iterator[None]:
+        """Group a source's write burst into ONE DuckDB transaction/commit instead
+        of hundreds of per-statement autocommits. The batch ingester was bottlenecked
+        by commit + lock churn (all workers serialized on the single-writer lock);
+        wrapping a source's resolution + relation writes here drops it to one commit
+        per source. The lock is held for the block, so concurrent workers' write
+        phases don't interleave (parse + LLM already ran in parallel before this)."""
+        with self._connect() as connection:
+            connection.execute("BEGIN TRANSACTION")
+            try:
+                yield
+            except BaseException:
+                connection.execute("ROLLBACK")
+                raise
+            connection.execute("COMMIT")
+
     def migrate(self) -> None:
         if self._migrated:
             return
