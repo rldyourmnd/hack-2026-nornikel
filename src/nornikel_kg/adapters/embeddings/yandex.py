@@ -38,6 +38,10 @@ _TIMEOUT_S = 30.0
 _MAX_INPUT_CHARS = 4000
 
 
+class _NonRetryableEmbedError(RuntimeError):
+    """A 4xx (e.g. 403 Permission denied) — not worth retrying."""
+
+
 class YandexEmbeddingBackend:
     """Dense embeddings via Yandex AI Studio; sparse BM25 stays local.
 
@@ -131,8 +135,16 @@ class YandexEmbeddingBackend:
                     )
                 if response.status_code == 429 or response.status_code >= 500:
                     raise RuntimeError(f"HTTP {response.status_code}: {response.text[:120]}")
-                response.raise_for_status()
+                if response.status_code >= 400:
+                    # 4xx other than 429 (e.g. 403 Permission denied) is not
+                    # transient — fail fast so callers fall back to BM25 instead of
+                    # burning the whole retry budget (~60s per query).
+                    raise _NonRetryableEmbedError(
+                        f"HTTP {response.status_code}: {response.text[:120]}"
+                    )
                 return [float(v) for v in response.json()["embedding"]]
+            except _NonRetryableEmbedError:
+                raise
             except Exception as error:  # noqa: BLE001 - bounded retry loop
                 last_error = error
                 if attempt == _MAX_RETRIES:
