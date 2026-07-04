@@ -711,3 +711,15 @@ Full DATA_HACK ingest reality (8-vCPU stand): 2015 ingestible files (1163 pdf/11
 QDRANT_COLLECTION=evidence_full (zero-downtime) then atomic swap. Speed levers not yet applied:
 OpenAI/dataeyes embedding backend (offload CPU) or removing the Docling lock (if thread-safe).
 Backups: .env.bak-dataeyes (working), .env.bak-yandex-* (denied Yandex snapshot).
+
+
+## RESOLVED (2026-07-04): OpenAI embedding backend -> demo works, full batch running
+
+Local bge-m3 too slow on 8-vCPU (0.7 spans/s; fastembed e5-large 4 spans/s). Fix shipped
+(PR #7): EMBEDDING_BACKEND=openai -> dense via dataeyes /embeddings (text-embedding-3-small
+1536-dim, batched 32/req; 403 above ~32), sparse BM25 local. ~14 spans/s (20x local), embedding
+offloaded from CPU. Stand: QDRANT_COLLECTION=evidence_oai, reindex of 12294 spans done.
+Demo VERIFIED working: dataeyes gpt-5.5 answers, rich cited output, coverage 1.0, ~20s.
+Full DATA_HACK batch running into catalog_full.duckdb + evidence_full_oai (zero downtime),
+0 failures, load ~8 healthy; Docling-serialized so ~overnight. Swap procedure:
+docs/deployment/full-ingest-runbook.md. Next speed lever: remove Docling _CONVERT_LOCK if thread-safe.
