@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: 411e472
-Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; scripts/ingest_corpus.py
+Last updated: 2026-07-05
+Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
+Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/adapters/embeddings/yandex.py; scripts/ingest_corpus.py
 Area: DATA
 -->
 
@@ -37,7 +37,16 @@ Capture evidence identity, DuckDB ledger schema, graph/fact persistence, and ret
 - Legacy fixture seed infrastructure is removed from the active code path; clean ledgers should have no fixture sources.
 - Default PDF parse produces text blocks with parser profile `pypdfium_fast_v1`. It preserves page/locator provenance but does not produce structured PDF table rows or numeric facts.
 - Spreadsheet and Docling table paths produce `table_row` evidence and `numeric_facts`, capped by `MAX_TABLE_ROWS_PER_SOURCE`.
+- Table-derived numeric facts with validated units also write
+  `property_measurements` rows, so measurement queries can use the structured
+  table data path and not only the generic `numeric_facts` table.
+- `src/nornikel_kg/domain/table_facts.py` rejects obvious non-units (country
+  names and random word tokens) before persisting units; unitless numeric facts
+  may still be stored with `unit=""`.
 - All ingested spans are stored and indexed, but graph extraction processes only the first `MAX_EXTRACTION_SPANS` source spans by default.
+- Entity mention types are constrained to `EntityTypeLiteral`; dictionary
+  aliases whose configured type is outside `ENTITY_TYPES` are skipped before
+  model validation.
 - A source's graph write phase runs in one DuckDB transaction, reducing commit churn under the single persistent connection.
 - Qdrant points are retrieval units only; stale or mismatched vectors must never override DuckDB truth.
 
@@ -46,6 +55,8 @@ Capture evidence identity, DuckDB ledger schema, graph/fact persistence, and ret
 - `sources`: `source_id`, title, document type, sha, label, year/geography metadata.
 - `evidence_spans`: span ID, source, artifact, type, visible text, page, locator JSON, validation, confidence, label.
 - `numeric_facts`: source/span, subject, property, value, unit, qualifier, validation.
+- `property_measurements`: also receives table-derived measurements when a
+  numeric fact has a valid unit; supporting span IDs are persisted as JSON.
 - `entities`/`entity_aliases`/`relations`: extracted graph; relations carry evidence span IDs.
 - `answer_runs`/`answer_claims`: verification trail for answered questions and verified claims.
 

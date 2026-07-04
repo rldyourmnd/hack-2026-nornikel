@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: 411e472
+Last updated: 2026-07-05
+Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -40,6 +40,10 @@ knowledge-graph submission.
 - Runtime stack: FastAPI + DuckDB ledger + Qdrant hybrid retrieval + LiteLLM gateway + React/Vite UI.
 - Provider and model IDs are runtime env configuration. Public docs describe OpenAI-compatible interfaces, not account-specific model choices.
 - Dense embeddings can be remote (`EMBEDDING_BACKEND=openai`) or local/fake for development and tests. Sparse BM25 remains local.
+- Yandex AI Studio is supported as an OpenAI-compatible runtime provider:
+  `LiteLLMGateway` forwards `YANDEX_FOLDER_ID` as `OpenAI-Project`, and
+  `YandexEmbeddingBackend` defaults to the v2 doc/query embedding pair at 768
+  dimensions.
 - Legacy fixture seed data and old generated fixtures are deleted from runtime paths.
 - Default PDF ingest is no-GPU/no-layout-model: `.pdf` routes to `PyPdfiumFastParser` unless `PDF_PARSE_MODE=docling`.
 - Fast graph controls are active: `LLM_EXTRACTION_MODE=source_packet`, `MAX_EXTRACTION_SPANS=400`, `MAX_TABLE_ROWS_PER_SOURCE=400`, `DuckDBLedgerRepository.batch_transaction()`, and `scripts/ingest_corpus.py --sample N`.

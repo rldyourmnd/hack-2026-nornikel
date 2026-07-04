@@ -1,7 +1,7 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: e95e434
-Scope: src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
+Last updated: 2026-07-05
+Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
+Scope: src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/adapters/llm/gateway.py; src/nornikel_kg/adapters/embeddings/yandex.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
 
@@ -32,18 +32,27 @@ Capture the architecture contract for the evidence-first R&D workbench.
 
 ## Current Behavior
 
-- `.pdf` ingest defaults to `PyPdfiumFastParser`, a pypdfium2 text-layer parser with no OCR, no ML layout model, no GPU, and no graphical-system dependency.
+- `.pdf` ingest defaults to `PyPdfiumFastParser`, a pypdfium2 text-layer parser with no OCR, no ML layout model, no GPU, and no graphical-system dependency. The pypdfium2 call runs in a subprocess so a `libpdfium` crash cannot kill the main ingest process.
 - DOCX/DOCM/PPTX use the document parser; XLS/XLSX use the spreadsheet parser; legacy DOC uses antiword/catdoc; URL import uses trafilatura after controlled SSRF-safe fetch.
 - `LLM_EXTRACTION_MODE=source_packet` is the default: one guided-JSON call over a representative source packet, then mentions/relations are attributed to spans containing the mention text. `span_budget` opts into deeper per-span extraction.
 - `MAX_EXTRACTION_SPANS` and `MAX_TABLE_ROWS_PER_SOURCE` default to 400 and bound graph work for large files. All emitted spans are still stored and indexed for retrieval.
 - `DuckDBLedgerRepository.batch_transaction()` wraps one source's graph write burst in a single transaction under the process lock.
 - `RetrievalService` indexes spans into Qdrant, prefixes source title for retrievability, and rejoins hits back to DuckDB before trust.
+- `YandexEmbeddingBackend` uses Yandex AI Studio text vectorization v2 with
+  `text-embeddings-v2-doc` for indexed content, `text-embeddings-v2-query` for
+  queries, and `YANDEX_EMBED_DIM=768` by default.
+- `LiteLLMGateway` supports Yandex AI Studio's OpenAI-compatible endpoint by
+  adding `OpenAI-Project: $YANDEX_FOLDER_ID` for `*.yandex.net` providers while
+  keeping the standard LiteLLM `api_base`/`api_key` call path.
 - `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates. Provider failures degrade to deterministic/rule-only behavior where callers catch `LLMError`.
 
 ## Contracts
 
 - `AskRequest` and `AskResponse` live in `src/nornikel_kg/domain/models.py`.
 - Retrieval collections are selected by `QDRANT_COLLECTION` and `QDRANT_ENTITY_COLLECTION`; use a new collection when vector dimension changes.
+- For Yandex AI Studio LLMs, model IDs are runtime env values such as
+  `LLM_EXTRACTION_MODEL=openai/gpt://<folder>/deepseek-v4-flash`; folder IDs and
+  credentials stay outside git.
 - Source labels are deployment-floor filtered by `JURY_ALLOWED_LABELS` and may only be narrowed by request `allowed_labels`.
 - `/health` reports readiness flags and backend class only; it must not expose exact
   provider model IDs. Its LLM readiness uses `LLMSettings`, so canonical env vars and

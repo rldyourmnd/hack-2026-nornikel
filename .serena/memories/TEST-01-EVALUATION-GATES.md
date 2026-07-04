@@ -1,6 +1,6 @@
 <!-- Memory Metadata
-Last updated: 2026-07-04
-Last commit: e95e434
+Last updated: 2026-07-05
+Last commit: a56aa02 Merge pull request #21 from rldyourmnd/fix/yandex-ai-studio-benchmark
 Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
@@ -21,15 +21,23 @@ Capture current validation commands and what they prove.
 
 ## Current Behavior
 
-`scripts/run_eval.py`, `eval/*.yml`, and the legacy fixture corpus test were removed. There is no `make eval` target at `a81edd1`.
+`scripts/run_eval.py`, `eval/*.yml`, and the legacy fixture corpus test were removed. There is no `make eval` target.
 
-Live-run verification at `a81edd1`:
+Full local verification remains:
 
 - `uv run ruff check .`: clean.
 - `uv run mypy`: clean, 82 source files.
 - `uv run pytest`: 184 passed.
 - `cd apps/web && npm run typecheck`: clean.
 - `cd apps/web && npm run build`: clean.
+
+Provider-specific unit coverage includes:
+
+- `tests/unit/test_llm_gateway.py::test_gateway_sends_yandex_project_header`:
+  verifies Yandex AI Studio OpenAI-compatible calls receive the `OpenAI-Project`
+  header derived from `YANDEX_FOLDER_ID`.
+- `tests/unit/test_yandex_embeddings.py`: verifies split doc/query embedding
+  model URIs and the configured `dim` field in Yandex text-vectorization payloads.
 
 `scripts/run_realcase_eval.py` checks four organizer track questions against a running API. It asserts citation coverage 1.0, zero fabricated numbers, zero source-label leaks, zero prompt-injection success, zero semantic unsupported sentences, non-empty evidence, and no legacy fixture leakage.
 
