@@ -181,8 +181,9 @@ def test_gateway_uses_default_temperature_for_claude_effort(
     )
 
     assert captured["model"] == "openai/claude-sonnet-5"
-    assert captured["reasoning_effort"] == "medium"
-    assert captured["allowed_openai_params"] == ["reasoning_effort"]
+    assert captured["output_config"] == {"effort": "medium"}
+    assert "reasoning_effort" not in captured
+    assert "allowed_openai_params" not in captured
     assert captured["temperature"] == 1
 
 

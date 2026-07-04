@@ -112,6 +112,11 @@ def _temperature_for_model(model: str) -> int:
     return 1 if "gpt-5" in normalized or "claude" in normalized else 0
 
 
+def _is_claude_model(model: str) -> bool:
+    normalized = model.lower()
+    return "claude" in normalized
+
+
 class TokenBudget:
     """Process-wide hard stop: once spent, every further LLM call raises."""
 
@@ -217,14 +222,19 @@ class LiteLLMGateway:
                         completion_kwargs["extra_headers"] = extra_headers
                     reasoning_effort = self.settings.llm_reasoning_effort.strip()
                     if reasoning_effort:
-                        completion_kwargs["reasoning_effort"] = reasoning_effort
-                        # DataEyes is OpenAI-compatible but also exposes non-OpenAI
-                        # model IDs (for example Claude/Sonnet). LiteLLM otherwise
-                        # rejects reasoning_effort locally for openai/<non-gpt>
-                        # before the request reaches DataEyes.
-                        completion_kwargs["allowed_openai_params"] = [
-                            "reasoning_effort"
-                        ]
+                        if _is_claude_model(model):
+                            # DataEyes exposes Claude through its OpenAI-compatible
+                            # endpoint, but Claude effort is Anthropic-style.
+                            completion_kwargs["output_config"] = {
+                                "effort": reasoning_effort
+                            }
+                        else:
+                            completion_kwargs["reasoning_effort"] = reasoning_effort
+                            # LiteLLM can reject OpenAI-compatible nonstandard
+                            # model IDs before DataEyes sees the request.
+                            completion_kwargs["allowed_openai_params"] = [
+                                "reasoning_effort"
+                            ]
                     response = litellm.completion(**completion_kwargs)
                     break
                 except Exception as error:
