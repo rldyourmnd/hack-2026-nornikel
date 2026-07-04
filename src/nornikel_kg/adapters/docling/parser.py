@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import io
 import logging
+import os
+import queue
 import threading
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -19,25 +20,43 @@ from nornikel_kg.ports.parser import (
 
 logger = logging.getLogger(__name__)
 
-# Docling's converter holds shared ML models; concurrent convert() calls race,
-# so batch --workers overlaps LLM/embedding I/O while parsing stays serialized.
-_CONVERT_LOCK = threading.Lock()
+# Docling's converter holds shared ML models and is NOT thread-safe, so parallel
+# parsing uses a pool of DISTINCT converters (each used by one thread at a time),
+# sized by DOCLING_PARSE_WORKERS (default 1 = serialized, safe for the API; the
+# batch sets it higher to use more cores).
+_PARSE_WORKERS = max(1, int(os.getenv("DOCLING_PARSE_WORKERS", "1")))
+_pool: queue.Queue[Any] | None = None
+_pool_lock = threading.Lock()
+
+
+def _converter_pool() -> queue.Queue[Any]:
+    global _pool
+    with _pool_lock:
+        if _pool is None:
+            built: queue.Queue[Any] = queue.Queue()
+            for _ in range(_PARSE_WORKERS):
+                built.put(_build_converter())
+            _pool = built
+    return _pool
 
 # .docm is the same OOXML container as .docx (macros are ignored by Docling);
 # the stream name is rewritten so format detection stays on the DOCX path.
 _SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".docm", ".pptx"}
 
 
-@lru_cache(maxsize=1)
 def _build_converter() -> Any:
-    """Build one process-wide Docling converter (model load is expensive)."""
+    """Build a Docling converter (expensive model load; converters are pooled)."""
     from docling.datamodel.base_models import InputFormat
-    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
     from docling.document_converter import DocumentConverter, PdfFormatOption
 
     pdf_options = PdfPipelineOptions()
     pdf_options.do_ocr = False
     pdf_options.do_table_structure = True
+    # FAST TableFormer, no cell-bbox matching: ~2-3x faster tables; downstream
+    # reads row text, not cell geometry.
+    pdf_options.table_structure_options.mode = TableFormerMode.FAST
+    pdf_options.table_structure_options.do_cell_matching = False
     return DocumentConverter(
         allowed_formats=[InputFormat.PDF, InputFormat.DOCX, InputFormat.PPTX],
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options)},
@@ -56,16 +75,18 @@ class DoclingDocumentParser:
 
         from docling.datamodel.base_models import ConversionStatus, DocumentStream
 
-        converter = _build_converter()
         stream_name = (
             f"{Path(filename).stem}.docx" if extension == ".docm" else filename
         )
         stream = DocumentStream(name=stream_name, stream=io.BytesIO(content))
+        pool = _converter_pool()
+        converter = pool.get()
         try:
-            with _CONVERT_LOCK:
-                result = converter.convert(stream, raises_on_error=True)
+            result = converter.convert(stream, raises_on_error=True)
         except Exception as error:  # docling raises many concrete types
             raise ParserError(f"Docling failed to parse {filename}: {error}") from error
+        finally:
+            pool.put(converter)
         if result.status not in (ConversionStatus.SUCCESS, ConversionStatus.PARTIAL_SUCCESS):
             raise ParserError(f"Docling conversion status {result.status} for {filename}")
 
