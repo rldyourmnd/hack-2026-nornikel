@@ -8,12 +8,15 @@ import {
   importUrl,
   listSources,
   reindexAll,
+  uploadArchive,
   uploadSource,
   type SourceSummary,
   type StatsOverview,
 } from "@/shared/api";
 import { Panel } from "@/shared/ui";
 import { ArtifactBankPanel } from "@/widgets/artifact-bank";
+
+const ARCHIVE_RE = /\.(?:zip|rar)$|\.zip\.\d{3}$/i;
 
 export function DataPage() {
   const [sources, setSources] = useState<SourceSummary[]>([]);
@@ -142,7 +145,17 @@ export function DataPage() {
             )
           }
           onImportUrl={(url) => withBusy(() => importUrl(url))}
-          onUpload={(file) => withBusy(() => uploadSource(file))}
+          onUpload={(file) =>
+            ARCHIVE_RE.test(file.name)
+              ? withBusy(async () => {
+                  const result = await uploadArchive(file);
+                  setNotice(
+                    `Архив «${result.archive}»: загружено ${result.ingested_count} из ` +
+                      `${result.member_count} файлов`,
+                  );
+                })
+              : withBusy(() => uploadSource(file))
+          }
           sources={sources}
         />
       </div>
@@ -163,7 +176,7 @@ export function DataPage() {
             </div>
             <div className="kv-row">
               <span>ZIP / .zip.001 / RAR</span>
-              <span className="kv-value">батч-ингестер разворачивает</span>
+              <span className="kv-value">загрузка разворачивает архив</span>
             </div>
             <div className="kv-row">
               <span>Сканы без текста</span>

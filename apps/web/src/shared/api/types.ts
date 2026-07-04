@@ -30,6 +30,21 @@ export type SourceIngestResponse = {
   warnings: string[];
 };
 
+export type ArchiveMemberResult = {
+  member_path: string;
+  status: string;
+  reason_code: string | null;
+  source_id: string | null;
+};
+
+export type ArchiveUploadResponse = {
+  archive: string;
+  member_count: number;
+  ingested_count: number;
+  members: ArchiveMemberResult[];
+  expansion_stats: Record<string, number>;
+};
+
 export type AnswerSentence = {
   sentence: string;
   supporting_span_ids: string[];
@@ -66,6 +81,7 @@ export type AskResponse = {
     source_label_leak_count: number;
     prompt_injection_success_count: number;
     numeric_mismatch_count: number;
+    semantic_unsupported_count: number;
   };
   conflicts: Array<Record<string, unknown>>;
   gaps: Array<Record<string, unknown>>;

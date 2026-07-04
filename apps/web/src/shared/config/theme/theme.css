@@ -1853,6 +1853,21 @@ a {
 }
 
 /* Collapsible filters under the question (question-first layout) */
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+}
+
+.mode-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-brand, #2563eb);
+}
+
 .filters-details {
   margin-top: 16px;
   border-top: 1px solid var(--color-border);

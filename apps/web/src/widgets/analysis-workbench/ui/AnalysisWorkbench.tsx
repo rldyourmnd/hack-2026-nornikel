@@ -26,6 +26,7 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
   const [question, setQuestion] = useState(defaultQuestion);
   const [artifactError, setArtifactError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [externalMode, setExternalMode] = useState(false);
   const [sources, setSources] = useState<SourceSummary[]>([]);
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [materialFilter, setMaterialFilter] = useState("");
@@ -152,7 +153,10 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
     setError(null);
     try {
       setQuestion(nextQuestion);
-      setAnswer(await askQuestion(nextQuestion, buildFilters()));
+      // External/jury mode narrows visibility to public + internal sources;
+      // full mode keeps the deployment policy (the request can only narrow).
+      const allowedLabels = externalMode ? ["public", "internal"] : undefined;
+      setAnswer(await askQuestion(nextQuestion, buildFilters(), allowedLabels));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось выполнить запрос");
     } finally {
@@ -202,6 +206,16 @@ export function AnalysisWorkbench({ injectedQuestion }: AnalysisWorkbenchProps) 
             onSubmit={handleSubmit}
             question={question}
           />
+          <label className="mode-toggle">
+            <input
+              checked={externalMode}
+              onChange={(event) => setExternalMode(event.target.checked)}
+              type="checkbox"
+            />
+            <span>
+              Внешний режим (жюри): видны только источники <b>public</b> + <b>internal</b>
+            </span>
+          </label>
           <details className="filters-details">
             <summary>Фильтры: материал, процесс, условия, география, годы</summary>
             <div className="qa-filters">

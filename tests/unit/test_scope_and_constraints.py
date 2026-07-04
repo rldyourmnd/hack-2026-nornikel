@@ -129,3 +129,15 @@ def test_numeric_constraint_filters_experiments(repository: DuckDBLedgerReposito
     )
     values = [experiment.measurement.get("value") for experiment in response.experiments]
     assert values and all(isinstance(v, float) and v <= 250 for v in values)
+
+
+def test_gaps_are_relevance_gated() -> None:
+    service = EvidenceQAService()
+    gap: dict[str, object] = {
+        "gap_id": "g1",
+        "description": "Для Ni-Cu после старения нет измерения электропроводности.",
+    }
+    # A conductivity question shares content with the gap -> relevant.
+    assert service._gap_is_relevant("Есть ли электропроводность Ni-Cu после старения?", gap)
+    # An unrelated slag question must not surface this gap.
+    assert not service._gap_is_relevant("Что известно про обеднение шлака?", gap)
