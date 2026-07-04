@@ -723,3 +723,30 @@ Demo VERIFIED working: dataeyes gpt-5.5 answers, rich cited output, coverage 1.0
 Full DATA_HACK batch running into catalog_full.duckdb + evidence_full_oai (zero downtime),
 0 failures, load ~8 healthy; Docling-serialized so ~overnight. Swap procedure:
 docs/deployment/full-ingest-runbook.md. Next speed lever: remove Docling _CONVERT_LOCK if thread-safe.
+
+
+## GPT-5.5 Pro audit fixes (2026-07-04, PR #8 merged + deployed)
+
+10 CONFIRMED findings fixed (verified against code by 4 triage agents first):
+- **#1/#8 (P0)**: litellm exceptions are NOT LLMError subclasses -> gateway's bare re-raise on
+  exhaustion escaped every `except LLMError` -> /qa/ask could 500 + one span's provider error
+  aborted a whole source's extraction. Gateway now wraps terminal failure in LLMError (keeps
+  cause); composer + extraction broad-catch -> deterministic/rule-only fallback.
+- **#2 (P1)**: zip decompression-bomb caps (per-member + cumulative uncompressed + ratio BEFORE
+  write, byte-limited copy, RAR post-extract cap); archive route checks stat().st_size before read_bytes (OOM).
+- **#3 (P1)**: SSRF - URL import uses a controlled httpx client (no auto-redirect, revalidate every
+  hop vs the public-IP guard, byte cap) instead of trafilatura.fetch_url.
+- **#4 (P1)**: batch ingest passes corpus/archive-relative path (provenance) + thread-safe
+  content-hash dedup (skip re-extracting duplicates + removes last-writer race).
+- **#5 (P1)**: coerce_source_label (fail-closed) + JURY_ALLOWED_LABELS documented+set on stand
+  (public,internal) as the mandatory floor. Per-source-label-on-ingest API = documented follow-up.
+- **#6 (P1)**: Qdrant _ensure_collection raises EmbeddingDimMismatch (loud) on dim mismatch.
+- **#7 (P1)**: direction-inversion gate (sentence_contradicts_cited: negation + monotonic-direction
+  flip повышает<->снижает) wired into the composer accept gate (was never running a semantic gate).
+- **#9 (P2)**: OpenAI embedding backend validates response count + index set.
+- **#10 (P2)**: .env.example documents the working dataeyes+openai profile.
+
+Prod graph: fresh batch running (audit-fixed code, --workers 8, LLM_MAX_CONCURRENCY=16, dataeyes
+gpt-5.4-mini extraction + openai embeddings) into catalog_full.duckdb + evidence_full_oai with
+relative-path provenance + dedup. 2015 files, ~many hours (large docs are extraction-bound),
+resumable. Swap when done via docs/deployment/full-ingest-runbook.md.
