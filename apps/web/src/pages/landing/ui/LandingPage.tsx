@@ -190,7 +190,15 @@ export function LandingPage() {
 
         <div className="hero-visual hero-visual-v2" aria-label="R&D knowledge graph overview">
           <div className="hero-visual-card">
-            <img alt="Граф знаний" className="hero-graph" src="/brand/hero-graph.png" />
+            <img
+              alt="Граф знаний"
+              className="hero-graph"
+              decoding="sync"
+              height={900}
+              loading="eager"
+              src="/brand/hero-graph.png"
+              width={900}
+            />
             <div className="hero-orbit hero-orbit-a" />
             <div className="hero-orbit hero-orbit-b" />
             <div className="hero-floating-card hero-floating-card-a">
@@ -286,7 +294,17 @@ export function LandingPage() {
             </div>
             <div className="capability-value">{value}</div>
             <p>{text}</p>
-            {image ? <img alt="" className="capability-illus" src={image} /> : null}
+            {image ? (
+              <img
+                alt=""
+                className="capability-illus"
+                decoding="sync"
+                height={640}
+                loading="eager"
+                src={image}
+                width={640}
+              />
+            ) : null}
             {rows ? (
               <div className="mini-kv">
                 {rows.map(([label, rowValue]) => (
