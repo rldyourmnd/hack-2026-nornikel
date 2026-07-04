@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4e4a038
+Last commit: 411e472
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; docs/deployment/; .serena/memories/
 Area: DOCS
 -->

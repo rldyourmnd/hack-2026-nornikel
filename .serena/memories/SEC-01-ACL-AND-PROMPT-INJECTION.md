@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4e4a038
+Last commit: 411e472
 Scope: src/nornikel_kg/domain/security.py; src/nornikel_kg/domain/answer_claims.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/services/answer_composer.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/adapters/llm/; src/nornikel_kg/adapters/trafilatura/fetcher.py; services/api/routes/sources.py; scripts/run_realcase_eval.py; tests/unit/
 Area: SEC
 -->

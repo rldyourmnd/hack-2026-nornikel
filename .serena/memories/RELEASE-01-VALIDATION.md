@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4e4a038
+Last commit: 411e472
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docker-compose.server.yml; services/api/Dockerfile; apps/web/nginx.conf; docs/deployment/nornikel-nddev.md; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/run_realcase_eval.py
 Area: RELEASE
 -->
@@ -33,6 +33,7 @@ Capture validation, deployment, compose, and batch-ingest rollout contracts.
 ## Current Behavior
 
 - Pushes to `main` auto-deploy through GitHub Actions.
+- Deploy cleans stale top-level code files before extracting the tracked tree, preserving `.env*`, `data/`, `DATA_HACK/`, and `ingest_*.log`.
 - The production profile is provider-neutral in git: runtime `.env` supplies the OpenAI-compatible LLM and embedding endpoints.
 - Zero-downtime graph builds use separate `DUCKDB_PATH`, `QDRANT_COLLECTION`, and `QDRANT_ENTITY_COLLECTION`, then an atomic swap.
 - The no-GPU production path uses pypdfium2 PDF text extraction, remote dense embeddings when configured, and Docling only where still needed.

@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4e4a038
+Last commit: 411e472
 Scope: src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
