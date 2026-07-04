@@ -854,9 +854,20 @@ class EvidenceQAService:
         if unmatched_material_tokens:
             return []
         requested_property = self._requested_property(question, selected_experiments)
-        if not selected_experiments or requested_property == "conductivity":
-            return packet_gaps
+        if requested_property == "conductivity" or not selected_experiments:
+            # Surface only gaps whose description is relevant to the question,
+            # not the whole packet — an off-topic question must not surface an
+            # unrelated gap (e.g. a slag question pulling a Ni-Cu conductivity gap).
+            return [gap for gap in packet_gaps if self._gap_is_relevant(question, gap)]
         return []
+
+    def _gap_is_relevant(self, question: str, gap: dict[str, object]) -> bool:
+        question_prefixes = {
+            token[:5] for token in re.findall(r"[a-zа-я]{4,}", self._normalize(question))
+        }
+        description = self._normalize(str(gap.get("description", "")))
+        gap_prefixes = {token[:5] for token in re.findall(r"[a-zа-я]{4,}", description)}
+        return bool(question_prefixes & gap_prefixes)
 
     def _follow_up_queries(
         self,
