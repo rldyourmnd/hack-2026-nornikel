@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 00d092a fix(qa): retry transient answer synthesis failures
+Last commit: bc1495a ui(web): refine responsive header navigation
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -37,6 +37,7 @@ knowledge-graph submission.
 - `DOCS-01-PLANNING-SOURCE.md`: planning context and historical pruning.
 - `TECHDEBT-01-NOW.md`: current verified gaps only.
 - `CODEX-01-PLUGIN-CANON.md`: Codex plugin/tooling/flow rule canon used in this repo.
+- `DESIGN-01-WEB-UI.md`: web layout, header/navigation, design validation contracts.
 
 ## Current Behavior
 
