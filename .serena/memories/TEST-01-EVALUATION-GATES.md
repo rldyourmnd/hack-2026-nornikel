@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 411e472
+Last commit: e95e434
 Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
@@ -43,3 +43,6 @@ Live-run verification at `a81edd1`:
 
 - `make ci`: backend lint/type/test plus frontend build.
 - `make eval-realcase`: live stand honesty check.
+- `uv run pytest tests/integration/test_api.py::test_health_uses_llm_settings_aliases`:
+  verifies `/health` uses the same LLM alias handling as runtime wiring while still
+  hiding exact provider model IDs.

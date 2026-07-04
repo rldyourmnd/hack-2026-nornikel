@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 411e472
+Last commit: e95e434
 Scope: src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
@@ -45,7 +45,9 @@ Capture the architecture contract for the evidence-first R&D workbench.
 - `AskRequest` and `AskResponse` live in `src/nornikel_kg/domain/models.py`.
 - Retrieval collections are selected by `QDRANT_COLLECTION` and `QDRANT_ENTITY_COLLECTION`; use a new collection when vector dimension changes.
 - Source labels are deployment-floor filtered by `JURY_ALLOWED_LABELS` and may only be narrowed by request `allowed_labels`.
-- `/health` reports readiness flags and backend class only; it must not expose exact provider model IDs.
+- `/health` reports readiness flags and backend class only; it must not expose exact
+  provider model IDs. Its LLM readiness uses `LLMSettings`, so canonical env vars and
+  supported legacy aliases are interpreted the same way as runtime wiring.
 
 ## Invariants
 
