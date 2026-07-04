@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 4e4a038
+Last commit: 411e472
 Scope: src/nornikel_kg/domain/; src/nornikel_kg/adapters/duckdb/; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; scripts/ingest_corpus.py
 Area: DATA
 -->

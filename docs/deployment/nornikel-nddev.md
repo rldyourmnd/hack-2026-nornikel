@@ -16,7 +16,10 @@ companion issues the certificate automatically once the name resolves.
 
 Every push to `main` runs `.github/workflows/deploy.yml`: ships the
 tracked tree over SSH, rebuilds `api`/`web`, restarts the stack and
-smoke-checks `/api/health` + `/api/stats/overview`. Repo secrets:
+smoke-checks `/api/health` + `/api/stats/overview`. The deploy first
+cleans the previous tracked tree on the server while preserving `.env*`,
+`data/`, `DATA_HACK/`, and `ingest_*.log`, so deleted files cannot survive as
+stale build inputs. Repo secrets:
 `DEPLOY_SSH_KEY` (dedicated ed25519 deploy key), `DEPLOY_HOST`,
 `DEPLOY_USER`. Manual run: the workflow_dispatch button.
 
@@ -52,7 +55,10 @@ Three isolated Docker Compose projects run on the host:
 ## Deploy procedure
 
 ```bash
-git archive main | ssh curestry 'tar -x -C /srv/nornikel-kg-search'
+git archive main | ssh curestry 'cd /srv/nornikel-kg-search && \
+  find . -mindepth 1 -maxdepth 1 \
+    ! -name ".env" ! -name ".env.*" ! -name "data" ! -name "DATA_HACK" \
+    ! -name "ingest_*.log" -exec rm -rf {} + && tar -x'
 ssh curestry 'cd /srv/nornikel-kg-search \
   && docker compose -f docker-compose.server.yml build api web \
   && docker compose -f docker-compose.server.yml up -d'
