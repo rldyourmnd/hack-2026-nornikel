@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 1db4c68 docs(instructions): note sharded ingest workflow
+Last commit: f98c713 docs(ingest): record eight-shard dataeyes benchmark
 Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; scripts/run_realcase_eval.py; src/nornikel_kg/
 Area: TECHDEBT
 -->
@@ -30,7 +30,9 @@ historical issues.
   file list by ordinal modulo. This removes the single-process DuckDB writer
   bottleneck, but a shard can still receive more large XLS/PDF files than
   others. A future improvement is a manifest-based scheduler sorted by file
-  size/type/estimated span count before modulo assignment.
+  size/type/estimated span count before modulo assignment. The 8-shard
+  300-file benchmark confirmed the skew: fastest completed shard wall clock was
+  835s and the slowest was 1341s.
 - **Yandex embedding throughput is quota-bound**: the Yandex REST embedding
   backend sends one text-vectorization request per text. AI Studio vectorization
   quota and provider-side 429s make high-worker ingest slower unless

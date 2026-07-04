@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 1db4c68 docs(instructions): note sharded ingest workflow
+Last commit: f98c713 docs(ingest): record eight-shard dataeyes benchmark
 Scope: Makefile; .github/workflows/ci.yml; docker-compose.yml; docker-compose.server.yml; services/api/Dockerfile; apps/web/nginx.conf; docs/deployment/nornikel-nddev.md; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; scripts/run_realcase_eval.py
 Area: RELEASE
 -->
@@ -60,6 +60,12 @@ Capture validation, deployment, compose, and batch-ingest rollout contracts.
   files. The merged 4-shard ledger was verified at 40 sources, 16,102 evidence
   spans, 1,067 entities, 23,672 numeric facts, and the shared Qdrant collection
   held 16,102 points.
+- The 8-shard DataEyes stress profile was verified on a seeded 300-file sample:
+  300/300 ingested in a 1341s max-shard wall clock, with 297 completed files,
+  3 quarantined files, 0 failed files, and 0 provider retries. The merged
+  ledger had 299 unique sources after one cross-shard content duplicate was
+  collapsed, 92,118 evidence spans, 5,500 entities, 8,322 relations, 155,143
+  numeric facts, and the shared Qdrant collection held 92,118 points.
 - The no-GPU production path uses pypdfium2 PDF text extraction, remote dense embeddings when configured, and Docling only where still needed.
 - `qdrant/qdrant:v1.16.3` is pinned in compose.
 - `make eval` no longer exists; use `make eval-realcase`.
