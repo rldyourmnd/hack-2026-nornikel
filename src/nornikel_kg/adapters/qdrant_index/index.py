@@ -59,19 +59,31 @@ class QdrantVectorIndex:
                     f"collection or reindex into a fresh one."
                 )
             return
-        client.create_collection(
-            collection_name=collection,
-            vectors_config={
-                _DENSE_NAME: models.VectorParams(
-                    size=dense_dim, distance=models.Distance.COSINE
-                )
-            },
-            sparse_vectors_config={
-                _SPARSE_NAME: models.SparseVectorParams(
-                    modifier=models.Modifier.IDF,
-                )
-            },
-        )
+        try:
+            client.create_collection(
+                collection_name=collection,
+                vectors_config={
+                    _DENSE_NAME: models.VectorParams(
+                        size=dense_dim, distance=models.Distance.COSINE
+                    )
+                },
+                sparse_vectors_config={
+                    _SPARSE_NAME: models.SparseVectorParams(
+                        modifier=models.Modifier.IDF,
+                    )
+                },
+            )
+        except Exception:
+            # Sharded ingests may race on first collection creation. If another
+            # worker created the collection with the expected dimension, continue;
+            # otherwise preserve the original failure.
+            if client.collection_exists(collection):
+                existing = client.get_collection(collection).config.params.vectors[
+                    _DENSE_NAME
+                ].size
+                if existing == dense_dim:
+                    return
+            raise
 
     def index_units(
         self,

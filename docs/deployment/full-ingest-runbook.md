@@ -16,6 +16,10 @@ variables:
 - Sparse retrieval: local BM25, kept as the lexical leg of hybrid search.
 - PDF parsing: `PDF_PARSE_MODE=pypdfium` by default, which avoids local ML,
   GPU, and graphical-system dependencies.
+- DataEyes `openai/gpt-5.4-mini` accepts `LLM_REASONING_EFFORT=low` through
+  LiteLLM, but GPT-5-family chat completions require `temperature=1`; the
+  gateway handles that automatically. Do not set output token caps for
+  structured JSON extraction because truncated JSON fails validation.
 
 Use a new Qdrant collection for each embedding dimension or backend change.
 
@@ -31,12 +35,17 @@ nohup docker compose -f docker-compose.server.yml run --rm --no-deps -T --name i
   -e QDRANT_ENTITY_COLLECTION=evidence_next_entities \
   -e LLM_EXTRACTION_MODE=source_packet \
   -e LLM_SOURCE_PACKET_CHARS=8000 \
-  -e LLM_MAX_CONCURRENCY=16 \
+  -e LLM_REASONING_EFFORT=low \
+  -e LLM_MAX_CONCURRENCY=128 \
+  -e LLM_RPS=128 \
+  -e EMBEDDING_MODEL_ID=text-embedding-3-small \
+  -e EMBEDDING_BATCH=256 \
+  -e EMBEDDING_RPS=32 \
   -e MAX_EXTRACTION_SPANS=400 \
   -e MAX_TABLE_ROWS_PER_SOURCE=400 \
   -e DOCLING_PARSE_WORKERS=4 \
   -e OMP_NUM_THREADS=1 \
-  api python scripts/ingest_corpus.py --dir DATA_HACK --sample 300 --workers 6 --max-mb 150 \
+  api python scripts/ingest_corpus.py --dir DATA_HACK --sample 300 --workers 24 --max-mb 150 \
   > ingest_next.log 2>&1 < /dev/null &
 ```
 
@@ -50,6 +59,47 @@ Notes:
 
 ## Full Corpus Build
 
+For maximum CPU/API utilization on a no-GPU stand, prefer the sharded build.
+Each shard writes to its own DuckDB file, avoiding the per-process single-writer
+ledger bottleneck, while all shards can write vectors into the same fresh Qdrant
+collections. Merge the shard ledgers before the final swap.
+
+```bash
+cd /srv/nornikel-kg-search
+SHARDS=4
+for i in $(seq 0 $((SHARDS - 1))); do
+  nohup docker compose -f docker-compose.server.yml run --rm --no-deps -T --name ingest-full-$i \
+    -e DUCKDB_PATH=/app/data/catalog_full_shard_${i}.duckdb \
+    -e QDRANT_COLLECTION=evidence_full \
+    -e QDRANT_ENTITY_COLLECTION=evidence_full_entities \
+    -e LLM_EXTRACTION_MODE=source_packet \
+    -e LLM_REASONING_EFFORT=low \
+    -e LLM_TOKEN_BUDGET=500000000 \
+    -e LLM_MAX_CONCURRENCY=128 \
+    -e LLM_RPS=128 \
+    -e EMBEDDING_MODEL_ID=text-embedding-3-small \
+    -e EMBEDDING_BATCH=256 \
+    -e EMBEDDING_RPS=32 \
+    -e MAX_EXTRACTION_SPANS=400 \
+    -e MAX_TABLE_ROWS_PER_SOURCE=400 \
+    -e DOCLING_PARSE_WORKERS=1 \
+    -e OMP_NUM_THREADS=1 \
+    api python scripts/ingest_corpus.py --dir DATA_HACK --workers 12 --max-mb 150 \
+      --shard-count $SHARDS --shard-index $i \
+    > ingest_full_shard_${i}.log 2>&1 < /dev/null &
+done
+```
+
+After all shard containers exit successfully:
+
+```bash
+python scripts/merge_duckdb_shards.py \
+  --output data/catalog_full.duckdb \
+  data/catalog_full_shard_*.duckdb
+```
+
+Single-process fallback:
+
 ```bash
 cd /srv/nornikel-kg-search
 nohup docker compose -f docker-compose.server.yml run --rm --no-deps -T --name ingest-full \
@@ -58,12 +108,17 @@ nohup docker compose -f docker-compose.server.yml run --rm --no-deps -T --name i
   -e QDRANT_ENTITY_COLLECTION=evidence_full_entities \
   -e LLM_EXTRACTION_MODE=source_packet \
   -e LLM_TOKEN_BUDGET=500000000 \
-  -e LLM_MAX_CONCURRENCY=16 \
+  -e LLM_REASONING_EFFORT=low \
+  -e LLM_MAX_CONCURRENCY=128 \
+  -e LLM_RPS=128 \
+  -e EMBEDDING_MODEL_ID=text-embedding-3-small \
+  -e EMBEDDING_BATCH=256 \
+  -e EMBEDDING_RPS=32 \
   -e MAX_EXTRACTION_SPANS=400 \
   -e MAX_TABLE_ROWS_PER_SOURCE=400 \
   -e DOCLING_PARSE_WORKERS=4 \
   -e OMP_NUM_THREADS=1 \
-  api python scripts/ingest_corpus.py --dir DATA_HACK --workers 6 --max-mb 150 \
+  api python scripts/ingest_corpus.py --dir DATA_HACK --workers 24 --max-mb 150 \
   > ingest_full.log 2>&1 < /dev/null &
 ```
 

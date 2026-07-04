@@ -62,7 +62,23 @@ def main() -> None:
         help="Concurrent ingest workers — overlaps LLM/embedding I/O across files "
         "(Docling parsing is serialized internally for thread-safety)",
     )
+    parser.add_argument(
+        "--shard-count",
+        type=int,
+        default=1,
+        help="Split the selected file list into N deterministic shards (default: 1)",
+    )
+    parser.add_argument(
+        "--shard-index",
+        type=int,
+        default=0,
+        help="Zero-based shard index to ingest when --shard-count > 1",
+    )
     args = parser.parse_args()
+    if args.shard_count < 1:
+        raise SystemExit("--shard-count must be >= 1")
+    if args.shard_index < 0 or args.shard_index >= args.shard_count:
+        raise SystemExit("--shard-index must be in [0, shard-count)")
 
     from nornikel_kg.services.runtime import get_ingestion_service, get_ledger_repository
 
@@ -121,6 +137,18 @@ def main() -> None:
             # Seeded so a re-run picks the SAME sample (idempotent dedup resumes it).
             to_ingest = sorted(random.Random(1234).sample(to_ingest, args.sample))
             print(f"Sampled {len(to_ingest)} of {len(files)} files seen (seed=1234)")
+
+        if args.shard_count > 1:
+            selected_before_sharding = len(to_ingest)
+            to_ingest = [
+                path
+                for ordinal, path in enumerate(to_ingest)
+                if ordinal % args.shard_count == args.shard_index
+            ]
+            print(
+                f"Shard {args.shard_index}/{args.shard_count}: "
+                f"{len(to_ingest)} of {selected_before_sharding} selected files"
+            )
 
         total = len(to_ingest)
         stats_lock = threading.Lock()
