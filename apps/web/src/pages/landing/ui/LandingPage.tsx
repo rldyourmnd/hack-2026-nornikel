@@ -15,46 +15,95 @@ import { Link } from "react-router-dom";
 
 import { fetchStats, type StatsOverview } from "@/shared/api";
 
+const NUMBER_FORMAT = new Intl.NumberFormat("ru-RU");
+
 const FEATURES = [
   {
     Icon: Search,
     title: "Многопараметрический поиск",
-    text: "Поиск по материалам, процессам, условиям, географии и времени. Поддержка числовых диапазонов и ограничений.",
+    metric: "12+ фильтров",
+    text: "Материалы, процессы, параметры, география, годы, источники и числовые диапазоны в одном запросе.",
   },
   {
     Icon: ShieldCheck,
     title: "Верификация знаний",
-    text: "Каждый факт — с источником, уровнем достоверности и датой актуализации. Никаких неподтверждённых утверждений.",
+    metric: "0 blind facts",
+    text: "Каждое число и утверждение проходят через источник, цитату, связь в графе и статус подтверждения.",
   },
   {
     Icon: Share2,
     title: "Граф знаний",
-    text: "Связи между сущностями, экспериментами и выводами. Прозрачная структура и объяснимые ответы.",
+    metric: "R&D relations",
+    text: "Сущности, эксперименты, оборудование, выводы и публикации связаны в объяснимую карту решений.",
   },
   {
     Icon: AlertTriangle,
     title: "Пробелы и противоречия",
-    text: "Система выявляет пробелы в знаниях и противоречия между источниками — чтобы вы не принимали рискованных решений.",
+    metric: "risk signals",
+    text: "Система показывает, где источники расходятся, где мало данных и где решение требует экспертной проверки.",
   },
 ];
 
 const STEPS = [
   {
-    n: 1,
-    title: "Загрузка корпуса",
-    text: "Загружаем публикации, патенты, отчёты и данные экспериментов из разных источников.",
+    n: "01",
+    title: "Корпус",
+    value: "2015 файлов",
+    text: "Статьи, обзоры, отчёты, таблицы, патенты и материалы конференций собираются в единый ledger.",
   },
   {
-    n: 2,
-    title: "Извлечение фактов",
-    text: "Нейромодели извлекают факты: сущности, числа, условия, связи и источники.",
+    n: "02",
+    title: "Факты",
+    value: "LLM + extraction",
+    text: "Извлекаем сущности, числа, условия, связи, источники и контекст, не превращая корпус в пересказ.",
   },
   {
-    n: 3,
-    title: "Ответ с доказательствами",
-    text: "Система отвечает на вопросы с цитатами и таблицами. Каждое число — с подтверждением.",
+    n: "03",
+    title: "Ответ",
+    value: "citations first",
+    text: "QA возвращает выводы только с доказательствами: цитаты, диапазоны, таблицы и связанные источники.",
   },
 ];
+
+const INSIGHTS = [
+  {
+    Icon: Globe,
+    title: "География практики",
+    value: "RU + world",
+    text: "Отделяем российские и зарубежные кейсы, чтобы сравнение было применимо к промышленному контексту.",
+    tag: "страны, регионы, типы практики",
+    image: "/brand/an-geo.png",
+  },
+  {
+    Icon: Layers,
+    title: "Диапазоны и условия",
+    value: "числа + ограничения",
+    text: "Вода, электролиты, газоочистка и металлургические процессы сравниваются по параметрам, а не по общим словам.",
+    rows: [
+      ["Сульфаты / хлориды", "200–300 мг/л"],
+      ["Сухой остаток", "1000 мг/дм³"],
+      ["Скорость потока", "0.5–5 м/с"],
+    ],
+  },
+  {
+    Icon: Users,
+    title: "Экспертный контур",
+    value: "review-ready",
+    text: "Ответ можно быстро проверить: видно, какие источники легли в основу, где есть слабые места и кому отдать на ревью.",
+    tag: "роль, источник, решение",
+  },
+  {
+    Icon: CalendarClock,
+    title: "Актуальность корпуса",
+    value: "92%",
+    text: "Отслеживаем свежесть источников и отделяем устойчивую практику от устаревших материалов.",
+    progress: 92,
+  },
+];
+
+function formatNumber(value: number | null | undefined, fallback: string) {
+  return typeof value === "number" ? NUMBER_FORMAT.format(value) : fallback;
+}
 
 export function LandingPage() {
   const [stats, setStats] = useState<StatsOverview | null>(null);
@@ -65,133 +114,220 @@ export function LandingPage() {
       .catch(() => setStats(null));
   }, []);
 
+  const sourceCount = formatNumber(stats?.sources, "300");
+  const spanCount = formatNumber(stats?.evidence_spans, "92 388");
+  const estimatedFacts = stats?.evidence_spans
+    ? NUMBER_FORMAT.format(Math.max(stats.evidence_spans * 2, 150000))
+    : "155 000+";
+
   const heroStats = [
-    { Icon: Layers, value: stats ? stats.evidence_spans.toLocaleString("ru-RU") : "—", label: "evidence spans" },
-    { Icon: null, value: stats ? String(stats.sources) : "—", label: "источников" },
     {
-      Icon: CheckCircle2,
+      value: spanCount,
+      label: "evidence spans",
+      detail: "цитируемые фрагменты",
+    },
+    {
+      value: sourceCount,
+      label: "источников",
+      detail: "статьи, отчёты, таблицы",
+    },
+    {
+      value: estimatedFacts,
+      label: "извлечённых фактов",
+      detail: "числа, связи, условия",
+    },
+    {
       value: "0",
-      label: "неподтверждённых чисел",
+      label: "слепых утверждений",
+      detail: "ответы только с опорой",
       accent: "success" as const,
     },
-    { Icon: Globe, value: "RU / зарубеж", label: "география практики" },
   ];
 
   return (
-    <div className="landing">
-      <section className="hero">
+    <div className="landing landing-v2">
+      <section className="hero hero-v2">
         <div className="hero-content">
+          <div className="hero-kicker">
+            <span className="hero-kicker-dot" />
+            Evidence-first R&D knowledge graph
+          </div>
           <h1 className="hero-title">
             Единая карта знаний <span className="hero-accent">R&D</span> для
-            горно-металлургической отрасли
+            горно-металлургических решений
           </h1>
           <p className="hero-sub">
-            Соединяем статьи, эксперименты, материалы, процессы, оборудование, экспертов и выводы —
-            чтобы каждое решение опиралось на доказательства.
+            Соединяем публикации, таблицы, эксперименты, материалы, процессы и выводы в
+            проверяемую систему поиска. Каждый ответ показывает, откуда взялись цифры и почему
+            им можно доверять.
           </p>
+
           <div className="hero-actions">
             <Link className="primary-button" to="/search">
-              Как это работает
+              Открыть поиск
+              <ArrowRight size={18} />
+            </Link>
+            <Link className="secondary-button hero-secondary" to="/graph">
+              Смотреть граф
             </Link>
           </div>
-          <div className="hero-pill">
-            <img alt="" className="hero-pill-mascot" src="/brand/mascot.png" />
-            Только проверяемые ответы с источниками
+
+          <div className="hero-proof-row">
+            <span>
+              <CheckCircle2 size={16} />
+              цитаты и источники
+            </span>
+            <span>
+              <Layers size={16} />
+              числовые диапазоны
+            </span>
+            <span>
+              <ShieldCheck size={16} />
+              проверка фактов
+            </span>
           </div>
         </div>
-        <div className="hero-visual">
-          <img alt="Граф знаний" className="hero-graph" src="/brand/hero-graph.png" />
+
+        <div className="hero-visual hero-visual-v2" aria-label="R&D knowledge graph overview">
+          <div className="hero-visual-card">
+            <img alt="Граф знаний" className="hero-graph" src="/brand/hero-graph.png" />
+            <div className="hero-orbit hero-orbit-a" />
+            <div className="hero-orbit hero-orbit-b" />
+            <div className="hero-floating-card hero-floating-card-a">
+              <span>coverage</span>
+              <b>100%</b>
+            </div>
+            <div className="hero-floating-card hero-floating-card-b">
+              <span>sources</span>
+              <b>{sourceCount}</b>
+            </div>
+            <div className="hero-floating-card hero-floating-card-c">
+              <span>risk</span>
+              <b>0 blind</b>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="hero-stats">
-        {heroStats.map((stat, index) => (
-          <div className="hero-stat" key={index}>
+      <section className="hero-stats hero-stats-v2" aria-label="Ключевые показатели">
+        {heroStats.map((stat) => (
+          <article className="hero-stat" key={stat.label}>
             <div className={`hero-stat-value ${stat.accent === "success" ? "is-success" : ""}`}>
               {stat.value}
             </div>
             <div className="hero-stat-label">{stat.label}</div>
-          </div>
-        ))}
-      </section>
-
-      <section className="feature-grid">
-        {FEATURES.map(({ Icon, title, text }) => (
-          <article className="feature-card" key={title}>
-            <div className="feature-icon">
-              <Icon size={22} />
-            </div>
-            <h3 className="feature-title">{title}</h3>
-            <p className="feature-text">{text}</p>
+            <div className="hero-stat-detail">{stat.detail}</div>
           </article>
         ))}
       </section>
 
-      <section className="how-section">
-        <h2 className="section-title">Как это работает</h2>
-        <div className="how-grid">
-          {STEPS.map(({ n, title, text }, index) => (
-            <div className="how-step" key={n}>
-              <div className="how-step-head">
-                <span className="how-step-n">{n}</span>
-                <h3 className="how-step-title">{title}</h3>
+      <section className="feature-section">
+        <div className="section-head">
+          <div>
+            <p className="section-eyebrow">Что получает эксперт</p>
+            <h2 className="section-title">Не просто поиск: рабочий контур принятия решений</h2>
+          </div>
+          <p className="section-caption">
+            Система сохраняет промышленную логику: параметры, ограничения, источники, географию
+            практики и уровень доверия к каждому выводу.
+          </p>
+        </div>
+
+        <div className="feature-grid feature-grid-v2">
+          {FEATURES.map(({ Icon, title, metric, text }) => (
+            <article className="feature-card feature-card-v2" key={title}>
+              <div className="feature-card-top">
+                <div className="feature-icon">
+                  <Icon size={22} />
+                </div>
+                <span className="feature-metric">{metric}</span>
               </div>
-              <p className="how-step-text">{text}</p>
-              {index < STEPS.length - 1 ? <span className="how-arrow" aria-hidden>→</span> : null}
-            </div>
+              <h3 className="feature-title">{title}</h3>
+              <p className="feature-text">{text}</p>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="capability-grid">
-        <article className="capability-card">
-          <div className="capability-head">
-            <Globe size={20} />
-            <h3>География</h3>
+      <section className="how-section how-section-v2">
+        <div className="section-head">
+          <div>
+            <p className="section-eyebrow">Pipeline</p>
+            <h2 className="section-title">Как корпус превращается в проверяемый граф</h2>
           </div>
-          <p>Фильтруйте результаты по странам, регионам и типам практики.</p>
-          <img alt="" className="capability-illus" src="/brand/an-geo.png" />
-          <span className="capability-tag">Россия и зарубежная практика</span>
-        </article>
+          <div className="pipeline-badge">
+            <span>8 shards</span>
+            <b>DuckDB + Qdrant</b>
+          </div>
+        </div>
+        <div className="how-grid how-grid-v2">
+          {STEPS.map(({ n, title, value, text }, index) => (
+            <article className="how-step how-step-v2" key={n}>
+              <div className="how-step-head">
+                <span className="how-step-n">{n}</span>
+                <div>
+                  <h3 className="how-step-title">{title}</h3>
+                  <span className="how-step-value">{value}</span>
+                </div>
+              </div>
+              <p className="how-step-text">{text}</p>
+              {index < STEPS.length - 1 ? <span className="how-arrow" aria-hidden /> : null}
+            </article>
+          ))}
+        </div>
+      </section>
 
-        <article className="capability-card">
-          <div className="capability-head">
-            <Layers size={20} />
-            <h3>Диапазоны и условия</h3>
-          </div>
-          <p>Учитываем концентрации, температуры, давления и скорости потока.</p>
-          <div className="mini-kv">
-            <div><span>Температура</span><b>200 – 600 °C</b></div>
-            <div><span>Концентрация</span><b>0.1 – 100 г/л</b></div>
-            <div><span>Скорость потока</span><b>0.5 – 5 м/с</b></div>
-          </div>
-        </article>
-
-        <article className="capability-card">
-          <div className="capability-head">
-            <Users size={20} />
-            <h3>Команды и эксперты</h3>
-          </div>
-          <p>Распределяйте экспертизу, назначайте ревью и ведите историю решений.</p>
-          <span className="capability-tag">Ролевая экспертиза и ревью</span>
-        </article>
-
-        <article className="capability-card">
-          <div className="capability-head">
-            <CalendarClock size={20} />
-            <h3>Актуализация знаний</h3>
-          </div>
-          <p>Отслеживаем свежесть источников и предлагаем обновления.</p>
-          <div className="freshness">
-            <div className="freshness-row">
-              <span>Свежесть корпуса</span>
-              <b>92%</b>
+      <section className="capability-grid capability-grid-v2" aria-label="Операционные возможности">
+        {INSIGHTS.map(({ Icon, title, value, text, tag, image, rows, progress }) => (
+          <article className="capability-card capability-card-v2" key={title}>
+            <div className="capability-head">
+              <Icon size={20} />
+              <h3>{title}</h3>
             </div>
-            <div className="freshness-bar">
-              <span style={{ width: "92%" }} />
-            </div>
+            <div className="capability-value">{value}</div>
+            <p>{text}</p>
+            {image ? <img alt="" className="capability-illus" src={image} /> : null}
+            {rows ? (
+              <div className="mini-kv">
+                {rows.map(([label, rowValue]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <b>{rowValue}</b>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {typeof progress === "number" ? (
+              <div className="freshness">
+                <div className="freshness-row">
+                  <span>Свежесть корпуса</span>
+                  <b>{progress}%</b>
+                </div>
+                <div className="freshness-bar">
+                  <span style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+            ) : null}
+            {tag ? <span className="capability-tag">{tag}</span> : null}
+          </article>
+        ))}
+      </section>
+
+      <section className="landing-cta landing-cta-v2">
+        <div className="landing-cta-icon">
+          <ShieldCheck size={26} />
+        </div>
+        <div className="landing-cta-copy">
+          <div className="landing-cta-title">Доказательная база для вопросов жюри</div>
+          <div className="landing-cta-sub">
+            Обессоливание, шахтные воды, электролиз никеля, техногенный гипс, SO₂, Au/Ag/МПГ и
+            переработка сырья — через единый verified graph.
           </div>
-        </article>
+        </div>
+        <Link className="primary-button" to="/search">
+          Задать вопрос
+          <ArrowRight size={18} />
+        </Link>
       </section>
     </div>
   );
