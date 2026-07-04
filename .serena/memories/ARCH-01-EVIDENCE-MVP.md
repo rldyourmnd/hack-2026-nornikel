@@ -794,3 +794,19 @@ Two hard floors, neither removable without re-architecture:
    full-quality full corpus ~2-4h; coarse ~2h; 40 curated files ~20 min. Only Slovnet-class
    local-only + a fast parser + batched DB writes could approach minutes (bigger re-architecture).
 Coarse toggle: LLM_EXTRACTION_ENABLED=false (default false in code; stand .env sets true).
+
+
+## 300-build measured floor (2026-07-04, PR #11+#12)
+
+Implemented+deployed ALL review levers: source_packet (1 LLM call/src), batch_transaction
+(1 commit/src), MAX_EXTRACTION_SPANS cap, parallel Docling pool, --sample, + full
+synthetic/demo/seed purge (real-data-only). Gates green.
+MEASURED on the random-300 sample: still ~4 min/big-file, 2 files in 8 min -> ~hours for 300.
+Stacked hardware floors on the 8-vCPU no-GPU stand:
+- Docling ML parse WITHOUT NNPACK ("Unsupported hardware" -> CPU fallback) — slow on big PDFs.
+- Big xls (1000-1200 table rows -> spans): resolution (find_entity/span, single-writer O(spans))
+  + embedding all spans dominate even with extraction capped at 400.
+=> "300 files in 30 min" NOT reachable on this pipeline+hardware with the random big-file sample.
+Realistic paths to ~30 min: (a) curate 300 SMALLER content docs (exclude 1000-row data-table
+xls); (b) PyMuPDF fast-text path for text PDFs + bulk resolution (find_entity batched) — deeper
+refactor; (c) GPU/bigger box. Levers are in; the remaining floor is hardware + per-span resolution.
