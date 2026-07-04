@@ -750,3 +750,28 @@ Prod graph: fresh batch running (audit-fixed code, --workers 8, LLM_MAX_CONCURRE
 gpt-5.4-mini extraction + openai embeddings) into catalog_full.duckdb + evidence_full_oai with
 relative-path provenance + dedup. 2015 files, ~many hours (large docs are extraction-bound),
 resumable. Swap when done via docs/deployment/full-ingest-runbook.md.
+
+
+## Extraction-speed research + floor (2026-07-04, PR #9)
+
+4-agent + web research on "build the whole graph in minutes". VERDICT: at full
+quality it is PHYSICALLY IMPOSSIBLE on this stack.
+- **Measured**: dataeyes concurrency ceiling ~16 (32+ concurrent -> HTTP 403 burst guard),
+  ~6.6s/call. GLiNER OFF on stand. We already cap LLM at MAX_LLM_SPANS_PER_SOURCE=12/doc.
+- **Floor math**: 16 slots / 6.6s = ~2.4 calls/s. 2015 docs x 12 calls = ~24k calls
+  -> ~2.8h just LLM (saturated). "Minutes for ALL docs" needs <2 LLM calls/doc =>
+  only COARSE LOCAL-ONLY extraction (Slovnet/dictionary + co-occurrence, NO typed LLM
+  relations). Self-hosting an LLM on CPU (no GPU) is slower, not faster.
+- **Real bottlenecks now**: (1) Docling PARSE of big PDFs — serial by _CONVERT_LOCK
+  (Docling not thread-safe), 8-18MB journals take minutes each; (2) the 16-concurrent LLM cap.
+- **Ranked levers** (research): #1 bigger chunks/batch-prompt (we already cap calls, so this
+  is coverage-per-call not fewer calls); #2 local NER gate to drop empty spans; #3 saturate 16
+  slots (DONE, PR #9); #4 prompt-cache + smaller output (~1.5-2x); #5 parallel parse via
+  ProcessPoolExecutor(6-8)+OMP_NUM_THREADS=1+pypdfium2 (digital PDFs ~0.1s/doc vs Docling
+  minutes) — but pypdfium2 loses Docling table structure (numeric_facts).
+
+DEPLOYED (PR #9): parallelize the 12 per-source LLM calls (were serial -> only ~half the 16
+slots used with N workers). ~2x on the LLM-bound path. Parse (big PDFs) is now the co-bottleneck.
+
+Realistic targets: full-quality full corpus ~2-4h; 40 curated small files ~minutes;
+coarse-local-only (LLM off) = minutes for all but drops typed relations.
