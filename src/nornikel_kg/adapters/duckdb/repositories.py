@@ -111,54 +111,6 @@ class DuckDBLedgerRepository:
             load_dictionaries(connection)
         self._migrated = True
 
-    def seed_synthetic_fixture(self, sample_dir: Path) -> EvidenceLedgerPacket:
-        self._data_version += 1
-        self.migrate()
-        csv_path = sample_dir / "mechanical_properties.csv"
-        report_path = sample_dir / "nicu_aging_report.md"
-        csv_bytes = csv_path.read_bytes()
-        report_bytes = report_path.read_bytes()
-        source_id = source_id_from_bytes(report_bytes + b"\n---\n" + csv_bytes)
-        raw_sha256 = hashlib.sha256(report_bytes + csv_bytes).hexdigest()
-        rows = self._parse_csv_rows(csv_bytes)
-
-        with self._connect() as connection:
-            try:
-                connection.execute("BEGIN")
-                self._delete_source_records(connection, source_id)
-                self._register_source(
-                    connection,
-                    source_id=source_id,
-                    title="Synthetic Ni-Cu aging report",
-                    document_type="report+table",
-                    raw_sha256=raw_sha256,
-                    security_label="internal",
-                )
-                self._insert_csv_rows(
-                    connection,
-                    source_id=source_id,
-                    rows=rows,
-                    artifact_locator=str(csv_path),
-                    parser_profile="synthetic_fixture_v1",
-                    first_row_ordinal=3,
-                )
-                self._insert_markdown_evidence(
-                    connection,
-                    source_id=source_id,
-                    text=report_path.read_text(encoding="utf-8"),
-                    artifact_locator=str(report_path),
-                    parser_profile="synthetic_fixture_v1",
-                    selected_lines=(
-                        "method mismatch prevents direct numeric comparison",
-                        "not measured",
-                    ),
-                )
-                connection.execute("COMMIT")
-            except (SourceIngestError, ValueError):
-                connection.execute("ROLLBACK")
-                raise
-
-        return self.load_evidence_packet()
 
     def ingest_source_bytes(
         self,

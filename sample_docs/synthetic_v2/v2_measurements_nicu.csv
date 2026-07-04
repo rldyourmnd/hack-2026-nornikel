@@ -1,3 +1,0 @@
-experiment_id,material,regime,temperature_c,duration_h,atmosphere,property,method,baseline_value,treated_value,unit,effect
-v2_nicu30_aging_hv,Ni-30Cu,aging,700,8,air,Vickers hardness,HV10,210,246,HV,increase
-v2_nicu30_aging_hrc,Ni-30Cu,aging,700,8,air,Vickers hardness,HRC,18,23,HRC,increase

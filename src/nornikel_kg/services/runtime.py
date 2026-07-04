@@ -50,17 +50,7 @@ def resolve_project_path(value: str) -> Path:
 def get_ledger_repository() -> DuckDBLedgerRepository:
     with _repository_build_lock:
         db_path = resolve_project_path(os.getenv("DUCKDB_PATH", "data/catalog.duckdb"))
-        sample_dir = resolve_project_path(
-            os.getenv("SYNTHETIC_SAMPLE_DIR", "sample_docs/synthetic")
-        )
-        repository = DuckDBLedgerRepository(db_path)
-        # Demo fixture seeding is opt-in and DEFAULTS OFF: on a real-corpus
-        # stand the synthetic Ni-Cu rows would otherwise mix into every answer
-        # packet. Tests and `make eval` set SEED_SYNTHETIC_FIXTURE=true
-        # explicitly to exercise the synthetic safety suite.
-        if os.getenv("SEED_SYNTHETIC_FIXTURE", "false").lower() in {"1", "true", "yes"}:
-            repository.seed_synthetic_fixture(sample_dir)
-        return repository
+        return DuckDBLedgerRepository(db_path)
 
 
 @lru_cache

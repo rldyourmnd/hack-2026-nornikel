@@ -10,7 +10,6 @@ services:
       QDRANT_URL: http://qdrant:6333
     volumes:
       - ./data:/app/data
-      - ./sample_docs:/app/sample_docs:ro
       # Real corpus for the batch ingester (scripts/ingest_corpus.py --dir DATA_HACK).
       # Present on the stand; an empty dir on a fresh server is harmless.
       - ./DATA_HACK:/app/DATA_HACK:ro
