@@ -184,17 +184,18 @@ class LiteLLMGateway:
                         },
                     )
                     break
-                except litellm.RateLimitError:
-                    # Residual 429 (the folder quota is shared with other
-                    # consumers): back off with jitter, never fail the call
-                    # on rate limits alone until retries are exhausted.
+                except Exception as error:
+                    # Fail over to the next provider on ANY provider-side error
+                    # (429, permission-denied, auth, 5xx, timeout) — the round-robin
+                    # advances the deployment each attempt, so a dead primary
+                    # (e.g. a revoked key) is covered by the secondary. Only give
+                    # up once attempts are exhausted across providers.
                     if attempt == _RATE_LIMIT_RETRIES:
                         raise
                     logger.warning(
-                        "LLM rate limited on %s (attempt %s/%s); failover + retry in %.1fs",
+                        "LLM call on %s failed (%s); failover + retry in %.1fs",
                         model,
-                        attempt,
-                        _RATE_LIMIT_RETRIES,
+                        str(error)[:120],
                         delay,
                     )
                     time.sleep(delay + random.uniform(0, delay / 2))
