@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
+Last commit: 00d092a fix(qa): retry transient answer synthesis failures
 Scope: scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; src/nornikel_kg/services/ingestion_service.py; src/nornikel_kg/adapters/pdf_fast/; src/nornikel_kg/adapters/llm/gateway.py; src/nornikel_kg/adapters/embeddings/yandex.py; src/nornikel_kg/services/extraction_service.py; src/nornikel_kg/services/retrieval_service.py; src/nornikel_kg/services/qa_service.py; src/nornikel_kg/adapters/duckdb/repositories.py; services/api/; apps/web/
 Area: ARCH
 -->
@@ -53,7 +53,7 @@ Capture the architecture contract for the evidence-first R&D workbench.
   model IDs it uses `temperature=1` because LiteLLM/OpenAI-compatible GPT-5
   chat completions reject `temperature=0`; older extraction models keep
   temperature zero.
-- `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates. Provider failures degrade to deterministic/rule-only behavior where callers catch `LLMError`.
+- `LLMAnswerComposer` and `ClaimVerifier` enforce cited-span and number-support gates. Answer synthesis retries one transient `LLMError` or raw provider exception, then degrades to deterministic/rule-only behavior on the second failure so `/qa/ask` does not 500.
 
 ## Contracts
 

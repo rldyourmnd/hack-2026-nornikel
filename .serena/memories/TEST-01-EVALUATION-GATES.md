@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: d532f3d Merge pull request #23 from rldyourmnd/perf/sharded-ingest
+Last commit: 00d092a fix(qa): retry transient answer synthesis failures
 Scope: Makefile; tests/; .github/workflows/ci.yml; pyproject.toml; scripts/run_realcase_eval.py
 Area: TEST
 -->
@@ -42,6 +42,9 @@ Provider-specific unit coverage includes:
   output token caps that could truncate structured JSON.
 - `tests/unit/test_yandex_embeddings.py`: verifies split doc/query embedding
   model URIs and the configured `dim` field in Yandex text-vectorization payloads.
+- `tests/unit/test_answer_composer.py::test_transient_llm_error_retries_before_fallback`:
+  verifies answer synthesis retries a transient `LLMError` such as an empty
+  completion before falling back to deterministic output.
 
 `scripts/run_realcase_eval.py` checks four organizer track questions against a running API. It asserts citation coverage 1.0, zero fabricated numbers, zero source-label leaks, zero prompt-injection success, zero semantic unsupported sentences, non-empty evidence, and no legacy fixture leakage.
 
@@ -58,3 +61,6 @@ Provider-specific unit coverage includes:
 - `uv run pytest tests/integration/test_api.py::test_health_uses_llm_settings_aliases`:
   verifies `/health` uses the same LLM alias handling as runtime wiring while still
   hiding exact provider model IDs.
+- `uv run pytest tests/unit/test_answer_composer.py`: verifies LLM answer
+  composition, citation filtering, contradiction drops, provider-error fallback,
+  and transient LLM-error retry behavior.

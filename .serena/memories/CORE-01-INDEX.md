@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 1db4c68 docs(instructions): note sharded ingest workflow
+Last commit: 00d092a fix(qa): retry transient answer synthesis failures
 Scope: README.md; AGENTS.md; .claude/CLAUDE.md; apps/web/; services/api/; src/nornikel_kg/; scripts/; docs/deployment/; pyproject.toml; tests/
 Area: CORE
 -->
@@ -55,6 +55,9 @@ knowledge-graph submission.
   to a separate `DUCKDB_PATH`; `scripts/merge_duckdb_shards.py` merges shard
   ledgers into the final catalog before the atomic swap. Qdrant collection
   creation is race-tolerant for concurrent shard writers.
+- QA answer synthesis retries transient LLM provider failures once before
+  deterministic fallback, preserving the no-500 guarantee while avoiding empty
+  answers from one-off provider empty completions.
 
 ## Invariants
 

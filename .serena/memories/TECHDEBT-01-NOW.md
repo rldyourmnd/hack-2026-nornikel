@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: f98c713 docs(ingest): record eight-shard dataeyes benchmark
+Last commit: 00d092a fix(qa): retry transient answer synthesis failures
 Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/ingest_corpus.py; scripts/merge_duckdb_shards.py; scripts/run_realcase_eval.py; src/nornikel_kg/
 Area: TECHDEBT
 -->
@@ -49,6 +49,9 @@ historical issues.
 - The single-process ingest speed floor is no longer the primary build path:
   sharded ingest plus `scripts/merge_duckdb_shards.py` is the current
   high-throughput no-GPU production flow.
+- Transient answer-composer `LLMError`/empty-completion failures should not be
+  treated as an active empty-answer gap: `LLMAnswerComposer.compose()` now
+  retries once before deterministic fallback.
 
 ## Verification
 
