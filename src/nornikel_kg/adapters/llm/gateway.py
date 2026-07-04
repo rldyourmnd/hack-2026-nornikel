@@ -100,6 +100,18 @@ def _provider_extra_headers(provider: _Provider) -> dict[str, str] | None:
     return {"OpenAI-Project": folder_id} if folder_id else None
 
 
+def _temperature_for_model(model: str) -> int:
+    """Return the temperature value accepted by the target model family.
+
+    GPT-5-series chat completions reject `temperature=0`; LiteLLM surfaces this
+    before the request reaches the provider. Use the model default (`1`) there
+    and keep deterministic temperature zero for older extraction models that
+    still accept it.
+    """
+    normalized = model.lower()
+    return 1 if "gpt-5" in normalized else 0
+
+
 class TokenBudget:
     """Process-wide hard stop: once spent, every further LLM call raises."""
 
@@ -125,9 +137,10 @@ class TokenBudget:
 class LiteLLMGateway:
     """The only module allowed to touch litellm.
 
-    Guided-JSON completions with temperature 0, request timeout, bounded retries,
-    a concurrency cap protecting the stand, a hard token budget, and optional
-    Langfuse success/failure callbacks (fire-and-forget, never blocking).
+    Guided-JSON completions with provider-compatible temperature, request
+    timeout, bounded retries, a concurrency cap protecting the stand, a hard
+    token budget, and optional Langfuse success/failure callbacks
+    (fire-and-forget, never blocking).
     """
 
     def __init__(self, settings: LLMSettings) -> None:
@@ -179,7 +192,7 @@ class LiteLLMGateway:
                         "model": model,
                         "api_base": provider.api_base,
                         "api_key": provider.api_key,
-                        "temperature": 0,
+                        "temperature": _temperature_for_model(model),
                         "timeout": self.settings.llm_timeout_s,
                         "num_retries": self.settings.llm_max_retries,
                         "response_format": {
@@ -202,6 +215,9 @@ class LiteLLMGateway:
                     extra_headers = _provider_extra_headers(provider)
                     if extra_headers is not None:
                         completion_kwargs["extra_headers"] = extra_headers
+                    reasoning_effort = self.settings.llm_reasoning_effort.strip()
+                    if reasoning_effort:
+                        completion_kwargs["reasoning_effort"] = reasoning_effort
                     response = litellm.completion(**completion_kwargs)
                     break
                 except Exception as error:

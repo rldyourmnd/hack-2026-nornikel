@@ -25,6 +25,11 @@ class LLMSettings(BaseSettings):
     )
     llm_extraction_model: str = ""
     llm_answer_model: str = ""
+    # Optional reasoning-effort hint for OpenAI-compatible reasoning models
+    # (for example, "low" on gpt-5.4-mini). Leave empty for providers/models
+    # that do not support it; do not pair this with output token caps because
+    # capped structured JSON can truncate and fail validation.
+    llm_reasoning_effort: str = ""
     # Optional second OpenAI-compatible provider. When set, the gateway
     # round-robins extraction/answer calls across both providers via LiteLLM and
     # fails over on provider errors.
