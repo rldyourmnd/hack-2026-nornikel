@@ -104,6 +104,7 @@ _ALLOWED_UPLOAD_EXTENSIONS = {
     ".docx",
     ".docm",
     ".doc",
+    ".pptx",
     ".xlsx",
     ".xls",
 }
@@ -139,6 +140,11 @@ _ALLOWED_MIME_TYPES = {
         "application/zip",
     },
     ".doc": {"application/msword", "application/octet-stream"},
+    ".pptx": {
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/octet-stream",
+        "application/zip",
+    },
     ".xlsx": {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/octet-stream",

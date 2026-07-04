@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 # .docm is the same OOXML container as .docx (macros are ignored by Docling);
 # the stream name is rewritten so format detection stays on the DOCX path.
-_SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".docm"}
+_SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".docm", ".pptx"}
 
 
 @lru_cache(maxsize=1)
@@ -34,7 +34,7 @@ def _build_converter() -> Any:
     pdf_options.do_ocr = False
     pdf_options.do_table_structure = True
     return DocumentConverter(
-        allowed_formats=[InputFormat.PDF, InputFormat.DOCX],
+        allowed_formats=[InputFormat.PDF, InputFormat.DOCX, InputFormat.PPTX],
         format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options)},
     )
 

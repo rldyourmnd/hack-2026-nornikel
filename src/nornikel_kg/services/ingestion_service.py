@@ -23,7 +23,7 @@ from nornikel_kg.ports.parser import (
 
 logger = logging.getLogger(__name__)
 
-PARSER_EXTENSIONS = {".pdf", ".docx", ".docm"}
+PARSER_EXTENSIONS = {".pdf", ".docx", ".docm", ".pptx"}
 SPREADSHEET_EXTENSIONS = {".xlsx", ".xls"}
 LEGACY_DOC_EXTENSIONS = {".doc"}
 TEXT_EXTENSIONS = {".csv", ".md", ".markdown", ".txt", ".text"}
