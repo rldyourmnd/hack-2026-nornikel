@@ -185,3 +185,49 @@ def test_xlsx_caps_are_env_configurable(
     assert _cap("INGEST_XLSX_MAX_ROWS", _DEFAULT_MAX_ROWS_PER_SHEET) == _DEFAULT_MAX_ROWS_PER_SHEET
     monkeypatch.setenv("INGEST_XLSX_MAX_ROWS", "99999")
     assert _cap("INGEST_XLSX_MAX_ROWS", _DEFAULT_MAX_ROWS_PER_SHEET) == 99999
+
+
+def test_expand_archives_recurses_into_nested_archives(tmp_path: Path) -> None:
+    # A document inside an archive inside an archive must still be recovered.
+    inner = tmp_path / "inner.zip"
+    with zipfile.ZipFile(inner, "w") as archive:
+        archive.writestr("deep/report.txt", "Обеднение шлака изучено детально.")
+    outer = tmp_path / "outer.zip"
+    with zipfile.ZipFile(outer, "w") as archive:
+        archive.write(inner, arcname="nested/inner.zip")
+
+    extracted, stats = expand_archives([outer], tmp_path / "work")
+
+    assert any(path.name == "report.txt" for path in extracted)
+    assert stats["nested_archives_expanded"] >= 1
+
+
+def test_expand_archives_handles_archives_within_archives_within_archives(
+    tmp_path: Path,
+) -> None:
+    # Three levels deep — nothing lost.
+    level3 = tmp_path / "level3.zip"
+    with zipfile.ZipFile(level3, "w") as archive:
+        archive.writestr("final.md", "финальный документ")
+    level2 = tmp_path / "level2.zip"
+    with zipfile.ZipFile(level2, "w") as archive:
+        archive.write(level3, arcname="level3.zip")
+    top = tmp_path / "top.zip"
+    with zipfile.ZipFile(top, "w") as archive:
+        archive.write(level2, arcname="level2.zip")
+
+    extracted, _stats = expand_archives([top], tmp_path / "work")
+
+    assert any(path.name == "final.md" for path in extracted)
+
+
+def test_multipart_rar_secondary_parts_and_pptx_support() -> None:
+    from nornikel_kg.services.archive_expansion import (
+        INGESTIBLE_EXTENSIONS,
+        _is_secondary_rar_part,
+    )
+
+    assert _is_secondary_rar_part("CM_09_12.part2.rar")
+    assert not _is_secondary_rar_part("CM_09_12.part1.rar")
+    assert not _is_secondary_rar_part("report.rar")
+    assert ".pptx" in INGESTIBLE_EXTENSIONS
