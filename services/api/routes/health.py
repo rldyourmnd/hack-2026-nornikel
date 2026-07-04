@@ -5,20 +5,21 @@ import os
 from fastapi import APIRouter
 
 from nornikel_kg import __version__
+from nornikel_kg.adapters.llm.settings import LLMSettings
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
 def health() -> dict[str, object]:
-    llm_enabled = os.getenv("LLM_ENABLED", "false").lower() in {"1", "true", "yes"}
+    settings = LLMSettings()
     llm_configured = bool(
-        os.getenv("LLM_API_BASE") and os.getenv("LLM_API_KEY") and os.getenv("LLM_ANSWER_MODEL")
+        settings.llm_api_base and settings.llm_api_key and settings.llm_answer_model
     )
     return {
         "status": "ok",
         "version": __version__,
-        "llm_enabled": llm_enabled,
-        "llm_configured": llm_enabled and llm_configured,
+        "llm_enabled": settings.llm_enabled,
+        "llm_configured": settings.llm_enabled and llm_configured,
         "embedding_backend": os.getenv("EMBEDDING_BACKEND", "off"),
     }
