@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: d1c6fac ui(web): elevate landing page presentation
+Last commit: 0f693aa fix(web): eager load landing illustrations
 Scope: apps/web/src/pages/landing/ui/LandingPage.tsx; apps/web/src/widgets/app-layout/ui/Header.tsx; apps/web/src/shared/config/theme/theme.css; apps/web/src/shared/config/nav.ts
 Area: DESIGN
 -->
@@ -40,6 +40,9 @@ workbench.
 - Landing stat fallbacks are presentation-only for local/offline rendering. When
   `/stats/overview` is available, `sources` and `evidence_spans` are rendered
   from the API.
+- Critical landing illustrations (`hero-graph.png`, geography image) use eager
+  image loading and sync decoding hints so deploy/browser screenshots do not
+  capture empty visual frames while large PNGs are still decoding.
 
 ## Contracts And Data
 
