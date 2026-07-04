@@ -1,6 +1,6 @@
 <!-- Memory Metadata
 Last updated: 2026-07-04
-Last commit: 97407f4
+Last commit: 4e4a038
 Scope: README.md; .github/workflows/ci.yml; pyproject.toml; docker-compose.server.yml; docs/deployment/full-ingest-runbook.md; scripts/run_realcase_eval.py; src/nornikel_kg/
 Area: TECHDEBT
 -->
