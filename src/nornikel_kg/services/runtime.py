@@ -101,7 +101,10 @@ def get_retrieval_service() -> RetrievalService:
         from nornikel_kg.adapters.reranker import CrossEncoderReranker
 
         reranker = CrossEncoderReranker()
-    return RetrievalService(get_ledger_repository(), index, reranker=reranker)
+    rerank_candidates = int(os.getenv("RERANK_CANDIDATES", "50"))
+    return RetrievalService(
+        get_ledger_repository(), index, reranker=reranker, rerank_candidates=rerank_candidates
+    )
 
 
 @lru_cache

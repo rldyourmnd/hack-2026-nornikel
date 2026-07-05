@@ -22,6 +22,7 @@ class RerankerPort(Protocol):
         self, query: str, candidates: list[tuple[str, str]], *, top_k: int
     ) -> list[str]:
         """(unit_id, text) candidates -> unit_ids of the top_k most relevant."""
+        ...
 
 
 class RetrievalService:
@@ -134,7 +135,7 @@ class RetrievalService:
         question: str,
         allowed_labels: list[str],
         source_ids: list[str] | None = None,
-        top_k: int = 10,
+        top_k: int = 15,
     ) -> list[str]:
         """Hybrid search (+ optional rerank) -> span IDs verified in DuckDB."""
         if self.index is None:
