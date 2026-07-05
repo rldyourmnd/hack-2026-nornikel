@@ -41,11 +41,77 @@ class QdrantVectorIndex:
     def __init__(self, url: str, embeddings: EmbeddingBackendPort) -> None:
         self.url = url
         self.embeddings = embeddings
+        self._cached_client: Any = None
 
     def _client(self) -> Any:
         from qdrant_client import QdrantClient
 
-        return QdrantClient(url=self.url, timeout=20)
+        if self._cached_client is None:
+            self._cached_client = QdrantClient(url=self.url, timeout=20)
+        return self._cached_client
+
+    def _ensure_payload_indexes(self, client: Any, collection: str) -> None:
+        """Create keyword payload indexes on filter fields if missing.
+
+        Without a payload index, Qdrant scans every point to evaluate
+        ``Filter(must=[FieldCondition(key="security_label", ...)])``. With a
+        keyword index, the filter becomes an O(log n) lookup. This is a live
+        operation on an existing collection; Qdrant builds the index
+        asynchronously. If the collection already has data, the HNSW graph
+        should be rebuilt to benefit from filter-aware edges, but search
+        correctness is unaffected — only filter speed improves.
+        """
+        from qdrant_client import models
+
+        try:
+            schema = client.get_collection(collection).payload_schema
+        except Exception:
+            return
+        existing = {str(k) for k in (schema or {})}
+        for field in ("security_label", "source_id"):
+            if field not in existing:
+                try:
+                    client.create_payload_index(
+                        collection_name=collection,
+                        field_name=field,
+                        field_schema=models.PayloadSchemaType.KEYWORD,
+                    )
+                    logger.info("Created payload index on %s.%s", collection, field)
+                except Exception:
+                    logger.debug("Payload index %s.%s skipped", collection, field, exc_info=True)
+
+    def _ensure_quantization(self, client: Any, collection: str) -> None:
+        """Enable scalar int8 quantization (always_ram) if not yet configured.
+
+        SQ int8 compresses dense vectors 4x (1536-dim float32 → int8) with
+        <1% recall loss. ``always_ram=True`` keeps quantized vectors in RAM
+        while original vectors stay on disk (mmap), eliminating disk I/O from
+        the search hot path. This is a live ``update_collection`` call — no
+        data re-embedding or collection recreation needed; Qdrant quantizes
+        existing vectors in the background during optimizer passes.
+        """
+        from qdrant_client import models
+
+        try:
+            config = client.get_collection(collection).config
+            if config.quantile_config is not None or config.quantization_config is not None:
+                return
+        except Exception:
+            return
+        try:
+            client.update_collection(
+                collection_name=collection,
+                quantization_config=models.ScalarQuantization(
+                    scalar=models.ScalarQuantizationConfig(
+                        type=models.ScalarType.INT8,
+                        quantile=0.99,
+                        always_ram=True,
+                    ),
+                ),
+            )
+            logger.info("Enabled SQ int8 quantization on %s", collection)
+        except Exception:
+            logger.debug("SQ quantization on %s skipped", collection, exc_info=True)
 
     def _ensure_collection(self, client: Any, collection: str, dense_dim: int) -> None:
         from qdrant_client import models
@@ -58,6 +124,8 @@ class QdrantVectorIndex:
                     f"backend dim {dense_dim}; point QDRANT_COLLECTION at a per-model "
                     f"collection or reindex into a fresh one."
                 )
+            self._ensure_payload_indexes(client, collection)
+            self._ensure_quantization(client, collection)
             return
         try:
             client.create_collection(
@@ -72,6 +140,13 @@ class QdrantVectorIndex:
                         modifier=models.Modifier.IDF,
                     )
                 },
+                quantization_config=models.ScalarQuantization(
+                    scalar=models.ScalarQuantizationConfig(
+                        type=models.ScalarType.INT8,
+                        quantile=0.99,
+                        always_ram=True,
+                    ),
+                ),
             )
         except Exception:
             # Sharded ingests may race on first collection creation. If another
@@ -82,8 +157,11 @@ class QdrantVectorIndex:
                     _DENSE_NAME
                 ].size
                 if existing == dense_dim:
+                    self._ensure_payload_indexes(client, collection)
+                    self._ensure_quantization(client, collection)
                     return
             raise
+        self._ensure_payload_indexes(client, collection)
 
     def index_units(
         self,
@@ -212,7 +290,7 @@ class QdrantVectorIndex:
             query=models.FusionQuery(fusion=models.Fusion.RRF),
             query_filter=query_filter,
             limit=top_k,
-            with_payload=True,
+            with_payload=["unit_id"],
         )
         return [
             RetrievalHit(
@@ -249,7 +327,7 @@ class QdrantVectorIndex:
             using=_DENSE_NAME,
             query_filter=models.Filter(must=conditions) if conditions else None,
             limit=top_k,
-            with_payload=True,
+            with_payload=["unit_id"],
         )
         return [
             RetrievalHit(

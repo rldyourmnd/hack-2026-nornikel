@@ -20,6 +20,13 @@ UI copy or corpus examples.
 - Only `src/nornikel_kg/adapters/llm/gateway.py` may import LiteLLM directly.
 - Production ingest must not require a local GPU or graphical runtime.
 - Do not reintroduce legacy fixture seed data as runtime truth.
+- The full evidence graph is never rebuilt from source files — there are no
+  compute resources for a second full ingest. Qdrant payload indexes, scalar
+  quantization (`update_collection`), DuckDB table reorganization, and
+  targeted reindex of missing spans are all permitted because they operate on
+  existing data without re-embedding or re-parsing source files. A full
+  `scripts/ingest_corpus.py` run or embedding-model change requiring a fresh
+  Qdrant collection is explicitly out of scope.
 
 ## Main Commands
 

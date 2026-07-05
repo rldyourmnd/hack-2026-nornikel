@@ -673,7 +673,6 @@ class DuckDBLedgerRepository:
     def set_source_metadata(
         self, source_id: str, *, year: int | None, geography: str | None
     ) -> None:
-        self._data_version += 1
         self.migrate()
         with self._connect() as connection:
             connection.execute(

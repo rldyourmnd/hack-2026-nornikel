@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import re
 import time
+from concurrent.futures import Future, ThreadPoolExecutor
 from difflib import SequenceMatcher
 from typing import Any, Literal, Protocol
 
@@ -61,6 +62,7 @@ class RetrievalServiceProtocol(Protocol):
         top_k: int = 10,
     ) -> list[str]:
         """Hybrid-retrieval span candidates."""
+        ...
 
 
 class AnswerComposerProtocol(Protocol):
@@ -75,6 +77,7 @@ class AnswerComposerProtocol(Protocol):
         source_context: dict[str, str] | None = None,
     ) -> tuple[list[AnswerSentence], str]:
         """LLM answer synthesis with deterministic fallback."""
+        ...
 
 
 class RunRecorderProtocol(Protocol):
@@ -90,9 +93,11 @@ class RunRecorderProtocol(Protocol):
         verification: dict[str, Any],
     ) -> None:
         """Persist replayable answer-run metadata."""
+        ...
 
     def source_metadata(self) -> dict[str, dict[str, Any]]:
         """source_id -> {year, geography} for scope filters."""
+        ...
 
 
 class EvidenceQAService:
@@ -115,6 +120,11 @@ class EvidenceQAService:
         self.answer_composer = answer_composer
         self.run_recorder = run_recorder
         self._packet_cache: tuple[int, EvidenceLedgerPacket] | None = None
+        # One background worker for retrieval: the Qdrant hybrid search (dense
+        # embedding API call + sparse + search + DuckDB rejoin) runs concurrently
+        # with the DuckDB packet load, overlapping ~200–800ms of network latency
+        # with the ~5–15s cold packet load.
+        self._executor = ThreadPoolExecutor(max_workers=1)
 
     def _effective_label_policy(self, request: AskRequest) -> SourceLabelPolicy:
         """Per-request label policy: a narrow-only intersection with the
@@ -127,9 +137,15 @@ class EvidenceQAService:
 
     def ask(self, request: AskRequest) -> AskResponse:
         started = time.perf_counter()
-        packet = self._load_packet()
         filters = self._effective_filters(request)
         label_policy = self._effective_label_policy(request)
+        # Start Qdrant hybrid retrieval in a background thread — it only needs
+        # the question, allowed_labels, and source_ids from request filters,
+        # not the DuckDB packet. This overlaps the dense embedding API call
+        # (~200–800ms network) and Qdrant search (~50ms) with the packet load
+        # (~5–15s on cache miss, ~0ms on cache hit).
+        retrieval_future = self._start_retrieval(request, label_policy)
+        packet = self._load_packet()
         # Explicit UI year filters are strict; a scope derived from question
         # text keeps unknown-year sources (not knowing the year is not the
         # same as being out of range).
@@ -164,6 +180,7 @@ class EvidenceQAService:
             allowed_evidence=allowed_evidence,
             selected_evidence=selected_evidence,
             label_policy=label_policy,
+            retrieval_future=retrieval_future,
         )
         selected_evidence = self._apply_scope_to_evidence(
             selected_evidence, filters, keep_unknown_year=not strict_years
@@ -413,6 +430,35 @@ class EvidenceQAService:
             )
         ]
 
+    def _start_retrieval(
+        self, request: AskRequest, label_policy: SourceLabelPolicy
+    ) -> Future[list[str]] | None:
+        """Submit Qdrant hybrid retrieval to a background thread.
+
+        Returns a Future that resolves to a list of span_ids, or None if
+        retrieval is disabled. The future silently catches exceptions —
+        retrieval is additive, never breaks answers.
+        """
+        if self.retrieval_service is None:
+            return None
+        source_ids: list[str] | None = None
+        if request.filters:
+            scoped = self._list_filter_values(request.filters, "source_ids", "source_id")
+            if scoped:
+                source_ids = sorted(scoped)
+
+        def _safe_retrieve() -> list[str]:
+            try:
+                return self.retrieval_service.retrieve_span_ids(  # type: ignore[union-attr]
+                    question=request.question,
+                    allowed_labels=sorted(label_policy.allowed_labels),
+                    source_ids=source_ids,
+                )
+            except Exception:
+                return []
+
+        return self._executor.submit(_safe_retrieve)
+
     def _augment_with_retrieval(
         self,
         *,
@@ -420,23 +466,13 @@ class EvidenceQAService:
         allowed_evidence: list[EvidenceSpan],
         selected_evidence: list[EvidenceSpan],
         label_policy: SourceLabelPolicy,
+        retrieval_future: Future[list[str]] | None = None,
     ) -> list[EvidenceSpan]:
-        if self.retrieval_service is None:
+        if self.retrieval_service is None or retrieval_future is None:
             return selected_evidence
         allowed_by_id = {span.span_id: span for span in allowed_evidence}
-        source_ids: list[str] | None = None
-        if request.filters:
-            # Both filter spellings are honored (`source_id` scope
-            # silently leaked other sources into the LLM packet).
-            scoped = self._list_filter_values(request.filters, "source_ids", "source_id")
-            if scoped:
-                source_ids = sorted(scoped)
         try:
-            retrieved_ids = self.retrieval_service.retrieve_span_ids(
-                question=request.question,
-                allowed_labels=sorted(label_policy.allowed_labels),
-                source_ids=source_ids,
-            )
+            retrieved_ids = retrieval_future.result(timeout=30)
         except Exception:  # retrieval degradation is silent by contract
             return selected_evidence
         present = {span.span_id for span in selected_evidence}

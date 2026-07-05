@@ -228,6 +228,15 @@ class LiteLLMGateway:
                             completion_kwargs["output_config"] = {
                                 "effort": reasoning_effort
                             }
+                            # Disable adaptive thinking to cut latency: on
+                            # citation-gated QA the retriever already selected
+                            # the evidence, so deep reasoning adds time without
+                            # improving the structured JSON answer. Passed via
+                            # extra_body so OpenAI-compatible endpoints that do
+                            # not recognise the field simply ignore it.
+                            completion_kwargs["extra_body"] = {
+                                "thinking": {"type": "disabled"}
+                            }
                         else:
                             completion_kwargs["reasoning_effort"] = reasoning_effort
                             # LiteLLM can reject OpenAI-compatible nonstandard

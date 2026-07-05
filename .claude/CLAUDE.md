@@ -68,4 +68,8 @@ docker compose config
 - Do not commit `.env`, provider credentials, runtime databases, artifacts, or
   local cache state.
 - Do not add legacy fixture seed data back into runtime paths.
+- The full evidence graph is never rebuilt from source files — no compute
+  resources for a second full ingest. Qdrant payload indexes, scalar
+  quantization, DuckDB table reorganization, and targeted reindex of missing
+  spans are permitted (they operate on existing data, not source files).
 - For answer quality, preserve the cited-sentence and numeric-support invariant.
