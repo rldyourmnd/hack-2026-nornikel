@@ -1,7 +1,7 @@
 <!-- Memory Metadata
 Last updated: 2026-07-05
-Last commit: 3a3b13e feat(web): polish full graph workbench UI
-Scope: apps/web/src/pages/landing/ui/LandingPage.tsx; apps/web/src/pages/search/ui/SearchPage.tsx; apps/web/src/pages/graph/ui/GraphPage.tsx; apps/web/src/pages/data/ui/DataPage.tsx; apps/web/src/pages/analytics/ui/AnalyticsPage.tsx; apps/web/src/pages/compare/ui/ComparePage.tsx; apps/web/src/pages/experts/ui/ExpertsPage.tsx; apps/web/src/pages/eval/ui/EvalPage.tsx; apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx; apps/web/src/widgets/graph-view/ui/GraphNeighborhood.tsx; apps/web/src/widgets/artifact-bank/ui/EvidenceList.tsx; apps/web/src/shared/config/theme/theme.css; apps/web/src/shared/config/nav.ts
+Last commit: 565bd92 feat(web): redesign evidence search workbench
+Scope: apps/web/src/pages/landing/ui/LandingPage.tsx; apps/web/src/pages/search/ui/SearchPage.tsx; apps/web/src/pages/graph/ui/GraphPage.tsx; apps/web/src/pages/data/ui/DataPage.tsx; apps/web/src/pages/analytics/ui/AnalyticsPage.tsx; apps/web/src/pages/compare/ui/ComparePage.tsx; apps/web/src/pages/experts/ui/ExpertsPage.tsx; apps/web/src/pages/eval/ui/EvalPage.tsx; apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx; apps/web/src/widgets/graph-view/ui/GraphNeighborhood.tsx; apps/web/src/widgets/artifact-bank/ui/EvidenceList.tsx; apps/web/src/shared/api/client.ts; apps/web/src/shared/api/types.ts; apps/web/src/shared/api/index.ts; apps/web/src/shared/config/theme/theme.css; apps/web/src/shared/config/nav.ts
 Area: DESIGN
 -->
 
@@ -19,9 +19,13 @@ workbench.
 - `apps/web/src/pages/landing/ui/LandingPage.tsx`: public landing page content,
   dynamic stat binding, feature narrative, pipeline section, and CTA.
 - `apps/web/src/pages/search/ui/SearchPage.tsx` and
-  `apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx`: QA chat,
-  jury question, loading state, answer verification, source-colored citations,
-  and evidence cards.
+  `apps/web/src/widgets/analysis-workbench/ui/AnalysisWorkbench.tsx`:
+  professional evidence search workbench, jury questions, real source/country/
+  document/security filters, loading process monitor, answer verification,
+  source-colored answer text, source rail, and live evidence cards.
+- `apps/web/src/shared/api/client.ts`, `apps/web/src/shared/api/types.ts`, and
+  `apps/web/src/shared/api/index.ts`: frontend API contract for QA requests,
+  source listing, source evidence loading, and `allowed_labels` narrowing.
 - `apps/web/src/pages/graph/ui/GraphPage.tsx` and
   `apps/web/src/widgets/graph-view/ui/GraphNeighborhood.tsx`: optimized graph
   neighborhood explorer and full-graph KPI context.
@@ -61,9 +65,23 @@ workbench.
 - Critical landing illustrations (`hero-graph.png`, geography image) use eager
   image loading and sync decoding hints so deploy/browser screenshots do not
   capture empty visual frames while large PNGs are still decoding.
-- Search defaults to the jury mine-water literature-review question and shows a
-  chat-style answer area, animated retrieval status, verified sentence bubbles,
-  source-colored citation chips, evidence cards, and verification metrics.
+- Search is a three-zone professional workbench: query/filter console, answer
+  stage, and source/evidence rail. It defaults to organizer-track questions and
+  keeps user interaction on a real `/qa/ask` path.
+- Search filters are built from live `listSources()` data where possible:
+  source text search, real `SourceSummary.geography` country/geography values,
+  document types, source checkboxes, security labels, year/material/property/
+  regime/experiment/regime-id fields, and a jury mode that narrows source labels
+  to public/internal.
+- The search loading state shows an elapsed clock, staged retrieval/generation/
+  verification progress, selected corpus scope, active filters, and source
+  candidate counts while the live request is pending.
+- Answer rendering colors sentence fragments by the source that supports each
+  span. Citation chips focus the matching evidence card, and the adjacent source
+  rail shows the files used in the answer with the same source colors.
+- The source rail can open a real file/source context by calling
+  `/sources/{source_id}/evidence` through `fetchSourceEvidence(sourceId)`.
+  Returned snippets are rendered next to the answer and reuse `EvidenceList`.
 - Graph renders a limited neighborhood (default mine-water entity) with
   relation/type summaries, selected-node details, and full-graph totals. It must
   not attempt to render all relations in the browser.
@@ -85,8 +103,14 @@ workbench.
 - Workbench pages may present live graph counts and answer metrics, but must not
   claim all Qdrant/DuckDB facts are rendered client-side. Large graph views stay
   sampled/neighborhoood-based for performance.
-- Search evidence coloring is derived from `source_id` and must stay tied to
-  actual returned evidence cards.
+- Search evidence coloring is derived from `source_id`, not presentation order,
+  and must stay tied to actual returned evidence cards and source rail entries.
+- Search country/geography filters use values observed in `SourceSummary`
+  records. Document-type filtering narrows client-side source candidates and
+  sends matching `source_ids` because the QA filter schema has no document-type
+  field.
+- `allowed_labels` in the frontend request only narrows the server-side allowed
+  label floor. The UI must not offer a way to expand access beyond server policy.
 
 ## Verification
 
@@ -105,3 +129,9 @@ workbench.
   screenshots for `/search`, `/graph`, `/data`, `/analytics`, `/compare`,
   `/experts`, and `/eval`, plus public `/search` and `/eval` smoke screenshots.
   Console error checks were clean in the validated run.
+- Search redesign browser check: local Vite with
+  `VITE_API_BASE_URL=https://nornikel.nddev.asia/api`, Playwright CLI verified
+  `/search` against the live stand. `/health` and `/sources` returned 200,
+  `POST /qa/ask` returned 200, source viewer `GET /sources/{source_id}/evidence`
+  returned 200, and console error count stayed 0. Screenshots captured desktop,
+  loading, answered, source-viewer, and mobile one-column states.
