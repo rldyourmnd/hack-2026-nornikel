@@ -5,6 +5,7 @@ import type {
   AskResponse,
   EntitySearchResult,
   EvalSummary,
+  EvidenceSpan,
   GapsAnalysis,
   GraphNeighborhood,
   HealthStatus,
@@ -128,6 +129,19 @@ export async function listSources(): Promise<SourceSummary[]> {
 
   const payload = (await response.json()) as { sources: SourceSummary[] };
   return payload.sources;
+}
+
+export async function fetchSourceEvidence(sourceId: string): Promise<EvidenceSpan[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/sources/${encodeURIComponent(sourceId)}/evidence`,
+  );
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response, "Source evidence request failed"));
+  }
+
+  const payload = (await response.json()) as { evidence: EvidenceSpan[] };
+  return payload.evidence;
 }
 
 export async function uploadSource(file: File): Promise<SourceIngestResponse> {

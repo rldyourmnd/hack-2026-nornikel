@@ -110,6 +110,7 @@ export type AskRequest = {
   include_graph?: boolean;
   include_gaps?: boolean;
   filters?: AskFilters;
+  allowed_labels?: Array<"public" | "internal" | "confidential" | "restricted">;
 };
 
 export type GraphNode = {

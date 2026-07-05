@@ -7,6 +7,7 @@ export {
   fetchEvalSummary,
   fetchHealth,
   fetchNeighborhood,
+  fetchSourceEvidence,
   fetchStats,
   fetchTimeline,
   importUrl,

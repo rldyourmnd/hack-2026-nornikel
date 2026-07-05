@@ -1,6 +1,6 @@
 import { FileText, Table2 } from "lucide-react";
 
-import type { EvidenceSpan } from "@/shared/api";
+import type { EvidenceSpan, SourceSummary } from "@/shared/api";
 import { Panel } from "@/shared/ui";
 
 type EvidenceListProps = {
@@ -8,6 +8,8 @@ type EvidenceListProps = {
   citationIndex?: Map<string, number>;
   highlightedSpanId?: string | null;
   sourceColorMap?: Map<string, string>;
+  sourceById?: Map<string, SourceSummary>;
+  onOpenSource?: (sourceId: string) => void;
 };
 
 function locatorText(locator: Record<string, unknown> | undefined): string | null {
@@ -29,6 +31,8 @@ export function EvidenceList({
   citationIndex,
   highlightedSpanId,
   sourceColorMap,
+  sourceById,
+  onOpenSource,
 }: EvidenceListProps) {
   return (
     <Panel title="Evidence cards">
@@ -37,6 +41,7 @@ export function EvidenceList({
           const number = citationIndex?.get(span.span_id);
           const locator = locatorText(span.locator);
           const sourceColor = sourceColorMap?.get(span.source_id);
+          const source = sourceById?.get(span.source_id);
           return (
             <article
               className={
@@ -57,7 +62,7 @@ export function EvidenceList({
                     </span>
                   ) : null}
                   {span.span_type === "table_row" ? <Table2 size={14} /> : <FileText size={14} />}{" "}
-                  {span.span_id}
+                  {source?.title ?? span.source_id}
                 </span>
                 <span>
                   page {span.page ?? "-"}
@@ -65,6 +70,18 @@ export function EvidenceList({
                 </span>
               </div>
               <p className="evidence-text">{span.visible_text}</p>
+              <div className="evidence-actions">
+                <span>{span.span_id}</span>
+                {onOpenSource ? (
+                  <button
+                    className="text-button"
+                    onClick={() => onOpenSource(span.source_id)}
+                    type="button"
+                  >
+                    Открыть источник
+                  </button>
+                ) : null}
+              </div>
             </article>
           );
         })}
