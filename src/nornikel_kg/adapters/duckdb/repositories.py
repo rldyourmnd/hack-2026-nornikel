@@ -8,7 +8,7 @@ import os
 import re
 import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, cast
 
@@ -89,6 +89,14 @@ class DuckDBLedgerRepository:
         with self._db_lock:
             if self._connection is None:
                 self._connection = duckdb.connect(str(self.db_path))
+                # Use available RAM for the buffer manager: it caches pages
+                # across queries, eliminating disk I/O on warm reads. The
+                # default is 80% of physical RAM which may be too aggressive
+                # in a container; cap explicitly so DuckDB and Qdrant share
+                # RAM predictably. Override via DUCKDB_MEMORY_LIMIT env.
+                memory_limit = os.getenv("DUCKDB_MEMORY_LIMIT", "2GB")
+                with suppress(Exception):
+                    self._connection.execute(f"SET memory_limit='{memory_limit}'")
             yield self._connection
 
     @property

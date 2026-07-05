@@ -268,8 +268,9 @@ class QdrantVectorIndex:
         query_filter = models.Filter(must=conditions) if conditions else None
 
         # Fusion needs a candidate pool well above the final limit; filters go
-        # into every prefetch too (version-stable propagation).
-        prefetch_limit = max(50, top_k * 3)
+        # into every prefetch too (version-stable propagation). With ample RAM,
+        # over-fetch 100 candidates per retriever for better RRF recall.
+        prefetch_limit = max(100, top_k * 5)
         prefetch = [
             models.Prefetch(
                 query=dense, using=_DENSE_NAME, limit=prefetch_limit, filter=query_filter
