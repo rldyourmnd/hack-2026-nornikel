@@ -6,6 +6,7 @@ import pytest
 
 from nornikel_kg.adapters.duckdb.repositories import DuckDBLedgerRepository
 from nornikel_kg.adapters.embeddings import FakeEmbeddingBackend
+from nornikel_kg.adapters.reranker import LexicalReranker
 from nornikel_kg.ports.retrieval import IndexableUnit, RetrievalHit
 from nornikel_kg.services.entity_resolution import EntityResolutionService
 from nornikel_kg.services.retrieval_service import RetrievalService
@@ -109,6 +110,13 @@ class _ReversingReranker:
         return [unit_id for unit_id, _ in reversed(candidates)][:top_k]
 
 
+class _UnknownIdReranker:
+    def rerank(
+        self, query: str, candidates: list[tuple[str, str]], *, top_k: int
+    ) -> list[str]:
+        return ["missing-span"]
+
+
 def test_indexed_units_carry_source_title_context(
     repository: DuckDBLedgerRepository,
 ) -> None:
@@ -148,3 +156,44 @@ def test_reranker_reorders_verified_candidates(repository: DuckDBLedgerRepositor
     )
     # reranker reversed the fused order -> second hit wins
     assert result == [index.hits[1].unit_id]
+
+
+def test_reranker_unknown_ids_fall_back_to_fused_order(
+    repository: DuckDBLedgerRepository,
+) -> None:
+    csv_content = (
+        b"experiment_id,material,regime,temperature_c,duration_h,atmosphere,"
+        b"property,method,baseline_value,treated_value,unit,effect\n"
+        b"exp_r1,Ni-30Cu,aging,700,8,air,Vickers hardness,HV10,210,245,HV,increase\n"
+        b"exp_r2,Ni-20Cu,aging,700,8,air,Vickers hardness,HV10,200,230,HV,increase\n"
+    )
+    repository.ingest_source_bytes(filename="rerank-bad.csv", content=csv_content)
+    spans = repository.list_evidence_spans()
+    index = _RecordingIndex()
+    index.hits = [
+        RetrievalHit(unit_id=span.span_id, score=1.0 - i / 10, payload={})
+        for i, span in enumerate(spans[:2])
+    ]
+    service = RetrievalService(
+        repository, index, reranker=_UnknownIdReranker(), rerank_candidates=2
+    )
+    result = service.retrieve_span_ids(
+        question="q", allowed_labels=["internal"], top_k=1
+    )
+    assert result == [index.hits[0].unit_id]
+
+
+def test_lexical_reranker_prioritizes_russian_query_terms() -> None:
+    reranker = LexicalReranker()
+    result = reranker.rerank(
+        "обессоливание воды сульфаты хлориды сухой остаток 1000 мг",
+        [
+            ("furnace", "Печь Ванюкова содержит сведения о штейне и шлаке."),
+            (
+                "water",
+                "Обессоливание воды: сульфаты, хлориды, сухой остаток 1000 мг/дм3.",
+            ),
+        ],
+        top_k=1,
+    )
+    assert result == ["water"]

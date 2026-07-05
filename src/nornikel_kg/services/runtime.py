@@ -13,7 +13,7 @@ from nornikel_kg.services.extraction_service import ExtractionService
 from nornikel_kg.services.graph_service import GraphService
 from nornikel_kg.services.ingestion_service import IngestionService
 from nornikel_kg.services.qa_service import EvidenceQAService
-from nornikel_kg.services.retrieval_service import RetrievalService
+from nornikel_kg.services.retrieval_service import RerankerPort, RetrievalService
 
 _repository_build_lock = Lock()
 
@@ -92,16 +92,25 @@ def get_retrieval_service() -> RetrievalService:
             embeddings = FakeEmbeddingBackend()
         qdrant_url = os.getenv("QDRANT_URL", "http://qdrant:6333")
         index = QdrantVectorIndex(qdrant_url, embeddings)  # type: ignore[arg-type]
-    reranker = None
+    reranker: RerankerPort | None = None
     if index is not None and os.getenv("RERANKER_ENABLED", "false").lower() in {
         "1",
         "true",
         "yes",
     }:
-        from nornikel_kg.adapters.reranker import CrossEncoderReranker
+        reranker_kind = os.getenv("RERANKER_KIND", "lexical").lower().replace("_", "-")
+        if reranker_kind in {"lexical", "cpu-lexical", "light"}:
+            from nornikel_kg.adapters.reranker import LexicalReranker
 
-        reranker = CrossEncoderReranker()
-    rerank_candidates = int(os.getenv("RERANK_CANDIDATES", "50"))
+            reranker = LexicalReranker()
+        elif reranker_kind in {"cross-encoder", "crossencoder", "neural"}:
+            from nornikel_kg.adapters.reranker import CrossEncoderReranker
+
+            reranker = CrossEncoderReranker()
+        else:
+            raise ValueError(f"Unsupported RERANKER_KIND={reranker_kind!r}")
+    default_candidates = "30" if reranker is not None else "15"
+    rerank_candidates = int(os.getenv("RERANK_CANDIDATES", default_candidates))
     return RetrievalService(
         get_ledger_repository(), index, reranker=reranker, rerank_candidates=rerank_candidates
     )

@@ -166,11 +166,13 @@ class RetrievalService:
         if self.reranker is None or len(verified) <= top_k:
             return verified[:top_k]
         try:
-            return self.reranker.rerank(
+            reranked = self.reranker.rerank(
                 question,
                 [(span_id, known[span_id].visible_text) for span_id in verified],
                 top_k=top_k,
             )
+            filtered = [span_id for span_id in reranked if span_id in known]
+            return filtered or verified[:top_k]
         except Exception:
             logger.warning("Reranking failed; returning fused order", exc_info=True)
             return verified[:top_k]
