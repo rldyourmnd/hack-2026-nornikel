@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
@@ -14,6 +15,10 @@ from nornikel_kg.ports.llm import LLMError, LLMPort
 
 logger = logging.getLogger(__name__)
 
+_ANSWER_MAX_SENTENCES = int(os.getenv("ANSWER_MAX_SENTENCES", "6"))
+_ANSWER_EVIDENCE_LIMIT = int(os.getenv("ANSWER_EVIDENCE_LIMIT", "12"))
+_ANSWER_SPAN_CHAR_LIMIT = int(os.getenv("ANSWER_SPAN_CHAR_LIMIT", "320"))
+
 _ANSWER_SYSTEM_PROMPT = (
     "Ты пишешь ответ на вопрос исследователя по материаловедению. Используй ТОЛЬКО "
     "факты из переданного пакета доказательств. Каждое предложение обязано ссылаться "
@@ -24,6 +29,8 @@ _ANSWER_SYSTEM_PROMPT = (
     "научные знания, вводные конструкции, выводы или обобщения, не опирающиеся "
     "на конкретный фрагмент пакета. Синтезируй выводы и называй конкретные "
     "значения и факторы — не отсылай читателя к номерам таблиц и рисунков. "
+    f"Верни не более {_ANSWER_MAX_SENTENCES} коротких предложений; если данных много, "
+    "приоритизируй прямой ответ на вопрос, численные значения и расхождения практик. "
     "Если вопрос просит обзор или сравнение практик — группируй факты по годам "
     "и географии источников (метаданные указаны в пакете), явно отмечая "
     "консенсусные выводы и расхождения. Если в пакете недостаточно данных для "
@@ -36,6 +43,7 @@ _ANSWER_JSON_SCHEMA: dict[str, Any] = {
     "properties": {
         "sentences": {
             "type": "array",
+            "maxItems": _ANSWER_MAX_SENTENCES,
             "items": {
                 "type": "object",
                 "properties": {
@@ -129,7 +137,7 @@ class LLMAnswerComposer:
 
             kept: list[AnswerSentence] = []
             dropped = 0
-            for sentence in parsed.sentences:
+            for sentence in parsed.sentences[:_ANSWER_MAX_SENTENCES]:
                 valid_ids = [
                     span_id
                     for span_id in sentence.supporting_span_ids
@@ -180,10 +188,13 @@ class LLMAnswerComposer:
             "",
             "Пакет доказательств:",
         ]
-        for span in evidence[:40]:
+        for span in evidence[:_ANSWER_EVIDENCE_LIMIT]:
             context = source_context.get(span.source_id, "")
             context_part = f" [{context}]" if context else ""
-            lines.append(f"- span_id={span.span_id}{context_part}: {span.visible_text[:400]}")
+            lines.append(
+                f"- span_id={span.span_id}{context_part}: "
+                f"{span.visible_text[:_ANSWER_SPAN_CHAR_LIMIT]}"
+            )
         if experiments:
             lines.append("")
             lines.append("Эксперименты:")

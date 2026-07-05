@@ -51,6 +51,38 @@ def test_valid_llm_answer_is_used() -> None:
     assert summary[0].supporting_span_ids == ["evs_1"]
 
 
+def test_answer_prompt_and_schema_are_token_budgeted() -> None:
+    fake = FakeLLM(
+        canned={
+            "answer": {
+                "sentences": [
+                    {
+                        "sentence": "Твердость Ni-30Cu выросла до 245 HV.",
+                        "supporting_span_ids": ["evs_1"],
+                    }
+                ]
+            }
+        }
+    )
+    composer = LLMAnswerComposer(fake)
+    evidence = [
+        _span(f"evs_{index}", text=f"Ni-30Cu {index} 245 HV " + "x" * 600)
+        for index in range(1, 20)
+    ]
+    composer.compose(
+        question="Что с твердостью?",
+        experiments=[],
+        evidence=evidence,
+        fallback_summary=_fallback(),
+        run_id="run_budget",
+    )
+    [call] = fake.calls
+    assert call["json_schema"]["properties"]["sentences"]["maxItems"] == 6
+    assert "span_id=evs_12" in call["user_prompt"]
+    assert "span_id=evs_13" not in call["user_prompt"]
+    assert "x" * 400 not in call["user_prompt"]
+
+
 def test_unsupported_sentences_trigger_regeneration_then_fallback() -> None:
     fake = FakeLLM()
     # Both attempts cite a span that is NOT in the packet.
